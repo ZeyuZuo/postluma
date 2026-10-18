@@ -1,4 +1,6 @@
 export type SettingKey = 'default_mailbox_quota' | 'retention_days' | 'registration_open' | 'admin_bootstrapped'
+  | 'max_total_mailboxes'
+  | 'max_daily_mailbox_creations'
 
 export async function getSetting(db: D1Database, key: SettingKey): Promise<string | null> {
   const row = await db.prepare('SELECT value FROM settings WHERE key = ?').bind(key).first<{ value: string }>()

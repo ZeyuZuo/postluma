@@ -7,7 +7,10 @@ import { ApiError } from './lib/errors'
 import { requireAdmin, requireUser } from './middleware/auth'
 import { checkOrigin } from './middleware/origin'
 import { getBoolSetting } from './repo/settings'
+import { adminDomainRoutes } from './routes/admin/domains'
 import { authRoutes } from './routes/auth'
+import { domainRoutes } from './routes/domains'
+import { mailboxRoutes } from './routes/mailboxes'
 import type { AppEnv } from './types'
 
 export type { AppEnv } from './types'
@@ -32,7 +35,7 @@ app.use(async (c, next) => {
   c.header('Cache-Control', 'no-store')
 })
 app.use(checkOrigin)
-app.use(bodyLimit({ maxSize: 64 * 1024, onError: () => { throw new ApiError(413, 'invalid_input') } }))
+app.use(bodyLimit({ maxSize: 64 * 1024, onError: () => { throw new ApiError(413, 'payload_too_large') } }))
 app.use((c, next) => {
   // Hono answers HEAD with the GET handler, so treat it as GET for the public check.
   const method = c.req.method === 'HEAD' ? 'GET' : c.req.method
@@ -53,6 +56,9 @@ app.get('/settings/public', async (c) => {
 })
 
 app.route('/auth', authRoutes)
+app.route('/domains', domainRoutes)
+app.route('/mailboxes', mailboxRoutes)
+app.route('/admin/domains', adminDomainRoutes)
 
 app.notFound((c) => c.json({ error: 'not_found' }, 404))
 

@@ -6,6 +6,9 @@ export type AuditAction =
   | 'auth.password_changed'
   | 'auth.password_change_failed'
   | 'admin.bootstrap'
+  | 'admin.domain_create'
+  | 'admin.domain_update'
+  | 'admin.domain_delete'
 
 export async function writeAudit(
   db: D1Database,

@@ -59,3 +59,15 @@ export function sessionCookieFrom(res: Response): string {
   if (!header) throw new Error('no set-cookie header')
   return header.split(';')[0]!
 }
+
+export async function addDomain(domain: string, enabled = true): Promise<string> {
+  const id = crypto.randomUUID()
+  await env.DB.prepare('INSERT INTO domains (id, domain, enabled, created_at) VALUES (?, ?, ?, ?)')
+    .bind(id, domain, enabled ? 1 : 0, Date.now())
+    .run()
+  return id
+}
+
+export async function json<T = Record<string, unknown>>(res: Response): Promise<T> {
+  return (await res.json()) as T
+}

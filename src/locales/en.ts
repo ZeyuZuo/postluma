@@ -1,0 +1,93 @@
+import type { Messages } from './zh-CN'
+
+const en: Messages = {
+  app: {
+    tagline: 'Private disposable inboxes for you and the people you trust',
+  },
+  nav: {
+    home: 'Home',
+    inbox: 'Inbox',
+    mailboxes: 'Addresses',
+    disabled: 'Disabled addresses',
+    admin: 'Admin',
+    account: 'Account settings',
+    openMenu: 'Open menu',
+  },
+  auth: {
+    loginTitle: 'Sign in',
+    registerTitle: 'Request an account',
+    username: 'Username',
+    password: 'Password',
+    confirmPassword: 'Repeat password',
+    login: 'Sign in',
+    register: 'Send request',
+    toRegister: 'No account yet? Request one',
+    toLogin: 'Already have an account? Sign in',
+    registerDone: 'Request sent. You can sign in once an admin approves your account.',
+    registrationClosed: 'New account requests are closed right now.',
+    usernameRule: '3–32 characters: letters, digits, and . _ -',
+    passwordRule: 'At least 8 characters',
+    passwordMismatch: 'The passwords don’t match',
+    required: 'This field is required',
+    logout: 'Sign out',
+  },
+  showcase: {
+    fromLabel: 'From',
+    toLabel: 'To',
+    subject: 'Your sign-in code',
+    before: 'Your code is',
+    after: '. It expires in 10 minutes.',
+    points: [
+      'One address per site, disabled whenever you like',
+      'Codes are detected and copied in one click',
+      'Everyone sees only their own mail',
+    ],
+  },
+  home: {
+    greeting: 'Hello, {name}',
+    intro: 'Addresses and the inbox are on their way and will show up here.',
+  },
+  comingSoon: {
+    title: 'This page isn’t ready yet',
+    description: 'This part of PostLuma arrives in an upcoming release.',
+  },
+  account: {
+    title: 'Account settings',
+    passwordSection: 'Change password',
+    currentPassword: 'Current password',
+    newPassword: 'New password',
+    savePassword: 'Update password',
+    passwordChanged: 'Password updated. Sessions on your other devices were signed out.',
+    languageSection: 'Interface language',
+    languageSaved: 'Language preference saved',
+  },
+  theme: {
+    label: 'Appearance',
+    light: 'Light',
+    dark: 'Dark',
+    auto: 'Match system',
+  },
+  language: {
+    label: 'Language',
+    auto: 'Match browser',
+  },
+  errors: {
+    unauthorized: 'Your session has ended. Sign in again.',
+    forbidden: 'You don’t have permission to do that.',
+    not_found: 'That item doesn’t exist.',
+    bad_origin: 'The request came from an unexpected page. Reload and try again.',
+    invalid_input: 'Some fields aren’t in the expected format.',
+    rate_limited: 'Too many attempts. Wait a minute and try again.',
+    turnstile_failed: 'The human check didn’t pass. Try it again.',
+    registration_closed: 'New account requests are closed right now.',
+    username_taken: 'That username isn’t available. Pick another.',
+    invalid_credentials: 'Wrong username or password.',
+    account_pending: 'Your account is waiting for admin approval.',
+    account_rejected: 'Your account request was declined.',
+    account_banned: 'This account is disabled. Contact the admin.',
+    internal_error: 'Something went wrong on the server. Try again shortly.',
+    network: 'Can’t reach the server. Check your connection.',
+  },
+}
+
+export default en

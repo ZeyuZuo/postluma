@@ -1,0 +1,62 @@
+:root {
+  --pl-paper: #f5f6f8;
+  --pl-surface: #ffffff;
+  --pl-ink: #1c2430;
+  --pl-muted: #6b7584;
+  --pl-line: #e3e6eb;
+  --pl-blue: #2e5aac;
+  --pl-mark: #ffe27a;
+  --pl-glow: color-mix(in srgb, #ffe27a 22%, transparent);
+  --pl-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+
+:root[data-theme='dark'] {
+  --pl-paper: #15181d;
+  --pl-surface: #1c2027;
+  --pl-ink: #e6e9ee;
+  --pl-muted: #97a0ad;
+  --pl-line: #2a2f37;
+  --pl-blue: #86a8ee;
+  --pl-mark: #e8c547;
+  --pl-glow: color-mix(in srgb, #86a8ee 7%, transparent);
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--pl-paper);
+  color: var(--pl-ink);
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.pl-mono {
+  font-family: var(--pl-mono);
+  font-feature-settings: 'zero' 1;
+}
+
+/* The highlighter stroke used for verification codes throughout the app. */
+.pl-mark {
+  font-family: var(--pl-mono);
+  font-weight: 600;
+  color: #1c2430;
+  padding: 0 0.25em;
+  border-radius: 2px;
+  background-image: linear-gradient(var(--pl-mark), var(--pl-mark));
+  background-repeat: no-repeat;
+  background-position: 0 60%;
+  background-size: 100% 78%;
+  box-decoration-break: clone;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

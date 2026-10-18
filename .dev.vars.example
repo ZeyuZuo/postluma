@@ -1,0 +1,6 @@
+# Copy to .dev.vars for local `npm run dev`. In production use `wrangler secret put <NAME>`
+# (or Worker → Settings → Variables and Secrets). `npm run cf-typegen` reads this file for type names.
+ADMIN_INITIAL_PASSWORD=change-me-locally
+TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
+# Local dev only: "true" skips Turnstile. Never set this in production — with no secret, auth fails closed.
+TURNSTILE_DISABLED=true

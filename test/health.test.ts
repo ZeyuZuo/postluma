@@ -9,9 +9,7 @@ describe('GET /api/health', () => {
   })
 
   it('has the initial schema applied', async () => {
-    const row = await env.DB.prepare(
-      "SELECT value FROM settings WHERE key = 'default_mailbox_quota'",
-    ).first<{ value: string }>()
-    expect(row?.value).toBe('10')
+    const row = await env.DB.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE name = 'ingest_counters'").first<{ n: number }>()
+    expect(row?.n).toBe(1)
   })
 })

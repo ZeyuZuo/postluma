@@ -7,10 +7,10 @@ import { fromBase64, randomBytes, timingSafeEqual, toBase64 } from './crypto'
 
 const ALGORITHM = 'pbkdf2-sha256'
 /**
- * Cost for new hashes, sized for the Workers Free plan (10 ms CPU per request): measured at
- * ~2.3 ms per hash on a desktop Ryzen 5 5600 (100k took 11.4 ms), leaving headroom for password
- * changes, which hash twice. On the Paid plan raise this toward 100_000, the runtime's maximum;
- * existing hashes keep verifying because each stores its own iteration count.
+ * Default cost for new hashes; deployments set `PASSWORD_PBKDF2_ITERATIONS` (worker/lib/config.ts).
+ * Sized for the Workers Free plan (10 ms CPU per request): ~2.3 ms per hash on a desktop
+ * Ryzen 5 5600 (100k took 11.4 ms), leaving headroom for password changes, which hash twice.
+ * Existing hashes keep verifying after a change because each stores its own iteration count.
  */
 export const PBKDF2_ITERATIONS = 20_000
 /** Highest count we accept when verifying (the Workers runtime limit). */
@@ -38,10 +38,10 @@ async function derive(
   return new Uint8Array(bits)
 }
 
-export async function hashPassword(password: string): Promise<string> {
+export async function hashPassword(password: string, iterations = PBKDF2_ITERATIONS): Promise<string> {
   const salt = randomBytes(SALT_BYTES)
-  const hash = await derive(password, salt, PBKDF2_ITERATIONS)
-  return `${ALGORITHM}$${PBKDF2_ITERATIONS}$${toBase64(salt)}$${toBase64(hash)}`
+  const hash = await derive(password, salt, iterations)
+  return `${ALGORITHM}$${iterations}$${toBase64(salt)}$${toBase64(hash)}`
 }
 
 export async function verifyPassword(password: string, stored: string): Promise<boolean> {
@@ -61,6 +61,6 @@ export async function verifyPassword(password: string, stored: string): Promise<
 }
 
 /** Same cost as a real check; used for unknown usernames so timing does not reveal which exist. */
-export async function burnPasswordCheck(password: string): Promise<void> {
-  await derive(password, new Uint8Array(SALT_BYTES), PBKDF2_ITERATIONS)
+export async function burnPasswordCheck(password: string, iterations = PBKDF2_ITERATIONS): Promise<void> {
+  await derive(password, new Uint8Array(SALT_BYTES), iterations)
 }

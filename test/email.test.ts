@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import type { MailboxListResponse } from '../shared/api'
 import {
-  PARSE_WINDOW_BYTES,
   REJECT_FLOODED,
   REJECT_MALFORMED,
   REJECT_OVER_BUDGET,
@@ -26,18 +25,21 @@ async function addMailbox(userId: string, address: string, status = 'active'): P
   return id
 }
 
-async function deliver(raw: string, to: string, extra: { from?: string; rawSize?: number } = {}) {
+const PARSE_WINDOW_BYTES = 256 * 1024 // wrangler.jsonc INGEST_PARSE_WINDOW_KB
+
+async function deliver(
+  raw: string,
+  to: string,
+  extra: { from?: string; rawSize?: number } = {},
+  vars: Partial<Record<keyof Env, string>> = {},
+) {
   const stub = emailStub(raw, { to, ...extra })
-  await handleEmail(stub, env, createExecutionContext())
+  await handleEmail(stub, { ...env, ...vars } as Env, createExecutionContext())
   return stub
 }
 
 async function messageRows() {
   return (await env.DB.prepare('SELECT * FROM messages ORDER BY received_at').all<Record<string, unknown>>()).results
-}
-
-async function setSetting(key: string, value: string): Promise<void> {
-  await env.DB.prepare('UPDATE settings SET value = ? WHERE key = ?').bind(value, key).run()
 }
 
 beforeEach(async () => {
@@ -185,48 +187,76 @@ describe('rejecting mail', () => {
 })
 
 describe('flood protection and ingest budget', () => {
+  it('defaults to 10 messages per mailbox per hour', async () => {
+    await addMailbox(aliceId, 'alice-box@mail.test')
+    const results = []
+    for (let i = 0; i < 11; i++) results.push((await deliver(mime({}), 'alice-box@mail.test')).rejected)
+    expect(results.slice(0, 10)).toEqual(Array(10).fill(null))
+    expect(results[10]).toBe(REJECT_FLOODED)
+  })
+
   it('caps messages per mailbox per hour, even for concurrent deliveries', async () => {
     await addMailbox(aliceId, 'alice-box@mail.test')
-    await setSetting('max_messages_per_mailbox_per_hour', '2')
-    const stubs = await Promise.all(Array.from({ length: 6 }, () => deliver(mime({}), 'alice-box@mail.test')))
+    const vars = { INGEST_MAX_PER_MAILBOX_PER_HOUR: '2' }
+    const stubs = await Promise.all(Array.from({ length: 6 }, () => deliver(mime({}), 'alice-box@mail.test', {}, vars)))
     expect(stubs.filter((s) => s.rejected === null)).toHaveLength(2)
     expect(stubs.filter((s) => s.rejected === REJECT_FLOODED)).toHaveLength(4)
     expect(await messageRows()).toHaveLength(2)
   })
 
   it('caps messages per user per hour across all of their mailboxes', async () => {
-    await setSetting('max_messages_per_user_per_hour', '3')
+    const vars = { INGEST_MAX_PER_USER_PER_HOUR: '3' }
     for (const name of ['a', 'b', 'c', 'd']) await addMailbox(aliceId, `${name}@mail.test`)
     const results = []
-    for (const name of ['a', 'b', 'c', 'd']) results.push((await deliver(mime({}), `${name}@mail.test`)).rejected)
+    for (const name of ['a', 'b', 'c', 'd']) results.push((await deliver(mime({}), `${name}@mail.test`, {}, vars)).rejected)
     expect(results).toEqual([null, null, null, REJECT_FLOODED])
+  })
+
+  it('exempts admin accounts from the hourly caps, but not from the daily budget', async () => {
+    const adminId = await createUser('boss', { role: 'admin' })
+    await addMailbox(adminId, 'boss@mail.test')
+    const rate = { INGEST_MAX_PER_MAILBOX_PER_HOUR: '1', INGEST_MAX_PER_USER_PER_HOUR: '1' }
+    const results = []
+    for (let i = 0; i < 4; i++) results.push((await deliver(mime({}), 'boss@mail.test', {}, rate)).rejected)
+    expect(results).toEqual([null, null, null, null])
+    expect((await deliver(mime({}), 'boss@mail.test', {}, { ...rate, INGEST_MAX_MESSAGES_PER_DAY: '4' })).rejected).toBe(REJECT_OVER_BUDGET)
   })
 
   it('stops all intake once the daily message budget is spent', async () => {
     const bobId = await createUser('bob')
     await addMailbox(aliceId, 'alice-box@mail.test')
     await addMailbox(bobId, 'bob-box@mail.test')
-    await setSetting('max_messages_per_day', '2')
-    expect((await deliver(mime({}), 'alice-box@mail.test')).rejected).toBeNull()
-    expect((await deliver(mime({}), 'bob-box@mail.test')).rejected).toBeNull()
-    expect((await deliver(mime({}), 'alice-box@mail.test')).rejected).toBe(REJECT_OVER_BUDGET)
-    expect((await deliver(mime({}), 'bob-box@mail.test')).rejected).toBe(REJECT_OVER_BUDGET)
+    const vars = { INGEST_MAX_MESSAGES_PER_DAY: '2' }
+    expect((await deliver(mime({}), 'alice-box@mail.test', {}, vars)).rejected).toBeNull()
+    expect((await deliver(mime({}), 'bob-box@mail.test', {}, vars)).rejected).toBeNull()
+    expect((await deliver(mime({}), 'alice-box@mail.test', {}, vars)).rejected).toBe(REJECT_OVER_BUDGET)
+    expect((await deliver(mime({}), 'bob-box@mail.test', {}, vars)).rejected).toBe(REJECT_OVER_BUDGET)
   })
 
   it('stops intake when the daily byte budget would be exceeded', async () => {
     await addMailbox(aliceId, 'alice-box@mail.test')
-    await setSetting('max_ingest_bytes_per_day', '20000')
-    expect((await deliver(mime({ text: 'a'.repeat(10_000) }), 'alice-box@mail.test')).rejected).toBeNull()
-    expect((await deliver(mime({ text: 'b'.repeat(15_000) }), 'alice-box@mail.test')).rejected).toBe(REJECT_OVER_BUDGET)
-    expect(await messageRows()).toHaveLength(1)
+    // Each message stores ~250 KB of HTML; 1 MB/day fits four of them.
+    const vars = { INGEST_MAX_MB_PER_DAY: '1', INGEST_PARSE_WINDOW_KB: '1024' }
+    const results = []
+    for (let i = 0; i < 5; i++) results.push((await deliver(mime({ html: `<p>${'x'.repeat(250_000)}</p>` }), 'alice-box@mail.test', {}, vars)).rejected)
+    expect(results).toEqual([null, null, null, null, REJECT_OVER_BUDGET])
+    expect(await messageRows()).toHaveLength(4)
   })
 
   it('does not count rejected mail against the budget', async () => {
     await addMailbox(aliceId, 'alice-box@mail.test')
-    await setSetting('max_messages_per_mailbox_per_hour', '1')
-    await deliver(mime({}), 'alice-box@mail.test')
-    await deliver(mime({}), 'alice-box@mail.test')
+    const vars = { INGEST_MAX_PER_MAILBOX_PER_HOUR: '1' }
+    await deliver(mime({}), 'alice-box@mail.test', {}, vars)
+    await deliver(mime({}), 'alice-box@mail.test', {}, vars)
     const counter = await env.DB.prepare('SELECT messages FROM ingest_counters').first<{ messages: number }>()
     expect(counter?.messages).toBe(1)
+  })
+
+  it('honours a smaller parse window from INGEST_PARSE_WINDOW_KB', async () => {
+    await addMailbox(aliceId, 'alice-box@mail.test')
+    await deliver(mime({ html: `<p>${'x'.repeat(100_000)}</p>` }), 'alice-box@mail.test', {}, { INGEST_PARSE_WINDOW_KB: '64' })
+    const [row] = await messageRows()
+    expect(row!.is_truncated).toBe(1)
+    expect((row!.html_body as string).length).toBeLessThanOrEqual(64 * 1024)
   })
 })

@@ -1,14 +1,9 @@
 import PostalMime, { type Email } from 'postal-mime'
 
+import { getConfig } from './lib/config'
 import { prepareMessage } from './lib/mail-content'
 import { findDeliveryTarget, ingestBlock, storeMessage, type IngestBlock } from './repo/ingest'
 
-/**
- * Only this many bytes of a message are read and parsed. Parsing (mostly base64-decoding
- * attachments we never store) dominates CPU, and the Workers Free plan allows 10 ms per
- * invocation; verification mail is a few KB. Anything beyond is dropped and flagged truncated.
- */
-export const PARSE_WINDOW_BYTES = 256 * 1024
 const PARSE_LIMITS = { maxNestingDepth: 20, maxPartCount: 200, maxHeadersSize: 256 * 1024 }
 
 /**
@@ -76,15 +71,18 @@ export async function handleEmail(
     return
   }
 
+  const config = getConfig(env)
   const receivedAt = Date.now()
   // Cheap pre-check so floods don't cost a parse each; storeMessage re-checks atomically.
-  const block = await ingestBlock(env.DB, target, receivedAt, 0)
+  const block = await ingestBlock(env.DB, target, receivedAt, 0, config.ingest)
   if (block) {
     message.setReject(BLOCK_REASONS[block])
     return
   }
 
-  const raw = await readPrefix(message.raw, PARSE_WINDOW_BYTES)
+  // Only a prefix is read and parsed: parsing (mostly base64-decoding attachments we never store)
+  // dominates CPU, and the Workers Free plan allows 10 ms per invocation. Beyond it: truncated.
+  const raw = await readPrefix(message.raw, config.ingest.parseWindowBytes)
   let email: Email
   try {
     email = await PostalMime.parse(raw.bytes, PARSE_LIMITS)
@@ -100,6 +98,6 @@ export async function handleEmail(
     rawSize: message.rawSize,
     windowTruncated: raw.truncated,
   })
-  const result = await storeMessage(env.DB, target, prepared, receivedAt)
+  const result = await storeMessage(env.DB, target, prepared, receivedAt, config.ingest)
   if (!result.stored) message.setReject(BLOCK_REASONS[result.reason])
 }

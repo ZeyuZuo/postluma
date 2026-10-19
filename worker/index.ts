@@ -1,10 +1,11 @@
 import { app } from './app'
 import { handleEmail } from './email'
+import { runCleanup } from './jobs/cleanup'
 
 export default {
   fetch: app.fetch,
   email: handleEmail,
-  async scheduled(_controller, _env, _ctx) {
-    // Phase 4: purge messages older than settings.retention_days and expired sessions.
+  async scheduled(_controller, env, ctx) {
+    ctx.waitUntil(runCleanup(env))
   },
 } satisfies ExportedHandler<Env>

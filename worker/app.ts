@@ -6,7 +6,8 @@ import type { PublicSettings } from '../shared/api'
 import { ApiError } from './lib/errors'
 import { requireAdmin, requireUser } from './middleware/auth'
 import { checkOrigin } from './middleware/origin'
-import { getBoolSetting } from './repo/settings'
+import { getConfig } from './lib/config'
+import { isRegistrationOpen } from './repo/settings'
 import { adminDomainRoutes } from './routes/admin/domains'
 import { authRoutes } from './routes/auth'
 import { domainRoutes } from './routes/domains'
@@ -50,7 +51,7 @@ app.get('/health', async (c) => {
 
 app.get('/settings/public', async (c) => {
   const settings: PublicSettings = {
-    registrationOpen: await getBoolSetting(c.env.DB, 'registration_open'),
+    registrationOpen: await isRegistrationOpen(c.env.DB, getConfig(c.env)),
   }
   return c.json(settings)
 })

@@ -2,6 +2,7 @@
 import { randomBytes, sha256Hex, toBase64Url } from '../lib/crypto'
 import type { UserRow } from './users'
 
+/** Default only; deployments set `SESSION_TTL_DAYS` (worker/lib/config.ts). */
 export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000
 const TOKEN_BYTES = 32
 
@@ -21,10 +22,11 @@ export async function prepareSession(
   db: D1Database,
   user: { id: string; passwordHash: string },
   meta: { ip: string; userAgent: string | undefined },
+  ttlMs = SESSION_TTL_MS,
 ): Promise<PendingSession> {
   const token = toBase64Url(randomBytes(TOKEN_BYTES))
   const now = Date.now()
-  const expiresAt = now + SESSION_TTL_MS
+  const expiresAt = now + ttlMs
   const statement = db
     .prepare(
       `INSERT INTO sessions (id, user_id, created_at, expires_at, ip, user_agent)

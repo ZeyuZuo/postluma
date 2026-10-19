@@ -23,8 +23,28 @@
 	"ratelimits": [
 		{ "name": "AUTH_LIMITER", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } }
 	],
-	// Mail retention cleanup (see worker/index.ts `scheduled`).
-	"triggers": { "crons": ["17 3 * * *"] }
+	// Daily cleanup: mail older than the retention period, expired sessions (worker/jobs/cleanup.ts).
+	"triggers": { "crons": ["17 3 * * *"] },
+	// Tunables, validated in worker/lib/config.ts (invalid values fall back to the default shown in
+	// the comment). Change them HERE and push: `wrangler deploy` overwrites values edited in the
+	// Cloudflare dashboard. Starred (*) items are defaults an admin can override in the admin panel.
+	"vars": {
+		// ---- Accounts
+		"REGISTRATION_OPEN": "true", // * allow new sign-up requests (true/false)
+		"PASSWORD_PBKDF2_ITERATIONS": "20000", // 10000–100000. Free plan: ~2.3 ms per 20k; keep ≤ 30000
+		"SESSION_TTL_DAYS": "30", // how long a login lasts
+		// ---- Addresses (per user)
+		"DEFAULT_MAILBOX_QUOTA": "10", // * active addresses per user (admin can also set per user)
+		"MAX_TOTAL_MAILBOXES": "100", // active + disabled; stops create→disable squatting
+		"MAX_DAILY_MAILBOX_CREATIONS": "30", // new addresses per rolling 24 h
+		// ---- Inbound mail (admin accounts are exempt from the two hourly limits)
+		"INGEST_MAX_PER_MAILBOX_PER_HOUR": "10",
+		"INGEST_MAX_PER_USER_PER_HOUR": "100", // across all of a user's addresses
+		"INGEST_MAX_MESSAGES_PER_DAY": "5000", // whole service; protects the D1 free tier (100k writes/day)
+		"INGEST_MAX_MB_PER_DAY": "12", // whole service; × retention days must fit the 500 MB database
+		"INGEST_PARSE_WINDOW_KB": "256", // only this much of each message is read (Free plan CPU budget)
+		"MESSAGE_RETENTION_DAYS": "30" // * delete mail older than this; 0 = keep forever
+	}
 	// Receiving domains live in the D1 `domains` table (admin UI), not here.
 	// Optional R2 for raw .eml / attachments — enable in Phase 3:
 	// "r2_buckets": [{ "binding": "MAIL_BUCKET", "bucket_name": "postluma-mail" }]

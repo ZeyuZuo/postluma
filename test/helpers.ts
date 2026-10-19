@@ -1,5 +1,6 @@
 import { env, SELF } from 'cloudflare:test'
 
+import { app } from '../worker/app'
 import { hashPassword } from '../worker/lib/password'
 import { insertUser } from '../worker/repo/users'
 import type { UserRole, UserStatus } from '../shared/api'
@@ -21,6 +22,8 @@ export interface ApiOptions {
   /** `null` omits the Origin header. */
   origin?: string | null
   ip?: string
+  /** Deploy-time var overrides (e.g. `{ MAX_TOTAL_MAILBOXES: '3' }`); runs the app in-process. */
+  env?: Partial<Record<keyof Env, string>>
 }
 
 export function api(path: string, opts: ApiOptions = {}): Promise<Response> {
@@ -28,11 +31,22 @@ export function api(path: string, opts: ApiOptions = {}): Promise<Response> {
   if (opts.body !== undefined) headers.set('content-type', 'application/json')
   if (opts.origin !== null) headers.set('origin', opts.origin ?? ORIGIN)
   if (opts.cookie) headers.set('cookie', opts.cookie)
-  return SELF.fetch(`${ORIGIN}${path}`, {
+  const init: RequestInit = {
     method: opts.method ?? (opts.body === undefined ? 'GET' : 'POST'),
     headers,
     body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
-  })
+  }
+  if (opts.env) return Promise.resolve(app.request(`${ORIGIN}${path}`, init, { ...env, ...opts.env } as Env))
+  return SELF.fetch(`${ORIGIN}${path}`, init)
+}
+
+/** Writes an admin runtime override (what the admin panel will store). */
+export async function setSetting(key: string, value: string): Promise<void> {
+  await env.DB.prepare(
+    'INSERT INTO settings (key, value, updated_at) VALUES (?, ?, 0) ON CONFLICT (key) DO UPDATE SET value = excluded.value',
+  )
+    .bind(key, value)
+    .run()
 }
 
 export async function createUser(

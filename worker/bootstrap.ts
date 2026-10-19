@@ -1,3 +1,4 @@
+import { getConfig } from './lib/config'
 import { newId } from './lib/crypto'
 import { hashPassword } from './lib/password'
 import { writeAudit } from './repo/audit'
@@ -19,7 +20,7 @@ export async function ensureInitialAdmin(env: Env): Promise<void> {
   }
   const id = newId()
   const now = Date.now()
-  const hash = await hashPassword(env.ADMIN_INITIAL_PASSWORD)
+  const hash = await hashPassword(env.ADMIN_INITIAL_PASSWORD, getConfig(env).passwordIterations)
   const [, flag] = await env.DB.batch([
     env.DB.prepare(
       `INSERT OR IGNORE INTO users (id, username, password_hash, role, status, created_at, updated_at)

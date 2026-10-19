@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:test'
 import { describe, expect, it } from 'vitest'
 
-import { DEFAULT_PASSWORD, api, createUser, login, sessionCookieFrom, uniqueIp } from './helpers'
+import { DEFAULT_PASSWORD, api, createUser, login, sessionCookieFrom, setSetting, uniqueIp } from './helpers'
 
 async function setStatus(userId: string, status: string): Promise<void> {
   await env.DB.prepare('UPDATE users SET status = ? WHERE id = ?').bind(status, userId).run()
@@ -38,11 +38,19 @@ describe('registration', () => {
     expect(await res.json()).toEqual({ error: 'invalid_input' })
   })
 
-  it('is blocked when the registration switch is off', async () => {
-    await env.DB.prepare("UPDATE settings SET value = 'false' WHERE key = 'registration_open'").run()
+  it('is blocked when the admin turns the registration switch off', async () => {
+    await setSetting('registration_open', 'false')
     const res = await api('/api/auth/register', { body: { username: 'carol', password: DEFAULT_PASSWORD } })
     expect(res.status).toBe(403)
     expect(await res.json()).toEqual({ error: 'registration_closed' })
+  })
+
+  it('follows REGISTRATION_OPEN unless an admin overrides it', async () => {
+    const closed = { REGISTRATION_OPEN: 'false' }
+    const res = await api('/api/auth/register', { env: closed, body: { username: 'dora', password: DEFAULT_PASSWORD } })
+    expect(res.status).toBe(403)
+    await setSetting('registration_open', 'true')
+    expect((await api('/api/auth/register', { env: closed, body: { username: 'dora', password: DEFAULT_PASSWORD } })).status).toBe(201)
   })
 })
 

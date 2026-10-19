@@ -2,7 +2,7 @@ import { env } from 'cloudflare:test'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import type { MailboxListResponse, PublicMailbox } from '../shared/api'
-import { addDomain, api, createUser, json, login } from './helpers'
+import { addDomain, api, createUser, json, login, setSetting } from './helpers'
 
 let cookie: string
 let domainId: string
@@ -14,8 +14,8 @@ beforeEach(async () => {
   cookie = await login('alice')
 })
 
-async function create(body: Record<string, unknown>): Promise<Response> {
-  return api('/api/mailboxes', { cookie, body: { domainId, ...body } })
+async function create(body: Record<string, unknown>, envOverrides?: Record<string, string>): Promise<Response> {
+  return api('/api/mailboxes', { cookie, body: { domainId, ...body }, env: envOverrides })
 }
 
 async function list(query = ''): Promise<MailboxListResponse> {
@@ -74,8 +74,17 @@ describe('creating mailboxes', () => {
 })
 
 describe('quota', () => {
+  it('uses DEFAULT_MAILBOX_QUOTA unless an admin overrides it', async () => {
+    expect((await list()).quota.limit).toBe(10)
+    const res = await api('/api/mailboxes', { cookie, env: { DEFAULT_MAILBOX_QUOTA: '4' } })
+    expect((await json<MailboxListResponse>(res)).quota.limit).toBe(4)
+    await setSetting('default_mailbox_quota', '7')
+    const overridden = await api('/api/mailboxes', { cookie, env: { DEFAULT_MAILBOX_QUOTA: '4' } })
+    expect((await json<MailboxListResponse>(overridden)).quota.limit).toBe(7)
+  })
+
   it('counts only active mailboxes, falling back to the default setting', async () => {
-    await env.DB.prepare("UPDATE settings SET value = '2' WHERE key = 'default_mailbox_quota'").run()
+    await setSetting('default_mailbox_quota', '2')
     const a = (await json<{ mailbox: PublicMailbox }>(await create({}))).mailbox
     await create({})
     const over = await create({})
@@ -158,16 +167,11 @@ describe('listing, notes and status', () => {
 })
 
 describe('abuse limits (security review)', () => {
-  async function setSetting(key: string, value: string): Promise<void> {
-    await env.DB.prepare('UPDATE settings SET value = ? WHERE key = ?').bind(value, key).run()
-  }
-
   it('caps total mailboxes so create→disable loops cannot squat addresses', async () => {
     await setQuota(1)
-    await setSetting('max_total_mailboxes', '3')
     const statuses: number[] = []
     for (let i = 0; i < 5; i++) {
-      const res = await create({ localPart: `squat${i}` })
+      const res = await create({ localPart: `squat${i}` }, { MAX_TOTAL_MAILBOXES: '3' })
       statuses.push(res.status)
       if (res.status !== 201) {
         expect(await json(res)).toEqual({ error: 'mailbox_total_limit_reached' })
@@ -180,15 +184,15 @@ describe('abuse limits (security review)', () => {
   })
 
   it('caps mailbox creations per 24 hours', async () => {
-    await setSetting('max_daily_mailbox_creations', '2')
-    expect((await create({})).status).toBe(201)
-    expect((await create({})).status).toBe(201)
-    const third = await create({})
+    const limits = { MAX_DAILY_MAILBOX_CREATIONS: '2' }
+    expect((await create({}, limits)).status).toBe(201)
+    expect((await create({}, limits)).status).toBe(201)
+    const third = await create({}, limits)
     expect(third.status).toBe(429)
     expect(await json(third)).toEqual({ error: 'rate_limited' })
     // Older creations fall out of the window.
     await env.DB.prepare('UPDATE mailboxes SET created_at = created_at - 25 * 3600 * 1000').run()
-    expect((await create({})).status).toBe(201)
+    expect((await create({}, limits)).status).toBe(201)
   })
 
   it('refuses mixed-case addresses and domains at the database level', async () => {

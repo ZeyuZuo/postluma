@@ -44,7 +44,7 @@ describe('creating mailboxes', () => {
   })
 
   it('rejects invalid and reserved prefixes', async () => {
-    for (const localPart of ['ab', 'a'.repeat(33), '.lead', 'trail-', 'dou..ble', 'plus+tag', 'spa ce', 'ünï', 'postmaster', 'ADMIN']) {
+    for (const localPart of ['ab', 'a'.repeat(33), '.lead', 'trail-', 'dou..ble', 'plus+tag', 'spa ce', 'ünï', 'postmaster', 'ADMIN', 'info', 'Billing']) {
       const res = await create({ localPart })
       expect(res.status, localPart).toBe(400)
       expect(await json(res), localPart).toEqual({ error: 'invalid_local_part' })

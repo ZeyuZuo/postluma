@@ -2,7 +2,7 @@
 import { env } from 'cloudflare:test'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { verifyPassword } from '../worker/lib/password'
+import { PBKDF2_ITERATIONS, verifyPassword } from '../worker/lib/password'
 import { requireTurnstile } from '../worker/lib/turnstile'
 import { prepareSession } from '../worker/repo/sessions'
 import { DEFAULT_PASSWORD, api, createUser, login, sessionCookieFrom } from './helpers'
@@ -126,7 +126,7 @@ describe('initial admin bootstrap', () => {
 
 describe('password hash parsing', () => {
   it('treats corrupt or weak stored hashes as non-matching instead of throwing', async () => {
-    expect(await verifyPassword('pw', 'pbkdf2-sha256$100000$!!!not-base64$AAAA')).toBe(false)
+    expect(await verifyPassword('pw', `pbkdf2-sha256$${PBKDF2_ITERATIONS}$!!!not-base64$AAAA`)).toBe(false)
     expect(await verifyPassword('pw', 'pbkdf2-sha256$1$AAAAAAAAAAAAAAAAAAAAAA==$AAAA')).toBe(false)
   })
 })

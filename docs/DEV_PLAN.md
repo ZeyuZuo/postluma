@@ -123,7 +123,7 @@
 一次性准备（在本机执行）：
 
 1. 把代码推送到 GitHub 或 GitLab 仓库。
-2. 运行 `npx wrangler d1 create postluma`，把输出的 `database_id` 填入 `wrangler.jsonc` 并提交。
+2. ~~运行 `npx wrangler d1 create postluma`，把 `database_id` 填入 `wrangler.jsonc`~~ ✅ 已完成（2026-10-19）。
 
 控制台接入：
 
@@ -144,7 +144,7 @@
 
 ## 已知风险
 
-- **Workers 免费版 CPU 限制（每请求 10 ms）**：PBKDF2 100k 次迭代约需几十毫秒 CPU，登录和注册在免费版上可能超出限制。上线前需要实测；若超限，可改用付费版（每请求默认 30 s CPU），或降低迭代次数（哈希串中记录了迭代次数，旧密码可平滑迁移）。
+- **Workers 免费版 CPU 限制（每请求 10 ms）**：已确认使用免费版，新密码的 PBKDF2 迭代次数降到 20,000（实测约 2.3 ms/次）。上线后如果出现错误 1102，继续调低；升级付费版后可调回 100,000（见 `docs/QUESTIONS.md` Q9）。
 - **注册时会暴露用户名是否已存在**（409 `username_taken`）：这是开放注册的固有代价，已有按 IP 限流和 Turnstile 防护，接受此风险。
 - **首屏体积**：主包约 468 KB（gzip 后 134 KB），主要来自 Naive UI。Phase 4 之后再按路由拆分。
 

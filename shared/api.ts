@@ -130,8 +130,8 @@ export const LOCAL_PART_MAX = 32
 export const NOTE_MAX = 200
 /** RFC 2142 role accounts and other names that must never belong to an ordinary user. */
 export const RESERVED_LOCAL_PARTS: readonly string[] = [
-  'abuse', 'admin', 'administrator', 'hostmaster', 'mailer-daemon', 'noc', 'no-reply', 'noreply',
-  'postmaster', 'root', 'security', 'support', 'webmaster',
+  'abuse', 'admin', 'administrator', 'billing', 'contact', 'hostmaster', 'info', 'mailer-daemon', 'noc',
+  'no-reply', 'noreply', 'postmaster', 'root', 'security', 'support', 'webmaster',
 ]
 
 export function normalizeLocalPart(value: string): string {

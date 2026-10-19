@@ -62,7 +62,7 @@ Tooling gotchas:
 - Turnstile fails closed: a missing `TURNSTILE_SECRET_KEY` makes auth return 500 unless `TURNSTILE_DISABLED=true` (local dev/tests only, never in production). The siteverify `hostname` and `action` must match.
 - The initial-admin bootstrap runs once per database (guarded by `settings.admin_bootstrapped`, written in the same batch). Never weaken this to "if no admin exists".
 - Every new endpoint gets a cross-tenant test: user B requesting user A's resource must get 404 and must not mutate anything.
-- Passwords: PBKDF2-SHA256 via WebCrypto (Workers caps iterations at 100,000), with per-user salt and constant-time compare.
+- Passwords: PBKDF2-SHA256 via WebCrypto, per-user salt, constant-time compare. New hashes use 20,000 iterations because the project runs on the Workers **Free plan** (10 ms CPU/request; 100k measured at ~11 ms). Each hash stores its own count, so raising `PBKDF2_ITERATIONS` (max 100,000) later keeps old hashes valid.
 - Login/register: `AUTH_LIMITER` (Workers Rate Limiting binding) + Turnstile verification (`TURNSTILE_SECRET_KEY`).
 - HTML mail is rendered only inside a sandboxed iframe (no `allow-scripts`, no `allow-same-origin`) with a restrictive CSP; remote images are blocked until the user opts in per message.
 

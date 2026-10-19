@@ -6,8 +6,15 @@
 import { fromBase64, randomBytes, timingSafeEqual, toBase64 } from './crypto'
 
 const ALGORITHM = 'pbkdf2-sha256'
-/** Maximum PBKDF2 iteration count the Workers runtime accepts. */
-export const PBKDF2_ITERATIONS = 100_000
+/**
+ * Cost for new hashes, sized for the Workers Free plan (10 ms CPU per request): measured at
+ * ~2.3 ms per hash on a desktop Ryzen 5 5600 (100k took 11.4 ms), leaving headroom for password
+ * changes, which hash twice. On the Paid plan raise this toward 100_000, the runtime's maximum;
+ * existing hashes keep verifying because each stores its own iteration count.
+ */
+export const PBKDF2_ITERATIONS = 20_000
+/** Highest count we accept when verifying (the Workers runtime limit). */
+const MAX_ITERATIONS = 100_000
 /** Hashes weaker than this are treated as invalid. */
 const MIN_ITERATIONS = 10_000
 const SALT_BYTES = 16
@@ -41,7 +48,7 @@ export async function verifyPassword(password: string, stored: string): Promise<
   const [algorithm, iterationsRaw, saltB64, hashB64] = stored.split('$')
   if (algorithm !== ALGORITHM || !iterationsRaw || !saltB64 || !hashB64) return false
   const iterations = Number(iterationsRaw)
-  if (!Number.isInteger(iterations) || iterations < MIN_ITERATIONS || iterations > PBKDF2_ITERATIONS) return false
+  if (!Number.isInteger(iterations) || iterations < MIN_ITERATIONS || iterations > MAX_ITERATIONS) return false
   let salt: Uint8Array<ArrayBuffer>
   let expected: Uint8Array<ArrayBuffer>
   try {

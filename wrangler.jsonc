@@ -14,8 +14,9 @@
 		{
 			"binding": "DB",
 			"database_name": "postluma",
-			// Replace with the id printed by `npx wrangler d1 create postluma`.
-			"database_id": "00000000-0000-0000-0000-000000000000",
+			// Not a secret: the id is useless without an API token for this Cloudflare account.
+			// `npm run dev` and tests use a local copy (.wrangler/state); never add "remote": true here.
+			"database_id": "134d584c-c0be-4e31-adfe-b2aada1e52cd",
 			"migrations_dir": "migrations"
 		}
 	],

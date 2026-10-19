@@ -156,10 +156,15 @@ export const DOMAIN_PATTERN = /^(?=.{4,221}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-
 const idSchema = z.string().min(1).max(64)
 // Control characters and bidi overrides could spoof how an address/note reads; drop them.
 const UNSAFE_TEXT = /[\p{Cc}\u200E\u200F\u202A-\u202E\u2066-\u2069]/gu
+
+/** Removes control and bidi-override characters from attacker-controlled display text. */
+export function stripUnsafeText(value: string): string {
+  return value.replace(UNSAFE_TEXT, '')
+}
 const noteSchema = z
   .string()
   .max(NOTE_MAX * 2)
-  .transform((v) => v.replace(UNSAFE_TEXT, '').trim())
+  .transform((v) => stripUnsafeText(v).trim())
   .pipe(z.string().max(NOTE_MAX))
   .transform((v) => (v === '' ? null : v))
 

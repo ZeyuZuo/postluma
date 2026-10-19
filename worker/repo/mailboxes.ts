@@ -20,7 +20,8 @@ interface MailboxRow {
 }
 
 const SELECT_MAILBOX = `
-  SELECT m.id, m.address, d.domain, m.note, m.status, m.created_at, m.last_received_at,
+  SELECT m.id, m.address, d.domain, m.note, m.status, m.created_at,
+         (SELECT MAX(g.received_at) FROM messages g WHERE g.mailbox_id = m.id) AS last_received_at,
          (SELECT COUNT(*) FROM messages g WHERE g.mailbox_id = m.id) AS message_count,
          (SELECT COUNT(*) FROM messages g WHERE g.mailbox_id = m.id AND g.is_read = 0) AS unread_count
   FROM mailboxes m JOIN domains d ON d.id = m.domain_id`

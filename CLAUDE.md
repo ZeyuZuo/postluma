@@ -16,26 +16,29 @@ npm run type-check          # vue-tsc --build over all three tsconfig projects
 npm run build               # type-check + vite build -> dist/client (SPA) + dist/postluma (Worker)
 npm run cf-typegen          # regenerate worker-configuration.d.ts after editing wrangler.jsonc or .dev.vars.example
 npm run deploy              # build + remote D1 migrations + wrangler deploy (manual path; CI uses Workers Builds)
+# Simulate inbound mail against `npm run dev` (the raw message must include a Message-ID header):
+curl -X POST --data-binary @mail.eml "http://localhost:5173/cdn-cgi/handler/email?from=a@example.org&to=<address>"
 ```
 
 Tooling gotchas:
 - npm 12 blocks install scripts unless listed in `package.json#allowScripts`, which pins exact versions. After a dependency bump, `npm install` warns that `workerd`/`esbuild` scripts were blocked — run `npm install-scripts approve workerd esbuild` then `npm rebuild workerd esbuild`.
 - `worker-configuration.d.ts` is generated but committed, because `npm run build` (also run by Workers Builds) type-checks against it. `cf-typegen` reads secret *names* from `.dev.vars.example` (not your local `.dev.vars`), so types are identical on every machine; a new secret must be added there.
 - vue-i18n parses `@`, `{`, `}`, `|` in messages as syntax — never put email addresses or literal braces in `src/locales/*`; keep such sample data in the component.
+- Local D1 state is keyed by `database_id`; after changing it, run `npm run db:migrate:local` again or every query fails with `no such table`.
 - Stay on Vitest 4.x until `@cloudflare/vitest-plugin` is verified on a newer major. `@cloudflare/vitest-pool-workers` is the deprecated old name — don't reintroduce it.
 
 ## Architecture
 
 **One Worker, three entry points** (`worker/index.ts`):
 - `fetch` → Hono app (`worker/app.ts`, mounted at `/api`). Static assets (the built Vue SPA) are served by Workers Static Assets *before* the Worker runs, except paths matching `assets.run_worker_first` (`/api/*`) in `wrangler.jsonc`. Unknown non-API paths fall back to `index.html` (`not_found_handling: single-page-application`), so client routes need no server code.
-- `email` → `worker/email.ts`, invoked by Email Routing's catch-all rule. Catch-all is routing only: the handler must look up the recipient in D1 and call `message.setReject()` unless the mailbox exists, is `active`, and its owner is `active`. It rejects everything until ingestion is implemented.
+- `email` → `worker/email.ts`, invoked by Email Routing's catch-all rule. Catch-all is routing only. Pipeline: recipient must be printable ASCII → `findDeliveryTarget()` (`worker/repo/ingest.ts`) matches the lowercased envelope recipient exactly, accepting only an `active` mailbox of an `active` user (every other case gets the single reason `REJECT_UNAVAILABLE` — never reveal which) → cheap `ingestBlock()` pre-check → read only the first `PARSE_WINDOW_BYTES` (256 KB) of the raw stream → postal-mime with nesting/part/header limits (failures bounce with `REJECT_MALFORMED`, never throw) → `prepareMessage()` (`worker/lib/mail-content.ts`: byte-capped bodies, attachment metadata as JSON, display text stripped of bidi/control chars, `extractVerificationCode()` from `worker/lib/otp.ts`) → `storeMessage()`, a conditional INSERT that re-checks owner status, per-mailbox/per-user hourly caps and the service-wide daily budget (`ingest_counters`), bumped in the same batch. Budgets exist because the project runs on the Workers/D1 **Free plan** (10 ms CPU per invocation, ~100k row writes/day, 500 MB); keep each delivery ≈7 row writes and well under 10 ms CPU. HTML bodies are stored raw and must only ever be rendered through the sandboxed viewer.
 - `scheduled` → cron in `wrangler.jsonc#triggers` for retention cleanup (`settings.retention_days`) and expired-session purge.
 
 **Build/deploy shape**: `@cloudflare/vite-plugin` builds the client and the Worker together and writes `dist/postluma/wrangler.json` plus `.wrangler/deploy/config.json`, a redirect, so plain `wrangler deploy` and `wrangler d1 migrations apply` read the *built* config. Edit `wrangler.jsonc`, never the generated copy.
 
 **Request pipeline** (`worker/app.ts`): `secureHeaders` → `Cache-Control: no-store` → `checkOrigin` (CSRF) → 64 KB `bodyLimit` → default-deny gate (`PUBLIC_ROUTES` set; everything else runs `requireUser`) → `/api/admin/*` additionally `requireAdmin` → route. Handlers signal failures by throwing `ApiError(status, code)`; `onError` serializes it as `{ error: code }`. Request bodies go through `parseJson(c, zodSchema)` from `worker/lib/request.ts`. Auth-sensitive endpoints call `enforceRateLimit` and `requireTurnstile`.
 
-**Routes so far**: `/api/auth/*`, `/api/settings/public`, `/api/domains` (enabled domains), `/api/mailboxes` (list/create/get/patch — no DELETE by design), `/api/admin/domains` (admin CRUD).
+**Routes so far**: `/api/auth/*`, `/api/settings/public`, `/api/domains` (enabled domains), `/api/mailboxes` (list/create/get/patch — no DELETE by design), `/api/admin/domains` (admin CRUD). Message read APIs arrive in Phase 4.
 
 **Code layout**: `src/` is the Vue 3 SPA (alias `@` → `src`). `worker/` is server code: `routes/` (Hono sub-apps), `repo/` (all SQL), `middleware/`, `lib/` (crypto, password, cookies, request helpers). `shared/api.ts` holds the error-code list, API types and zod schemas imported by both sides (frontend imports it via relative path). Three TS projects: `tsconfig.app.json` (DOM, `src/` + `shared/`), `tsconfig.worker.json` (Workers types from `worker-configuration.d.ts`, `worker/` + `shared/` + `test/`), `tsconfig.node.json` (config files).
 
@@ -48,6 +51,7 @@ Tooling gotchas:
 - Mailbox writes enforce quota, enabled domain, retired-address and creation caps *inside* the conditional INSERT/UPDATE (`UNDER_QUOTA`, `UNDER_CREATION_LIMITS` in `worker/repo/mailboxes.ts`), so concurrent requests can't overshoot; `creationFailure()` only picks the error code afterwards. Stored addresses are always lowercase `local@domain` (local part via `normalizeLocalPart`, domains lowercased on creation, and DB triggers from migration `0002` reject anything else — note their `COLLATE BINARY`, since both columns are NOCASE). The email handler must match on the lowercased recipient.
 - Effective quota = `users.mailbox_quota` ?? `settings.default_mailbox_quota`, counting active mailboxes only. Creation is also capped by `settings.max_total_mailboxes` (any status) and `settings.max_daily_mailbox_creations` (rolling 24 h); these stop create→disable loops from squatting never-reusable addresses.
 - `messages.user_id` is denormalized from the mailbox so every user-facing query can filter `WHERE user_id = ?` directly.
+- Mailbox `last_received_at` is not written by ingest (saves a row write per message); the API derives it with `MAX(received_at)`.
 - `audit_logs` records admin actions and auth failures. `settings` is a key/value table for admin-tunable config (default quota, retention, `registration_open`).
 - Timestamps are epoch milliseconds (INTEGER). D1 enforces foreign keys; `ON DELETE CASCADE` is the cleanup path.
 
@@ -72,4 +76,4 @@ Tooling gotchas:
 
 ## Testing
 
-Tests run inside workerd via `cloudflareTest()` in `vitest.config.ts`, reading bindings from `wrangler.jsonc`. `test/apply-migrations.ts` runs `reset()` and re-applies `migrations/` before **every test** — the plugin does not isolate storage on its own, so never rely on data from another test. Tests live in `test/*.test.ts`; cross-tenant matrices go in `test/isolation/`. Use `api()` / `createUser()` / `login()` from `test/helpers.ts` for HTTP-level tests (it sets a matching `Origin` and a unique `cf-connecting-ip` per call so rate-limit buckets don't collide) and `env.DB` for direct assertions. In tests `ADMIN_INITIAL_PASSWORD` is `test-admin-password` and Turnstile is disabled (see `vitest.config.ts`). To test the email handler, call it directly with a constructed `ForwardableEmailMessage` stub.
+Tests run inside workerd via `cloudflareTest()` in `vitest.config.ts`, reading bindings from `wrangler.jsonc`. `test/apply-migrations.ts` runs `reset()` and re-applies `migrations/` before **every test** — the plugin does not isolate storage on its own, so never rely on data from another test. Tests live in `test/*.test.ts`; cross-tenant matrices go in `test/isolation/`. Use `api()` / `createUser()` / `login()` from `test/helpers.ts` for HTTP-level tests (it sets a matching `Origin` and a unique `cf-connecting-ip` per call so rate-limit buckets don't collide) and `env.DB` for direct assertions. In tests `ADMIN_INITIAL_PASSWORD` is `test-admin-password` and Turnstile is disabled (see `vitest.config.ts`). To test the email handler, build a message with `mime()` and wrap it with `emailStub()` from `test/helpers.ts`, then call `handleEmail(stub, env, createExecutionContext())`; `stub.rejected` holds any `setReject()` reason. Verification-code heuristics are table-driven in `test/otp.test.ts` — add a row for every new false positive/negative.

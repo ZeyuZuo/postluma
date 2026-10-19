@@ -71,3 +71,41 @@ export async function addDomain(domain: string, enabled = true): Promise<string>
 export async function json<T = Record<string, unknown>>(res: Response): Promise<T> {
   return (await res.json()) as T
 }
+
+export interface EmailStub extends ForwardableEmailMessage {
+  rejected: string | null
+}
+
+/** A minimal ForwardableEmailMessage around a raw MIME string, for calling the email handler. */
+export function emailStub(raw: string, envelope: { from?: string; to: string; rawSize?: number }): EmailStub {
+  const bytes = new TextEncoder().encode(raw.replace(/\r?\n/g, '\r\n'))
+  const stub = {
+    from: envelope.from ?? 'sender@example.org',
+    to: envelope.to,
+    raw: new Response(bytes).body!,
+    rawSize: envelope.rawSize ?? bytes.byteLength,
+    headers: new Headers(),
+    rejected: null as string | null,
+    setReject(reason: string) {
+      stub.rejected = reason
+    },
+    forward: async () => ({}) as EmailSendResult,
+    reply: async () => ({}) as EmailSendResult,
+  }
+  return stub as unknown as EmailStub
+}
+
+export function mime(opts: { from?: string; to?: string; subject?: string; text?: string; html?: string; headers?: string }): string {
+  const head = [
+    `From: ${opts.from ?? 'Example <no-reply@example.org>'}`,
+    `To: ${opts.to ?? 'someone@mail.test'}`,
+    `Subject: ${opts.subject ?? 'Hello'}`,
+    'Message-ID: <test-1@example.org>',
+    'MIME-Version: 1.0',
+    ...(opts.headers ? [opts.headers] : []),
+  ]
+  if (opts.html !== undefined && opts.text === undefined) {
+    return [...head, 'Content-Type: text/html; charset=utf-8', '', opts.html].join('\n')
+  }
+  return [...head, 'Content-Type: text/plain; charset=utf-8', '', opts.text ?? 'Hi there'].join('\n')
+}

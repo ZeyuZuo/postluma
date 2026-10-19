@@ -91,16 +91,24 @@
 - [x] 安全复审加固（migration `0002`）：地址总数上限（含停用，默认 100）与 24 小时新建上限（默认 30）；数据库触发器强制地址和域名小写；过滤备注中的控制字符和双向覆盖字符；未读部分索引
 - [x] 待确认事项记录在 `docs/QUESTIONS.md`
 
-## Phase 3 · 邮件接收 Email Worker（P0）
+## Phase 3 · 邮件接收 Email Worker（P0）✅
 
-- [ ] `email` handler：小写地址精确匹配邮箱；邮箱不存在、已停用，或所属用户非 active 时调用 `setReject()`
-- [ ] 用 postal-mime 解析，生成 snippet；正文超过阈值时截断（启用 R2 时转存）
-- [ ] 验证码提取 `worker/lib/otp.ts`：匹配中英文关键词附近的 4–8 位数字或字母数字组合，排除年份和电话号码；配套表驱动测试（需覆盖中、英、日样例）
-- [ ] 写入 `messages`，`user_id` 取自邮箱记录；更新 `last_received_at`
-- [ ] （P1）启用 R2：存储原始 .eml 和附件；附件下载 API 走 repo 层的归属校验
-- [ ] 测试：拒收和接收两条路径；邮件头里伪造的地址不影响邮件归属
+- [x] `email` handler：收件地址必须是 ASCII，转小写后精确匹配；邮箱不存在、已停用、所属用户非 active 时统一用 `Mailbox unavailable` 拒收（不泄露地址状态）；停用域名下已有地址照常收信（Q3）
+- [x] 只读取并解析邮件的前 256 KB（免费版 CPU 预算；实测最坏约 5 ms），超出部分丢弃并标记 `is_truncated`；解析失败（畸形 MIME）明确退信，不抛异常
+- [x] 存储上限：HTML 256 KB、纯文本 64 KB；附件只存元数据（JSON 字段 `attachments_json`，内嵌图片不算附件）；单独记录信封发件人 `envelope_from`；主题、发件人名、文件名过滤控制字符和双向覆盖字符
+- [x] 验证码提取 `worker/lib/otp.ts`：中英日强/弱关键词，数字（含 `482 913`、`482-913`、`48 29 13`、全角数字）和 5–8 位大写字母数字；排除年份、日期、金额（多币种）、电话、卡号尾号、包裹号、时间、时长、URL，以及 promo/zip/error/QR code 等；46 条表驱动测试
+- [x] 防刷与全站额度（migration `0003`，均为可调的 `settings`）：每邮箱每小时 60 封、每用户每小时 120 封、全站每天 5000 封 / 50 MB；所有限制都在条件 INSERT 中原子校验，并发不会超额；超出时退信
+- [x] 写入放大：每封邮件约 7 次 D1 行写入（不再逐个写附件行、不再更新邮箱行；“最后收信时间”改为查询时计算）
+- [x] 测试：接收、各种拒收路径、大小写、`+tag`、Kelvin 符号、伪造邮件头（`test/isolation/email.test.ts`）、截断窗口、附件、并发限流、每用户与全站额度；本地端到端冒烟通过
+- [ ] （P1，待定）启用 R2：存储原始 .eml 和附件内容；附件下载 API 走 repo 层的归属校验。需要在账号中开通 R2，见 `docs/QUESTIONS.md` Q12
 
 ## Phase 4 · 收件箱与邮件渲染（P0）
+
+> Phase 3 复审提前记下的注意事项：
+> - `subject`、`from_name`、`from_address`、`snippet`、附件的文件名和类型都是攻击者可控的纯文本，只能用文本插值渲染，绝不能用 `v-html`（snippet 中可能出现解码后的 `<script>` 字面量）。
+> - 所有 `html_body` 都要按恶意内容处理，包括来自纯文本邮件的（postal-mime 会把混合邮件和转发的 `message/rfc822` 转成 HTML）。`cid:` 引用要在消毒**之前**改写。
+> - 以后提供附件下载时，**绝不能**用存储的 `content_type` 作为响应类型（`text/html` 附件会在本站域名下变成存储型 XSS）：一律 `Content-Disposition: attachment` + RFC 5987 编码的文件名 + `nosniff` + `application/octet-stream`。
+> - From 头没有经过认证：`from_address` 与 `envelope_from` 的域名不一致时，在界面上给出“发件人可能被伪造”的提示。
 
 - [ ] API：`GET /api/messages?mailbox=&q=&cursor=`（默认只返回使用中邮箱的邮件）、`GET /api/messages/:id`（读取时标记已读）、`PATCH`（已读/未读）、`DELETE`
 - [ ] 安全渲染组件 `MailBody.vue`：sandbox iframe（不加 `allow-scripts` 和 `allow-same-origin`）+ `srcdoc` 中注入 CSP + DOMPurify；远程图片可对单封邮件手动“加载图片”

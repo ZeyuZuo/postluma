@@ -131,7 +131,9 @@
    - Project name：`postluma`（必须与 `wrangler.jsonc#name` 一致）
    - Build command：`npm run build`
    - Deploy command：`npx wrangler d1 migrations apply DB --remote && npx wrangler deploy`
-4. 在 Settings → Variables and Secrets 中添加 Secret：`ADMIN_INITIAL_PASSWORD`、`TURNSTILE_SECRET_KEY`；添加构建变量 `VITE_TURNSTILE_SITE_KEY`。**不要**设置 `TURNSTILE_DISABLED`（只用于本地开发）；缺少 Turnstile 密钥时，登录和注册会直接拒绝。
+4. 在 Settings → Variables and Secrets 中添加 Secret：`ADMIN_INITIAL_PASSWORD`、`TURNSTILE_SECRET_KEY`；添加构建变量 `VITE_TURNSTILE_SITE_KEY`。
+   - **别填反**：Site Key（24 位，公开，会打包进前端）→ 构建变量 `VITE_TURNSTILE_SITE_KEY`；Secret Key（35 位，保密）→ Worker Secret `TURNSTILE_SECRET_KEY`。填反时前端报 Turnstile 错误 `400020`，且 Secret 会被公开，必须在 Turnstile 控制台轮换。`vite.config.ts` 会拒绝构建长度像 Secret 的 Site Key。
+   - Turnstile 组件的 Hostname 里要包含实际访问的域名（如 `postluma.<子域>.workers.dev`），否则报错 `110200`。**不要**设置 `TURNSTILE_DISABLED`（只用于本地开发）；缺少 Turnstile 密钥时，登录和注册会直接拒绝。
 5. 对每个收信域名：进入 **Email → Email Routing** 启用路由，添加 **Catch-all → Send to a Worker → postluma**。
 6. 以 admin 身份首次登录后，立即在“账户设置”中修改密码，再删除 Secret `ADMIN_INITIAL_PASSWORD`（admin 账户只会创建一次，之后不再需要它）。
 7. 在后台添加相同的收信域名；（可选）为 Worker 绑定自定义域名作为访问入口。

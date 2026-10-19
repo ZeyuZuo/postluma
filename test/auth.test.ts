@@ -74,6 +74,14 @@ describe('login and sessions', () => {
     expect(await me.json()).toMatchObject({ user: { username: 'dave', role: 'user', status: 'active' } })
   })
 
+  it('audits failed logins only for existing accounts, without the typed text', async () => {
+    const id = await createUser('ivy')
+    await api('/api/auth/login', { body: { username: 'ivy', password: 'wrong-password' } })
+    await api('/api/auth/login', { body: { username: 'my-secret-password-typed-here', password: 'x' } })
+    const rows = (await env.DB.prepare("SELECT actor_id, target_id, detail FROM audit_logs WHERE action = 'auth.login_failed'").all()).results
+    expect(rows).toEqual([{ actor_id: null, target_id: id, detail: null }])
+  })
+
   it('returns the same error for unknown users and wrong passwords', async () => {
     await createUser('erin')
     const wrong = await api('/api/auth/login', { body: { username: 'erin', password: 'nope-nope-nope' } })
@@ -150,8 +158,7 @@ describe('request guards', () => {
     expect((await api('/api/admin/users', { cookie: userCookie })).status).toBe(403)
 
     const adminCookie = await login('admin', 'test-admin-password')
-    // Admin passes the guard; the route itself does not exist yet.
-    expect((await api('/api/admin/users', { cookie: adminCookie })).status).toBe(404)
+    expect((await api('/api/admin/users', { cookie: adminCookie })).status).toBe(200)
   })
 })
 

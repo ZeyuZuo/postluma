@@ -77,12 +77,9 @@ authRoutes.post('/login', async (c) => {
   else await burnPasswordCheck(input.password, config.passwordIterations)
 
   if (!user || !passwordOk) {
-    await writeAudit(c.env.DB, {
-      actorId: user?.id ?? null,
-      action: 'auth.login_failed',
-      detail: { username: input.username },
-      ip,
-    })
+    // Audit only attempts on real accounts, and never the typed text: people paste passwords or
+    // addresses into the username field, and unknown names would let anyone write audit rows.
+    if (user) await writeAudit(c.env.DB, { actorId: null, action: 'auth.login_failed', targetId: user.id, ip })
     throw new ApiError(401, 'invalid_credentials')
   }
   // Status is only revealed to someone who already proved the password.

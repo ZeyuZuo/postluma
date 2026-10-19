@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { TrashOutline } from '@vicons/ionicons5'
-import { NButton, NIcon, NInput, NSpin, NSwitch, NTooltip, useDialog, useMessage } from 'naive-ui'
+import { NButton, NCollapse, NCollapseItem, NInput, NSpin, useDialog, useMessage } from 'naive-ui'
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { DOMAIN_PATTERN, type AdminDomain } from '../../../shared/api'
 import { errorCodeOf } from '@/api/client'
 import { adminDomainApi } from '@/api/mailboxes'
+import DomainRow from './DomainRow.vue'
 
 const { t } = useI18n()
 const message = useMessage()
@@ -18,6 +18,9 @@ const draft = ref('')
 const adding = ref(false)
 const normalized = computed(() => draft.value.trim().toLowerCase())
 const invalid = computed(() => draft.value.trim() !== '' && !DOMAIN_PATTERN.test(normalized.value))
+// Disabled domains live in their own collapsed section so the main list stays short.
+const enabledDomains = computed(() => domains.value.filter((d) => d.enabled))
+const disabledDomains = computed(() => domains.value.filter((d) => !d.enabled))
 
 async function reload(): Promise<void> {
   loading.value = true
@@ -94,36 +97,19 @@ function confirmDelete(domain: AdminDomain): void {
     </form>
 
     <NSpin :show="loading" :delay="150">
-      <ul v-if="domains.length" class="list">
-        <li v-for="domain in domains" :key="domain.id" class="item">
-          <div class="main">
-            <span class="name pl-mono" :class="{ off: !domain.enabled }">{{ domain.domain }}</span>
-            <span class="count">{{ t('admin.domains.mailboxCount', { n: domain.mailboxCount }) }}</span>
-          </div>
-          <label class="switch">
-            <NSwitch :value="domain.enabled" size="small" @update:value="(v: boolean) => toggle(domain, v)" />
-            {{ t('admin.domains.enabled') }}
-          </label>
-          <NTooltip :disabled="domain.mailboxCount === 0">
-            <template #trigger>
-              <span>
-                <NButton
-                  quaternary
-                  circle
-                  size="small"
-                  :disabled="domain.mailboxCount > 0"
-                  :aria-label="t('admin.domains.delete')"
-                  @click="confirmDelete(domain)"
-                >
-                  <template #icon><NIcon><TrashOutline /></NIcon></template>
-                </NButton>
-              </span>
-            </template>
-            {{ t('admin.domains.inUse') }}
-          </NTooltip>
-        </li>
+      <ul v-if="enabledDomains.length" class="list">
+        <DomainRow v-for="domain in enabledDomains" :key="domain.id" :domain="domain" @toggle="(v) => toggle(domain, v)" @remove="confirmDelete(domain)" />
       </ul>
       <p v-else-if="!loading" class="empty">{{ t('admin.domains.empty') }}</p>
+
+      <NCollapse v-if="disabledDomains.length" class="disabled-section">
+        <NCollapseItem :title="t('admin.domains.disabledSection', { n: disabledDomains.length })" name="disabled">
+          <p class="disabled-hint">{{ t('admin.domains.disabledHint') }}</p>
+          <ul class="list">
+            <DomainRow v-for="domain in disabledDomains" :key="domain.id" :domain="domain" @toggle="(v) => toggle(domain, v)" @remove="confirmDelete(domain)" />
+          </ul>
+        </NCollapseItem>
+      </NCollapse>
     </NSpin>
   </section>
 </template>
@@ -159,42 +145,13 @@ function confirmDelete(domain: AdminDomain): void {
   border-radius: 10px;
   background: var(--pl-surface);
 }
-.item {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  padding: 12px 20px;
-  border-top: 1px solid var(--pl-line);
+.disabled-section {
+  margin-top: 24px;
 }
-.item:first-child {
-  border-top: 0;
-}
-.main {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 16px;
-}
-.name {
-  overflow-wrap: anywhere;
-}
-.name.off {
-  color: var(--pl-muted);
-  text-decoration: line-through;
-}
-.count {
+.disabled-hint {
+  margin: 0 0 12px;
   color: var(--pl-muted);
   font-size: 0.8125rem;
-}
-.switch {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--pl-muted);
-  font-size: 0.875rem;
-  cursor: pointer;
 }
 .empty {
   margin: 0;
@@ -207,11 +164,6 @@ function confirmDelete(domain: AdminDomain): void {
 @media (max-width: 600px) {
   .add {
     grid-template-columns: 1fr;
-  }
-  .item {
-    flex-wrap: wrap;
-    gap: 8px 16px;
-    padding: 12px 16px;
   }
 }
 </style>

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <style>
+    .e { fill: none; stroke: #2e5aac; stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+    .d { fill: #ffe27a; stroke: #ffffff; stroke-width: 2; }
+    @media (prefers-color-scheme: dark) {
+      .e { stroke: #86a8ee; }
+      .d { stroke: #1c2027; }
+    }
+  </style>
+  <rect class="e" x="3" y="8.5" width="24" height="17" rx="3" />
+  <path class="e" d="M4.5 11 15 18.5 25.5 11" />
+  <circle class="d" cx="26" cy="8" r="5" />
+</svg>

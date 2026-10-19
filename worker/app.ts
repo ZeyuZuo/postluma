@@ -9,6 +9,8 @@ import { checkOrigin } from './middleware/origin'
 import { getConfig } from './lib/config'
 import { isRegistrationOpen } from './repo/settings'
 import { adminDomainRoutes } from './routes/admin/domains'
+import { adminSystemRoutes } from './routes/admin/system'
+import { adminUserRoutes } from './routes/admin/users'
 import { authRoutes } from './routes/auth'
 import { domainRoutes } from './routes/domains'
 import { mailboxRoutes } from './routes/mailboxes'
@@ -62,6 +64,8 @@ app.route('/domains', domainRoutes)
 app.route('/mailboxes', mailboxRoutes)
 app.route('/messages', messageRoutes)
 app.route('/admin/domains', adminDomainRoutes)
+app.route('/admin/users', adminUserRoutes)
+app.route('/admin', adminSystemRoutes)
 
 app.notFound((c) => c.json({ error: 'not_found' }, 404))
 

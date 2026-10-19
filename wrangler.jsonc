@@ -43,7 +43,9 @@
 		"INGEST_MAX_MESSAGES_PER_DAY": "5000", // whole service; protects the D1 free tier (100k writes/day)
 		"INGEST_MAX_MB_PER_DAY": "12", // whole service; × retention days must fit the 500 MB database
 		"INGEST_PARSE_WINDOW_KB": "256", // only this much of each message is read (Free plan CPU budget)
-		"MESSAGE_RETENTION_DAYS": "30" // * delete mail older than this; 0 = keep forever
+		"MESSAGE_RETENTION_DAYS": "30", // * delete mail older than this; must satisfy MB/day × days ≤ 400 MB
+		// ---- Deleting mail (~6 D1 row writes per message; shared 100k writes/day on the Free plan)
+		"MAX_DELETES_PER_DAY": "5000" // retention cleanup + admin purges/cleanups together, per UTC day
 	}
 	// Receiving domains live in the D1 `domains` table (admin UI), not here.
 	// Optional R2 for raw .eml / attachments — enable in Phase 3:

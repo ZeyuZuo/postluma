@@ -30,6 +30,10 @@ export const ERROR_CODES = [
   'mailbox_total_limit_reached',
   'domain_exists',
   'domain_in_use',
+  'invalid_state',
+  'cannot_modify_admin',
+  'user_has_messages',
+  'retention_too_long',
 ] as const
 export type ErrorCode = (typeof ERROR_CODES)[number]
 
@@ -282,3 +286,112 @@ export const summaryQuerySchema = z.object({
   /** Force a recount (clients do this every few minutes to correct local drift). */
   recount: z.enum(['1']).optional(),
 })
+
+// ---- Admin ---------------------------------------------------------------------------------
+// Admin endpoints return account metadata and aggregate numbers only — never addresses' mail,
+// subjects, senders or bodies (product decision: admins can't read users' mail).
+
+export interface AdminUser {
+  id: string
+  username: string
+  role: UserRole
+  status: UserStatus
+  /** Per-user override; null = the effective default. */
+  mailboxQuota: number | null
+  activeMailboxes: number
+  totalMailboxes: number
+  createdAt: number
+  lastLoginAt: number | null
+}
+
+export interface AdminUserListResponse {
+  items: AdminUser[]
+  nextCursor: string | null
+  /** Pending sign-ups, for the tab badge (first page only; null on later pages). */
+  pendingCount: number | null
+}
+
+export type AdminUserAction = 'approve' | 'reject' | 'ban' | 'unban'
+
+/** Ranges shared by the admin UI and the API; they match worker/lib/config.ts. */
+export const SETTING_RANGES = {
+  defaultMailboxQuota: { min: 0, max: 10_000 },
+  retentionDays: { min: 1, max: 3_650 },
+  mailboxQuota: { min: 0, max: 10_000 },
+} as const
+
+export interface AdminSettings {
+  /** Longest retention the database can hold at the configured daily intake (see config). */
+  maxRetentionDays: number
+  registrationOpen: boolean
+  defaultMailboxQuota: number
+  retentionDays: number
+  /** Which values are admin overrides (vs. the deploy-time defaults in `defaults`). */
+  overridden: { registrationOpen: boolean; defaultMailboxQuota: boolean; retentionDays: boolean }
+  defaults: { registrationOpen: boolean; defaultMailboxQuota: number; retentionDays: number }
+}
+
+export interface AdminStats {
+  users: Record<UserStatus, number>
+  mailboxes: { active: number; disabled: number }
+  /** Last 7 UTC days, oldest first (from the ingest counters, not by counting messages). */
+  intake: { day: string; messages: number; bytes: number }[]
+  today: { messages: number; bytes: number; maxMessages: number; maxBytes: number }
+  database: { bytes: number | null; limitBytes: number }
+}
+
+export interface AuditEntry {
+  id: string
+  action: string
+  actorUsername: string | null
+  targetId: string | null
+  /** Resolved when the target is a (still existing) user account. */
+  targetUsername: string | null
+  detail: unknown
+  ip: string | null
+  createdAt: number
+}
+
+export interface AuditListResponse {
+  items: AuditEntry[]
+  nextCursor: string | null
+}
+
+/** Deletions run in bounded batches (D1 write budget); clients repeat while `done` is false. */
+export interface BatchDeleteResponse {
+  deleted: number
+  done: boolean
+  /** Today's shared deletion budget (MAX_DELETES_PER_DAY) is spent; continue after 00:00 UTC. */
+  budgetExhausted: boolean
+}
+
+export const adminUsersQuerySchema = z.object({
+  status: z.enum(['pending', 'active', 'banned', 'rejected']).optional(),
+  q: z.string().trim().max(64).optional(),
+  cursor: z.string().max(200).optional(),
+})
+
+export const adminUserActionSchema = z.object({ action: z.enum(['approve', 'reject', 'ban', 'unban']) })
+
+export const adminUserQuotaSchema = z.object({
+  mailboxQuota: z.number().int().min(SETTING_RANGES.mailboxQuota.min).max(SETTING_RANGES.mailboxQuota.max).nullable(),
+})
+
+/** Each field: a value to override, `null` to go back to the deploy-time default, absent = keep. */
+export const adminSettingsSchema = z
+  .object({
+    registrationOpen: z.boolean().nullable().optional(),
+    defaultMailboxQuota: z
+      .number()
+      .int()
+      .min(SETTING_RANGES.defaultMailboxQuota.min)
+      .max(SETTING_RANGES.defaultMailboxQuota.max)
+      .nullable()
+      .optional(),
+    retentionDays: z.number().int().min(SETTING_RANGES.retentionDays.min).max(SETTING_RANGES.retentionDays.max).nullable().optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0)
+
+export const adminCleanupSchema = z.object({ olderThanDays: z.number().int().min(1).max(3_650) })
+
+export const auditQuerySchema = z.object({ cursor: z.string().max(200).optional() })

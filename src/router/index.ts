@@ -35,7 +35,7 @@ const router = createRouter({
       component: AppLayout,
       children: [
         { path: '', name: 'home', component: () => import('@/views/HomeView.vue'), meta: { titleKey: 'nav.home' } },
-        { path: 'inbox', name: 'inbox', component: () => import('@/views/InboxView.vue'), meta: { titleKey: 'nav.inbox' } },
+        { path: 'inbox/:id?', name: 'inbox', component: () => import('@/views/InboxView.vue'), meta: { titleKey: 'nav.inbox' } },
         {
           path: 'mailboxes',
           name: 'mailboxes',

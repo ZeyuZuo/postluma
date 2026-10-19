@@ -111,14 +111,16 @@
 > - `subject`、`from_name`、`from_address`、`snippet`、附件的文件名和类型都是攻击者可控的纯文本，只能用文本插值渲染，绝不能用 `v-html`（snippet 中可能出现解码后的 `<script>` 字面量）。
 > - 所有 `html_body` 都要按恶意内容处理，包括来自纯文本邮件的（postal-mime 会把混合邮件和转发的 `message/rfc822` 转成 HTML）。`cid:` 引用要在消毒**之前**改写。
 > - 以后提供附件下载时，**绝不能**用存储的 `content_type` 作为响应类型（`text/html` 附件会在本站域名下变成存储型 XSS）：一律 `Content-Disposition: attachment` + RFC 5987 编码的文件名 + `nosniff` + `application/octet-stream`。
-> - From 头没有经过认证：`from_address` 与 `envelope_from` 的域名不一致时，在界面上给出“发件人可能被伪造”的提示。
+> - From 头没有经过认证（见本节最后一项 P2）。
 
-- [ ] API：`GET /api/messages?mailbox=&q=&cursor=`（默认只返回使用中邮箱的邮件）、`GET /api/messages/:id`（读取时标记已读）、`PATCH`（已读/未读）、`DELETE`
-- [ ] 安全渲染组件 `MailBody.vue`：sandbox iframe（不加 `allow-scripts` 和 `allow-same-origin`）+ `srcdoc` 中注入 CSP + DOMPurify；远程图片可对单封邮件手动“加载图片”
-- [ ] 首页：一键创建邮箱、最新邮件、最近验证码卡片（一键复制）
-- [ ] 收件箱：邮件列表（未读加粗）、按邮箱筛选、搜索、详情面板（桌面端左右分栏，移动端上下堆叠）、验证码高亮
-- [ ] （P1）列表每 10–15 秒轮询刷新
-- [ ] 隔离测试 + 渲染测试（`<script>`、事件属性、远程跟踪像素都不会执行或发起请求）
+- [x] API：`GET /api/messages`（默认只含使用中地址的邮件；`mailbox`、`q`、`unread`、`code`、`since`、`cursor`、`limit`）、`GET /api/messages/:id`（只读，不改状态）、`PATCH`（已读/未读）、`DELETE`、`POST /api/messages/mark-read`、`GET /api/messages/summary`（轮询用）
+- [x] 安全渲染（`src/lib/mail-html.ts` + `MailFrame.vue`）：DOMPurify 清洗 + srcdoc 自带 CSP + iframe sandbox（无 `allow-scripts`、无 `allow-same-origin`）；远程图片（含 CSS 背景）默认屏蔽，可对单封邮件“加载图片”；链接新标签页打开且不带来源；纯文本邮件自动识别链接
+- [x] 首页：一键创建、最近验证码卡片（一键复制）、最新邮件、最近地址
+- [x] 收件箱：未读蓝点加粗、按地址筛选（含已停用地址的历史）、搜索、全部已读、详情（桌面左右分栏，手机列表→详情）、验证码大号卡片、截断与附件信息
+- [x] 页面可见时每 30 秒轮询 `summary`（带上已知的最新时间，无新邮件时服务端只读 1 行；每 5 分钟重算一次），有新邮件时按当前筛选条件增量拉取；侧栏未读角标（最多显示 99+）
+- [x] 安全复审加固（D1 读写额度）：`CROSS JOIN` 固定查询顺序 + 查询计划回归测试；游标改为行值比较；未读数最多统计 100；搜索至少 2 个字符、只搜最近 2000 封；“全部已读”每次最多 500 封并限频；首页验证码只看 24 小时内（migration `0005`：验证码部分索引）；禁用 `<map>`/`<area>` 并在 iframe 中加 `<base target="_blank">`
+- [x] 测试：功能 + 隔离（普通用户和 admin 都读不到别人的邮件）；生产构建下用 Chromium 实测恶意邮件：脚本、事件、`javascript:`、表单、iframe、svg 全部失效，点“加载图片”前追踪域名收不到任何请求
+- [ ] （P2）发件人认证提示：入信时记录 SPF/DKIM/DMARC 结果，在界面上提示“发件人未通过验证”。原计划的“信封发件人与 From 域名不一致”方案误报太多（经 SendGrid、SES 等代发的正规邮件都会触发），已放弃；现在只在详情里如实显示“投递来源”
 
 ## Phase 5 · 管理后台与清理（P0/P1）
 

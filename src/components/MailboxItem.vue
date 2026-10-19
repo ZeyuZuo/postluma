@@ -114,19 +114,11 @@ function confirmDisable(): void {
     </div>
 
     <div class="actions">
-      <template v-if="mailbox.status === 'active'">
-        <NButton size="small" secondary @click="confirmDisable">{{ t('mailboxes.disable') }}</NButton>
-      </template>
-      <template v-else>
-        <RouterLink
-          v-if="mailbox.messageCount > 0"
-          class="view-mail"
-          :to="{ name: 'inbox', query: { mailbox: mailbox.id } }"
-        >
-          {{ t('mailboxes.viewMail') }}
-        </RouterLink>
-        <NButton size="small" type="primary" secondary @click="setStatus('active')">{{ t('mailboxes.enable') }}</NButton>
-      </template>
+      <RouterLink v-if="mailbox.messageCount > 0" class="view-mail" :to="{ name: 'inbox', query: { mailbox: mailbox.id } }">
+        {{ t('mailboxes.viewMail') }}
+      </RouterLink>
+      <NButton v-if="mailbox.status === 'active'" size="small" secondary @click="confirmDisable">{{ t('mailboxes.disable') }}</NButton>
+      <NButton v-else size="small" type="primary" secondary @click="setStatus('active')">{{ t('mailboxes.enable') }}</NButton>
     </div>
   </li>
 </template>

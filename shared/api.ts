@@ -197,3 +197,88 @@ export const createDomainSchema = z.object({
 })
 
 export const updateDomainSchema = z.object({ enabled: z.boolean() })
+
+// ---- Messages ------------------------------------------------------------------------------
+
+export interface MessageSummary {
+  id: string
+  mailboxId: string
+  mailboxAddress: string
+  mailboxStatus: MailboxStatus
+  fromAddress: string
+  fromName: string | null
+  subject: string
+  snippet: string
+  verificationCode: string | null
+  isRead: boolean
+  hasAttachments: boolean
+  receivedAt: number
+}
+
+export interface MessageAttachment {
+  filename: string | null
+  contentType: string
+  size: number
+  inline: boolean
+}
+
+export interface MessageDetail extends MessageSummary {
+  toAddress: string
+  /** SMTP envelope sender: who actually delivered it (often a mailing service, not the From domain). */
+  envelopeFrom: string | null
+  textBody: string | null
+  /** Raw, attacker-controlled HTML. Only ever render it through the sandboxed mail frame. */
+  htmlBody: string | null
+  isTruncated: boolean
+  size: number
+  attachments: MessageAttachment[]
+}
+
+export interface MessageListResponse {
+  items: MessageSummary[]
+  nextCursor: string | null
+}
+
+export interface InboxSummary {
+  /**
+   * Unread messages in active mailboxes, counted up to UNREAD_COUNT_CAP. `null` when the caller
+   * passed `known` equal to the latest arrival (nothing new; the count was not recomputed).
+   */
+  unread: number | null
+  latestReceivedAt: number | null
+}
+
+/** Badges show "99+"; counting further would only cost D1 reads. */
+export const UNREAD_COUNT_CAP = 100
+/** Search looks at this many of the user's newest messages (bounded D1 reads). */
+export const SEARCH_WINDOW = 2_000
+export const SEARCH_MIN_CHARS = 2
+/** "Mark all read" updates at most this many rows per call (bounded D1 writes). */
+export const MARK_READ_BATCH = 500
+
+export const MESSAGE_PAGE_SIZE = 50
+
+const flagSchema = z.enum(['1']).optional()
+
+export const listMessagesQuerySchema = z.object({
+  mailbox: idSchema.optional(),
+  q: z.string().trim().min(SEARCH_MIN_CHARS).max(100).optional(),
+  cursor: z.string().max(200).optional(),
+  /** Only messages received after this timestamp (polling; also bounds the home "recent codes"). */
+  since: z.coerce.number().int().min(0).optional(),
+  unread: flagSchema,
+  /** Only messages with a detected verification code. */
+  code: flagSchema,
+  limit: z.coerce.number().int().min(1).max(MESSAGE_PAGE_SIZE).default(MESSAGE_PAGE_SIZE),
+})
+
+export const updateMessageSchema = z.object({ isRead: z.boolean() })
+
+export const markReadSchema = z.object({ mailboxId: idSchema.optional() })
+
+export const summaryQuerySchema = z.object({
+  /** The latest arrival the client already knows about; if unchanged, the count is skipped. */
+  known: z.coerce.number().int().min(0).optional(),
+  /** Force a recount (clients do this every few minutes to correct local drift). */
+  recount: z.enum(['1']).optional(),
+})

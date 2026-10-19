@@ -19,6 +19,7 @@
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5.3.0",
     "@vicons/ionicons5": "^0.13.0",
+    "dompurify": "3.4.16",
     "hono": "^4.13.13",
     "naive-ui": "^2.45.3",
     "postal-mime": "^4.0.11",

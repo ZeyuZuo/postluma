@@ -12,6 +12,7 @@ import { adminDomainRoutes } from './routes/admin/domains'
 import { authRoutes } from './routes/auth'
 import { domainRoutes } from './routes/domains'
 import { mailboxRoutes } from './routes/mailboxes'
+import { messageRoutes } from './routes/messages'
 import type { AppEnv } from './types'
 
 export type { AppEnv } from './types'
@@ -59,6 +60,7 @@ app.get('/settings/public', async (c) => {
 app.route('/auth', authRoutes)
 app.route('/domains', domainRoutes)
 app.route('/mailboxes', mailboxRoutes)
+app.route('/messages', messageRoutes)
 app.route('/admin/domains', adminDomainRoutes)
 
 app.notFound((c) => c.json({ error: 'not_found' }, 404))

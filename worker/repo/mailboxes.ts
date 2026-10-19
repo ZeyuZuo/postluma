@@ -111,8 +111,8 @@ export async function listMailboxes(
   }
   if (opts.cursor) {
     const c = decodeCursor(opts.cursor)
-    where.push('(m.created_at < ? OR (m.created_at = ? AND m.id < ?))')
-    params.push(c.createdAt, c.createdAt, c.id)
+    where.push('(m.created_at, m.id) < (?, ?)') // row value: an index range, unlike the OR form
+    params.push(c.createdAt, c.id)
   }
   const { results } = await db
     .prepare(`${SELECT_MAILBOX} WHERE ${where.join(' AND ')} ORDER BY m.created_at DESC, m.id DESC LIMIT ?`)

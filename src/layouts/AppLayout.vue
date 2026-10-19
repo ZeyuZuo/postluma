@@ -20,16 +20,18 @@ import {
   NLayoutContent,
   NLayoutHeader,
   NLayoutSider,
+  NBadge,
   NMenu,
   type MenuOption,
 } from 'naive-ui'
-import { computed, h, ref, type Component } from 'vue'
+import { computed, h, onBeforeUnmount, onMounted, ref, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 
 import BrandMark from '@/components/BrandMark.vue'
 import PreferenceSwitches from '@/components/PreferenceSwitches.vue'
 import { useIsMobile } from '@/composables/useIsMobile'
+import { inbox, startInboxPolling, stopInboxPolling } from '@/stores/inbox'
 import { logout, session } from '@/stores/session'
 
 const { t } = useI18n()
@@ -42,10 +44,19 @@ const icon = (c: Component) => () => h(NIcon, null, { default: () => h(c) })
 const link = (name: string, labelKey: string) => () =>
   h(RouterLink, { to: { name }, onClick: () => (drawerOpen.value = false) }, { default: () => t(labelKey) })
 
+onMounted(startInboxPolling)
+onBeforeUnmount(stopInboxPolling)
+
+const inboxLabel = () =>
+  h('span', { class: 'nav-inbox' }, [
+    link('inbox', 'nav.inbox')(),
+    inbox.unread > 0 ? h(NBadge, { value: inbox.unread, max: 99, class: 'nav-badge' }) : null,
+  ])
+
 const menuOptions = computed<MenuOption[]>(() => {
   const items: MenuOption[] = [
     { key: 'home', label: link('home', 'nav.home'), icon: icon(HomeOutline) },
-    { key: 'inbox', label: link('inbox', 'nav.inbox'), icon: icon(FileTrayFullOutline) },
+    { key: 'inbox', label: inboxLabel, icon: icon(FileTrayFullOutline) },
     { key: 'mailboxes', label: link('mailboxes', 'nav.mailboxes'), icon: icon(AtOutline) },
     { key: 'mailboxes-disabled', label: link('mailboxes-disabled', 'nav.disabled'), icon: icon(PauseCircleOutline) },
   ]
@@ -113,6 +124,11 @@ async function onUserAction(key: string): Promise<void> {
 }
 .sider-brand {
   padding: 20px 24px 16px;
+}
+:deep(.nav-inbox) {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 .header {
   display: flex;

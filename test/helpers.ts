@@ -123,3 +123,45 @@ export function mime(opts: { from?: string; to?: string; subject?: string; text?
   }
   return [...head, 'Content-Type: text/plain; charset=utf-8', '', opts.text ?? 'Hi there'].join('\n')
 }
+
+export async function addMailboxRow(userId: string, domainId: string, address: string, status = 'active'): Promise<string> {
+  const id = crypto.randomUUID()
+  await env.DB.prepare(
+    'INSERT INTO mailboxes (id, user_id, domain_id, address, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 1, 1)',
+  )
+    .bind(id, userId, domainId, address, status)
+    .run()
+  return id
+}
+
+let messageClock = Date.UTC(2026, 9, 19, 8, 0)
+
+/** Inserts a stored message directly (bypassing ingest) with increasing timestamps. */
+export async function addMessageRow(
+  mailboxId: string,
+  fields: Partial<{ subject: string; snippet: string; code: string; html: string; text: string; read: boolean; from: string; receivedAt: number; attachmentsJson: string }> = {},
+): Promise<string> {
+  const id = crypto.randomUUID()
+  messageClock += 1000
+  await env.DB.prepare(
+    `INSERT INTO messages (id, mailbox_id, user_id, from_address, from_name, to_address, subject, snippet, text_body,
+       html_body, verification_code, size, is_read, envelope_from, attachments_json, received_at)
+     SELECT ?, m.id, m.user_id, ?, 'Sender', m.address, ?, ?, ?, ?, ?, 100, ?, 'bounce@mailer.example', ?, ?
+     FROM mailboxes m WHERE m.id = ?`,
+  )
+    .bind(
+      id,
+      fields.from ?? 'sender@example.org',
+      fields.subject ?? 'Hello',
+      fields.snippet ?? 'Hi there',
+      fields.text ?? 'Hi there',
+      fields.html ?? null,
+      fields.code ?? null,
+      fields.read ? 1 : 0,
+      fields.attachmentsJson ?? null,
+      fields.receivedAt ?? messageClock,
+      mailboxId,
+    )
+    .run()
+  return id
+}

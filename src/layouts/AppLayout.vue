@@ -136,6 +136,7 @@ async function onUserAction(key: string): Promise<void> {
   grid-template-rows: auto minmax(0, 1fr) auto;
 }
 .topbar {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -150,8 +151,13 @@ async function onUserAction(key: string): Promise<void> {
   text-decoration: none;
 }
 .topnav {
+  /* Centered on the page, independent of the brand and user menu widths. */
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
-  align-self: stretch;
   gap: 4px;
 }
 .topnav-link {

@@ -31,7 +31,7 @@ const usersTab = () =>
 </script>
 
 <template>
-  <NTabs :value="tab" type="line" animated @update:value="select">
+  <NTabs :value="tab" type="line" justify-content="center" animated @update:value="select">
     <NTabPane name="users" :tab="usersTab">
       <UserManager @pending-changed="(n: number) => (pending = n)" />
     </NTabPane>

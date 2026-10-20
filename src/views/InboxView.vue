@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { CloseOutline, SearchOutline } from '@vicons/ionicons5'
-import { NButton, NIcon, NInput, NSelect, NSpin, useMessage } from 'naive-ui'
+import { NButton, NIcon, NInput, NSelect, NSkeleton, NSpin, useMessage } from 'naive-ui'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
@@ -280,8 +280,15 @@ const showList = computed(() => !isMobile.value || !selectedId.value)
         <NButton class="mark-all" quaternary @click="markAllRead">{{ t('inbox.markAllRead') }}</NButton>
       </div>
 
-      <NSpin :show="loading" :delay="150" class="list-spin">
-        <template v-if="items.length">
+      <NSpin :show="loading && items.length > 0" :delay="150" class="list-spin">
+        <div v-if="loading && !items.length" class="skeleton" aria-hidden="true">
+          <div v-for="i in 8" :key="i" class="skeleton-row">
+            <NSkeleton text :width="120" />
+            <NSkeleton text :width="`${40 + ((i * 13) % 35)}%`" />
+            <NSkeleton text :width="48" />
+          </div>
+        </div>
+        <template v-else-if="items.length">
           <section v-for="g in groups" :key="g.key" class="group">
             <h2 class="group-label">{{ t(`inbox.day.${g.key}`) }}</h2>
             <ul class="list">
@@ -405,6 +412,15 @@ const showList = computed(() => !isMobile.value || !selectedId.value)
   list-style: none;
   margin: 0;
   padding: 0;
+}
+.skeleton-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  height: 46px;
+  padding: 0 16px 0 36px;
+  border-bottom: 1px solid var(--pl-line);
 }
 .empty {
   margin: 0;

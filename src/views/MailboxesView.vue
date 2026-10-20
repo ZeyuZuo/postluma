@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { NButton, useMessage } from 'naive-ui'
+import { h, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'
 
 import type { MailboxStatus, PublicMailbox } from '../../shared/api'
+import { errorCodeOf } from '@/api/client'
+import { mailboxApi } from '@/api/mailboxes'
 import AddressCommand from '@/components/AddressCommand.vue'
 import MailboxListPanel from '@/components/MailboxListPanel.vue'
 import { useMailboxList } from '@/composables/useMailboxList'
@@ -15,6 +18,8 @@ const { t } = useI18n()
 const list = useMailboxList(props.status)
 const { items, quota, query, nextCursor, loading, loadingMore } = list
 const freshId = ref<string | null>(null)
+const toast = useMessage()
+const UNDO_MS = 8000
 
 onMounted(() => void list.reload())
 
@@ -24,12 +29,40 @@ function onCreated(mailbox: PublicMailbox): void {
   if (quota.value) quota.value = { ...quota.value, used: quota.value.used + 1 }
 }
 
+function adjustQuota(delta: number): void {
+  if (quota.value) quota.value = { ...quota.value, used: quota.value.used + delta }
+}
+
 function onChanged(mailbox: PublicMailbox): void {
   const leaving = mailbox.status !== props.status
   list.apply(mailbox)
-  if (!leaving || !quota.value) return
+  if (!leaving) return
   // Only active addresses use quota: disabling frees a slot, re-enabling takes one.
-  quota.value = { ...quota.value, used: quota.value.used + (mailbox.status === 'active' ? 1 : -1) }
+  adjustQuota(mailbox.status === 'active' ? 1 : -1)
+  if (mailbox.status === 'disabled') offerUndo(mailbox)
+}
+
+/** Disabling happens at once; this toast can take it back (re-checking the quota). */
+function offerUndo(mailbox: PublicMailbox): void {
+  const notice = toast.info(
+    () =>
+      h('span', { class: 'undo-toast' }, [
+        t('mailboxes.disabledToast', { address: mailbox.address }),
+        h(NButton, { text: true, type: 'primary', style: 'margin-left: 12px', onClick: () => void undo() }, () => t('common.undo')),
+      ]),
+    { duration: UNDO_MS, closable: true },
+  )
+  async function undo(): Promise<void> {
+    notice.destroy()
+    try {
+      const { mailbox: restored } = await mailboxApi.update(mailbox.id, { status: 'active' })
+      list.prepend(restored)
+      adjustQuota(1)
+      toast.success(t('mailboxes.enabledToast', { address: restored.address }))
+    } catch (err) {
+      toast.error(t(`errors.${errorCodeOf(err)}`))
+    }
+  }
 }
 </script>
 

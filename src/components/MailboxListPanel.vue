@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { SearchOutline } from '@vicons/ionicons5'
-import { NButton, NIcon, NInput, NSpin } from 'naive-ui'
+import { NButton, NIcon, NInput, NSkeleton, NSpin } from 'naive-ui'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -27,7 +27,7 @@ const emptyMessage = computed(() => (query.value.trim() ? t('mailboxes.emptySear
     <NInput v-model:value="query" class="search" clearable :placeholder="t('mailboxes.searchPlaceholder')">
       <template #prefix><NIcon><SearchOutline /></NIcon></template>
     </NInput>
-    <NSpin :show="loading" :delay="150">
+    <NSpin :show="loading && items.length > 0" :delay="150">
       <ul v-if="items.length" class="list">
         <MailboxItem
           v-for="mailbox in items"
@@ -38,7 +38,12 @@ const emptyMessage = computed(() => (query.value.trim() ? t('mailboxes.emptySear
         />
       </ul>
       <p v-else-if="!loading" class="empty">{{ emptyMessage }}</p>
-      <div v-else class="placeholder" />
+      <div v-else class="list skeleton" aria-hidden="true">
+        <div v-for="i in 4" :key="i" class="skeleton-row">
+          <NSkeleton text :width="220" />
+          <NSkeleton text :width="`${30 + ((i * 17) % 30)}%`" />
+        </div>
+      </div>
     </NSpin>
     <div v-if="hasMore" class="more">
       <NButton :loading="loadingMore" @click="emit('more')">{{ t('common.loadMore') }}</NButton>
@@ -68,8 +73,14 @@ const emptyMessage = computed(() => (query.value.trim() ? t('mailboxes.emptySear
   color: var(--pl-muted);
   text-align: center;
 }
-.placeholder {
-  height: 120px;
+.skeleton-row {
+  display: grid;
+  gap: 10px;
+  padding: 18px 20px;
+  border-top: 1px solid var(--pl-line);
+}
+.skeleton-row:first-child {
+  border-top: 0;
 }
 .more {
   display: flex;

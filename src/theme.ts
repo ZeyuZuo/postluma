@@ -28,6 +28,8 @@ export const lightOverrides: GlobalThemeOverrides = {
     borderColor: '#D9DDE3',
   },
   Layout: { color: '#F3F4F6', headerColor: '#FFFFFF', siderColor: '#FFFFFF' },
+  // The signal underline marks "where you are", as in the top navigation.
+  Tabs: { barColor: '#F2C14E', tabTextColorActiveLine: '#13161B', tabTextColorHoverLine: '#13161B' },
 }
 
 export const darkOverrides: GlobalThemeOverrides = {
@@ -46,4 +48,5 @@ export const darkOverrides: GlobalThemeOverrides = {
     borderColor: '#2A313C',
   },
   Layout: { color: '#0E1116', headerColor: '#0E1116', siderColor: '#151920' },
+  Tabs: { barColor: '#F2C14E', tabTextColorActiveLine: '#E7EAEE', tabTextColorHoverLine: '#E7EAEE' },
 }

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { NSkeleton } from 'naive-ui'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'
@@ -74,6 +75,9 @@ function onCreated(mailbox: PublicMailbox): void {
         </header>
         <CodeTiles v-if="codes.length" :messages="codes" />
         <p v-else-if="codesLoaded" class="empty">{{ t('home.noCodes') }}</p>
+        <div v-else class="tile-skeletons" aria-hidden="true">
+          <NSkeleton v-for="i in 2" :key="i" height="128px" :sharp="false" />
+        </div>
       </section>
 
       <section class="addresses" aria-labelledby="addresses-title">
@@ -180,6 +184,14 @@ h2 {
   border: 0;
   border-bottom: 1px solid var(--pl-line);
   border-radius: 0;
+}
+.tile-skeletons {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+  gap: 12px;
+}
+.tile-skeletons :deep(.n-skeleton) {
+  border-radius: 14px;
 }
 @media (max-width: 600px) {
   .hero {

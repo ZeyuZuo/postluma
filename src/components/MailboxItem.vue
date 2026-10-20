@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { CopyOutline, CreateOutline, HelpCircleOutline } from '@vicons/ionicons5'
-import { NButton, NIcon, NInput, NSwitch, NTooltip, useDialog, useMessage } from 'naive-ui'
+import { NButton, NIcon, NInput, NSwitch, NTooltip, useMessage } from 'naive-ui'
 import { computed, nextTick, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'
@@ -16,7 +16,6 @@ const emit = defineEmits<{ changed: [mailbox: PublicMailbox] }>()
 
 const { t } = useI18n()
 const message = useMessage()
-const dialog = useDialog()
 
 const editing = ref(false)
 const draft = ref('')
@@ -63,10 +62,11 @@ async function saveNote(): Promise<void> {
   }
 }
 
+/** Disabling is undoable (the page offers "Undo"), so it needs no confirmation dialog. */
 async function setStatus(status: 'active' | 'disabled'): Promise<void> {
   try {
     const { mailbox } = await mailboxApi.update(props.mailbox.id, { status })
-    message.success(t(status === 'active' ? 'mailboxes.enabledToast' : 'mailboxes.disabledToast', { address: mailbox.address }))
+    if (status === 'active') message.success(t('mailboxes.enabledToast', { address: mailbox.address }))
     emit('changed', mailbox)
   } catch (err) {
     message.error(t(`errors.${errorCodeOf(err)}`))
@@ -85,15 +85,6 @@ async function setSubaddress(acceptSubaddress: boolean): Promise<void> {
   }
 }
 
-function confirmDisable(): void {
-  dialog.warning({
-    title: t('mailboxes.disableTitle'),
-    content: t('mailboxes.disableBody', { address: props.mailbox.address }),
-    positiveText: t('mailboxes.disable'),
-    negativeText: t('common.cancel'),
-    onPositiveClick: () => setStatus('disabled'),
-  })
-}
 </script>
 
 <template>
@@ -159,7 +150,7 @@ function confirmDisable(): void {
       <RouterLink v-if="mailbox.messageCount > 0" class="view-mail" :to="{ name: 'inbox', query: { mailbox: mailbox.id } }">
         {{ t('mailboxes.viewMail') }} →
       </RouterLink>
-      <NButton v-if="mailbox.status === 'active'" size="small" quaternary @click="confirmDisable">{{ t('mailboxes.disable') }}</NButton>
+      <NButton v-if="mailbox.status === 'active'" size="small" quaternary @click="setStatus('disabled')">{{ t('mailboxes.disable') }}</NButton>
       <NButton v-else size="small" type="primary" secondary @click="setStatus('active')">{{ t('mailboxes.enable') }}</NButton>
     </div>
   </li>

@@ -45,11 +45,9 @@ onMounted(() => {
   void list.reload()
   void loadCodes()
 })
-watch(() => inbox.latestReceivedAt, (now, before) => {
-  if (now && before != null && now !== before) {
-    void loadCodes()
-    void list.reload() // unread counts and "last received"
-  }
+watch(() => inbox.arrivals, () => {
+  void loadCodes()
+  void list.reload() // unread counts and "last received"
 })
 
 function onCreated(mailbox: PublicMailbox): void {

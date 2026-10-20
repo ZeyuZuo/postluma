@@ -13,10 +13,21 @@ const POLL_MS = 30_000
 const BOOST_POLL_MS = 10_000
 const RECOUNT_EVERY = 10
 
-const state = reactive({ unread: 0, latestReceivedAt: null as number | null, boostUntil: 0 })
+const state = reactive({
+  unread: 0,
+  latestReceivedAt: null as number | null,
+  /**
+   * Bumped whenever the latest arrival changes after the first summary of this page load. Views
+   * watch this, not latestReceivedAt: a user with no mail yet goes null → timestamp on their first
+   * message, which a "skip the initial null" check on latestReceivedAt would miss.
+   */
+  arrivals: 0,
+  boostUntil: 0,
+})
 export const inbox = readonly(state)
 
 let polls = 0
+let initialized = false
 let lastPoll = 0
 
 export async function refreshInbox(opts: { recount?: boolean } = {}): Promise<void> {
@@ -29,7 +40,9 @@ export async function refreshInbox(opts: { recount?: boolean } = {}): Promise<vo
       recount,
     })
     if (summary.unread !== null) state.unread = summary.unread
+    if (initialized && summary.latestReceivedAt !== state.latestReceivedAt) state.arrivals += 1
     state.latestReceivedAt = summary.latestReceivedAt
+    initialized = true
   } catch {
     // Transient; the next tick retries. A 401 is handled globally by the API client.
   }

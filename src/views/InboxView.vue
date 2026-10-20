@@ -157,10 +157,7 @@ onMounted(async () => {
 onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
 watch([mailboxFilter, filter], () => void reload())
-// `previous != null`: the first summary after page load isn't "new mail".
-watch(() => inbox.latestReceivedAt, (latest, previous) => {
-  if (latest && previous != null && latest !== previous) void pullNew()
-})
+watch(() => inbox.arrivals, () => void pullNew())
 
 let searchTimer: ReturnType<typeof setTimeout> | undefined
 watch(effectiveQuery, (value) => {

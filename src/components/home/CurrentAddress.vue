@@ -49,9 +49,7 @@ watch(() => props.mailbox.id, () => {
   mail.value = []
   void load()
 }, { immediate: true })
-watch(() => inbox.latestReceivedAt, (now, before) => {
-  if (now && now !== before) void load()
-})
+watch(() => inbox.arrivals, () => void load())
 
 async function copy(text: string): Promise<void> {
   if (await copyText(text)) toast.success(t('common.copied'))

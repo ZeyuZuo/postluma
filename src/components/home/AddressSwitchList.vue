@@ -5,20 +5,17 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'
 
-import { MAILBOX_COUNT_CAP, type MailboxQuota, type MessageSummary, type PublicMailbox } from '../../../shared/api'
-import CodeChip from '@/components/CodeChip.vue'
+import type { MailboxQuota, PublicMailbox } from '../../../shared/api'
 import { copyText } from '@/composables/useClipboard'
-import { formatCount, formatRelative } from '@/lib/format'
+import { formatRelative } from '@/lib/format'
 
 /**
- * Every address in use, doubling as the switcher for the current one. A row shows what needs
- * attention there (unread, a code not copied yet); the current row doesn't repeat its code.
+ * Every address in use, doubling as the switcher for the current one. A green dot marks an
+ * address with unread mail; codes are read on the current address, not here.
  */
 const props = defineProps<{
   mailboxes: PublicMailbox[]
   currentId: string | null
-  /** Newest uncopied code per mailbox id. */
-  codes: Map<string, MessageSummary>
   quota: MailboxQuota | null
 }>()
 const emit = defineEmits<{ select: [id: string] }>()
@@ -68,14 +65,13 @@ async function copy(m: PublicMailbox): Promise<void> {
             <span>{{ m.lastReceivedAt ? t('home.lastReceived', { time: formatRelative(m.lastReceivedAt) }) : t('home.noMailYet') }}</span>
           </span>
         </button>
-        <CodeChip
-          v-if="m.id !== currentId && codes.get(m.id)"
-          :code="codes.get(m.id)!.verificationCode!"
-          :message="codes.get(m.id)!"
+        <span
+          v-if="m.unreadCount > 0"
+          class="unread"
+          role="img"
+          :title="t('mailboxes.unread', { n: m.unreadCount })"
+          :aria-label="t('mailboxes.unread', { n: m.unreadCount })"
         />
-        <span v-if="m.unreadCount > 0" class="unread" :title="t('mailboxes.unread', { n: m.unreadCount })">
-          {{ formatCount(m.unreadCount, MAILBOX_COUNT_CAP) }}
-        </span>
         <button type="button" class="copy" :aria-label="t('home.copyAddressLabel', { address: m.address })" @click="copy(m)">
           <NIcon><CopyOutline /></NIcon>
         </button>
@@ -155,6 +151,9 @@ li {
 li.current {
   background: var(--pl-sunken);
 }
+li:not(.current):not(.empty):hover {
+  background: var(--pl-paper);
+}
 .pick {
   flex: 1;
   min-width: 0;
@@ -170,9 +169,6 @@ li.current {
   font: inherit;
   text-align: left;
   cursor: pointer;
-}
-li:not(.current) .pick:hover {
-  background: var(--pl-paper);
 }
 .pick:focus-visible {
   outline: 2px solid var(--pl-blue);
@@ -217,16 +213,10 @@ li:not(.current) .pick:hover {
 }
 .unread {
   flex: none;
-  min-width: 20px;
-  padding: 0 6px;
-  box-sizing: border-box;
-  border-radius: 999px;
-  background: var(--pl-blue-soft);
-  color: var(--pl-blue);
-  font-size: 0.75rem;
-  font-weight: 700;
-  line-height: 20px;
-  text-align: center;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #2f9e62;
 }
 .copy {
   flex: none;
@@ -242,7 +232,7 @@ li:not(.current) .pick:hover {
   cursor: pointer;
 }
 .copy:hover {
-  background: var(--pl-surface);
+  background: var(--pl-sunken);
   color: var(--pl-ink);
 }
 .copy:focus-visible {

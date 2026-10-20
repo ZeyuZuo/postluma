@@ -3,8 +3,7 @@ import { NSkeleton } from 'naive-ui'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import type { MessageSummary, PublicMailbox } from '../../shared/api'
-import { messageApi } from '@/api/messages'
+import type { PublicMailbox } from '../../shared/api'
 import AddressSwitchList from '@/components/home/AddressSwitchList.vue'
 import CurrentPanel from '@/components/home/CurrentPanel.vue'
 import NewAddressForm from '@/components/NewAddressForm.vue'
@@ -12,9 +11,6 @@ import { useMailboxList } from '@/composables/useMailboxList'
 import { currentMailboxId, setCurrentMailbox } from '@/stores/current'
 import { boostPolling, inbox } from '@/stores/inbox'
 
-/** Uncopied codes from the last day light up their address in the list. */
-const CODE_WINDOW_MS = 24 * 60 * 60 * 1000
-const CODE_LOOKUP = 30
 /** After creating an address, check for its first mail every 10 s for this long. */
 const BOOST_MS = 10 * 60 * 1000
 
@@ -23,25 +19,9 @@ const list = useMailboxList('active')
 const { items, quota } = list
 const listLoaded = ref(false)
 const remembered = currentMailboxId()
-const recentCodes = ref<MessageSummary[]>([])
 
 /** The remembered address if it is still active, else the newest one. */
 const current = computed(() => items.value.find((m) => m.id === remembered.value) ?? items.value[0] ?? null)
-
-/** Newest code per address that hasn't been copied (read) yet. */
-const codes = computed(() => {
-  const map = new Map<string, MessageSummary>()
-  for (const m of recentCodes.value) if (!m.isRead && !map.has(m.mailboxId)) map.set(m.mailboxId, m)
-  return map
-})
-
-async function loadCodes(): Promise<void> {
-  try {
-    recentCodes.value = (await messageApi.list({ code: true, limit: CODE_LOOKUP, since: Date.now() - CODE_WINDOW_MS })).items
-  } catch {
-    // The list still works without code hints.
-  }
-}
 
 async function reload(): Promise<void> {
   try {
@@ -51,15 +31,10 @@ async function reload(): Promise<void> {
   }
 }
 
-onMounted(() => {
-  void reload()
-  void loadCodes()
-})
-watch(() => inbox.arrivals, () => {
-  void list.reload() // unread counts and "last received"
-  void loadCodes()
-})
-// Copying a code marks its message read; keep the per-address unread counts in step.
+onMounted(() => void reload())
+// Unread dots and "last received".
+watch(() => inbox.arrivals, () => void list.reload())
+// Copying a code or opening a message marks it read; keep the unread dots in step.
 watch(() => inbox.unread, () => void list.reload())
 
 function onCreated(mailbox: PublicMailbox): void {
@@ -79,7 +54,6 @@ function onCreated(mailbox: PublicMailbox): void {
         <AddressSwitchList
           :mailboxes="items"
           :current-id="current.id"
-          :codes="codes"
           :quota="quota"
           @select="setCurrentMailbox"
         />
@@ -104,7 +78,7 @@ function onCreated(mailbox: PublicMailbox): void {
 .home {
   display: grid;
   /* minmax(0, …): otherwise a column grows to the widest nowrap line and overflows phones. */
-  grid-template-columns: minmax(0, 1fr) minmax(0, 380px);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 440px);
   align-items: start;
   gap: 24px;
 }

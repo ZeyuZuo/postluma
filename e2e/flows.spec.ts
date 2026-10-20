@@ -10,7 +10,7 @@ test('home: creating copies the address and makes it current; its code is copied
   await signIn(context)
   const older = await createMailbox(context.request)
   await page.goto('/')
-  await page.getByRole('button', { name: '自定义前缀' }).click()
+  await page.getByRole('button', { name: '自定义地址' }).click()
   const local = uid('home')
   await page.locator('#new-local-part').fill(local)
   await page.keyboard.press('Enter')
@@ -30,6 +30,13 @@ test('home: creating copies the address and makes it current; its code is copied
   await expect(block).not.toHaveClass(/fresh/)
   const mail = await context.request.get('/api/messages?code=1')
   expect(((await mail.json()) as { items: { isRead: boolean }[] }).items[0]?.isRead).toBe(true)
+
+  // Mail opens in a dialog on the home page.
+  await page.locator('section.current .mail-link').first().click()
+  await expect(page.locator('.mail-dialog .subject')).toHaveText('Your Acme code')
+  await expect(page).toHaveURL(/\/$/)
+  await page.locator('.mail-dialog .dialog-close').click()
+  await expect(page.locator('.mail-dialog')).toHaveCount(0)
 
   // Picking another address in the list makes it current, and the choice survives a reload.
   await page.locator('.pick', { hasText: older.address.split('@')[0] }).click()

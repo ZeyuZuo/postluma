@@ -30,8 +30,9 @@ What sets it apart from other Cloudflare mail projects is that **isolation betwe
 ## Features
 
 **Receiving and codes**
-- Generate a random address or choose a prefix; a new address is copied and becomes the current one
-- You decide the current address: the one you last created, copied or picked stays current across reloads; the list beside it shows each address's note, unread count and any code not copied yet
+- Generate a random address or choose your own; a new address is copied and becomes the current one
+- You decide the current address: the one you last created, copied or picked stays current across reloads; the list beside it shows each address's note, with a green dot on addresses that have unread mail
+- Mail opens in a dialog right on the home page, no trip to the inbox
 - For 10 minutes after creating an address the app checks for mail every 10 s (otherwise every 30 s); new mail shows up without a reload
 - Verification codes are detected (Chinese, English and Japanese keywords; years, amounts, phone and order numbers excluded) and copied in one click; copying marks the message read, so amber only highlights codes not copied yet
 - Per-address opt-in `+alias`: mail to `name+shop@domain` also reaches `name@domain`, without using quota

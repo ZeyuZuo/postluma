@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { AddOutline, CopyOutline } from '@vicons/ionicons5'
-import { NIcon, useMessage } from 'naive-ui'
+import { AddOutline, CloseOutline, CopyOutline } from '@vicons/ionicons5'
+import { NIcon, NModal, useMessage } from 'naive-ui'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'
 
 import type { MailboxQuota, MessageSummary, PublicMailbox } from '../../../shared/api'
 import { messageApi } from '@/api/messages'
+import MessageDetail from '@/components/MessageDetail.vue'
 import NewAddressForm from '@/components/NewAddressForm.vue'
 import { copyText } from '@/composables/useClipboard'
 import { useCopyCode } from '@/composables/useCopyCode'
@@ -16,7 +17,7 @@ import { inbox, isBoosted } from '@/stores/inbox'
 
 /**
  * The address in use and what it receives. The newest code is the one thing in amber, and only
- * until it is copied; the mail list below never repeats it.
+ * until it is copied; the mail list below never repeats it. Mail opens in a dialog on this page.
  */
 const props = defineProps<{ mailbox: PublicMailbox; quota: MailboxQuota | null }>()
 const emit = defineEmits<{ created: [mailbox: PublicMailbox] }>()
@@ -32,6 +33,8 @@ const { create, busy } = useCreateMailbox()
 const mail = ref<MessageSummary[]>([])
 const loaded = ref(false)
 const customOpen = ref(false)
+/** Mail opens in a dialog here; the inbox is one link away. */
+const openId = ref<string | null>(null)
 
 const now = ref(Date.now())
 const ticker = setInterval(() => (now.value = Date.now()), 10_000)
@@ -75,6 +78,16 @@ async function createRandom(): Promise<void> {
   if (mailbox) emit('created', mailbox)
 }
 
+function onReadChanged(id: string, isRead: boolean): void {
+  const item = mail.value.find((m) => m.id === id)
+  if (item) item.isRead = isRead
+}
+
+function onDeleted(id: string): void {
+  mail.value = mail.value.filter((m) => m.id !== id)
+  openId.value = null
+}
+
 function onCreated(mailbox: PublicMailbox): void {
   customOpen.value = false
   emit('created', mailbox)
@@ -92,8 +105,13 @@ function onCreated(mailbox: PublicMailbox): void {
     </header>
 
     <div class="address-block">
-      <p class="address"><span class="local">{{ local }}</span><wbr /><span class="domain">@{{ domain }}</span></p>
-      <p v-if="mailbox.note" class="note">{{ mailbox.note }}</p>
+      <div class="address-text">
+        <p class="address"><span class="local">{{ local }}</span><wbr /><span class="domain">@{{ domain }}</span></p>
+        <p v-if="mailbox.note" class="note">{{ mailbox.note }}</p>
+      </div>
+      <RouterLink :to="{ name: 'inbox', query: { mailbox: mailbox.id } }" class="all-mail">
+        {{ t('home.allMailOfAddress') }} →
+      </RouterLink>
     </div>
 
     <div class="actions">
@@ -103,7 +121,7 @@ function onCreated(mailbox: PublicMailbox): void {
       <button type="button" class="pl-btn" :disabled="busy" @click="createRandom">
         <NIcon><AddOutline /></NIcon>{{ t('home.newRandom') }}
       </button>
-      <button type="button" class="pl-btn quiet" :aria-expanded="customOpen" @click="customOpen = !customOpen">
+      <button type="button" class="pl-btn" :aria-expanded="customOpen" @click="customOpen = !customOpen">
         {{ t('home.customPrefix') }}
       </button>
     </div>
@@ -129,20 +147,26 @@ function onCreated(mailbox: PublicMailbox): void {
       <h3>{{ t('home.mailOfAddress') }}</h3>
       <ul v-if="mail.length">
         <li v-for="m in mail" :key="m.id" :class="{ unread: !m.isRead }">
-          <RouterLink :to="{ name: 'inbox', params: { id: m.id } }" class="mail-link">
+          <button type="button" class="mail-link" @click="openId = m.id">
             <span class="dot" aria-hidden="true" />
             <span class="from">{{ m.fromName || m.fromAddress }}</span>
             <span class="subject">{{ m.subject || t('inbox.noSubject') }}</span>
             <span v-if="m.verificationCode && m.id !== latestCode?.id" class="mini-code pl-mono">{{ m.verificationCode }}</span>
             <span class="time">{{ formatRelative(m.receivedAt, now) }}</span>
-          </RouterLink>
+          </button>
         </li>
       </ul>
       <p v-else-if="loaded" class="waiting">{{ t('home.waiting') }}</p>
-      <RouterLink v-if="mail.length" :to="{ name: 'inbox', query: { mailbox: mailbox.id } }" class="more">
-        {{ t('home.allMailOfAddress') }} →
-      </RouterLink>
     </div>
+
+    <NModal :show="openId !== null" :auto-focus="false" @update:show="(v: boolean) => { if (!v) openId = null }">
+      <div class="mail-dialog" role="dialog" :aria-label="t('inbox.detailLabel')">
+        <button type="button" class="dialog-close" :aria-label="t('inbox.close')" @click="openId = null">
+          <NIcon><CloseOutline /></NIcon>
+        </button>
+        <MessageDetail v-if="openId" :id="openId" @deleted="onDeleted" @read-changed="onReadChanged" />
+      </div>
+    </NModal>
   </section>
 </template>
 
@@ -188,7 +212,25 @@ h3 {
   }
 }
 .address-block {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
   min-width: 0;
+}
+.address-text {
+  flex: 1;
+  min-width: 0;
+}
+.all-mail {
+  flex: none;
+  margin-top: 0.6rem;
+  color: var(--pl-blue);
+  font-size: 0.875rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.all-mail:hover {
+  text-decoration: underline;
 }
 .address {
   margin: 0;
@@ -300,9 +342,19 @@ h3 {
   display: flex;
   align-items: center;
   gap: 12px;
+  width: 100%;
   min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
   color: var(--pl-ink);
-  text-decoration: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.mail-link:focus-visible {
+  outline: 2px solid var(--pl-blue);
+  outline-offset: -2px;
 }
 .mail-link:hover .subject {
   text-decoration: underline;
@@ -357,15 +409,51 @@ h3 {
   font-size: 0.875rem;
   text-align: center;
 }
-.more {
-  align-self: flex-start;
-  color: var(--pl-blue);
-  font-size: 0.8125rem;
-  text-decoration: none;
+.mail-dialog {
+  position: relative;
+  width: min(880px, calc(100vw - 32px));
+  max-height: calc(100dvh - 64px);
+  padding: 20px 28px 24px;
+  box-sizing: border-box;
+  overflow: auto;
+  border-radius: 16px;
+  background: var(--pl-surface);
+  box-shadow: 0 24px 60px rgb(0 0 0 / 0.22);
+}
+.dialog-close {
+  position: absolute;
+  top: 21px;
+  left: 18px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--pl-surface);
+  color: var(--pl-muted);
+  font-size: 20px;
+  cursor: pointer;
+}
+.dialog-close:hover {
+  background: var(--pl-sunken);
+  color: var(--pl-ink);
 }
 @media (max-width: 600px) {
   .address {
     font-size: 1.125rem;
+  }
+  .all-mail {
+    margin-top: 0.15rem;
+  }
+  .mail-dialog {
+    width: 100vw;
+    max-height: 100dvh;
+    height: 100dvh;
+    padding: 16px;
+    border-radius: 0;
   }
   .actions .pl-btn {
     flex: 1 1 auto;

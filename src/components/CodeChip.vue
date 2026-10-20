@@ -14,7 +14,7 @@ const copy = () => copyCode(props.code, props.message)
 </script>
 
 <template>
-  <button type="button" class="chip" :class="size ?? 'sm'" :aria-label="t('inbox.copyCode')" :title="t('inbox.copyCode')" @click.stop="copy">
+  <button type="button" class="chip" :class="[size ?? 'sm', { done: message?.isRead }]" :aria-label="t('inbox.copyCode')" :title="t('inbox.copyCode')" @click.stop="copy">
     <span class="pl-mark">{{ code }}</span>
     <NIcon class="icon"><CopyOutline /></NIcon>
   </button>
@@ -40,6 +40,11 @@ const copy = () => copyCode(props.code, props.message)
 .chip:focus-visible {
   outline: 2px solid var(--pl-blue);
   outline-offset: 2px;
+}
+/* Already read (copied): no highlighter, so amber only marks codes still waiting. */
+.done .pl-mark {
+  background: none;
+  color: var(--pl-muted);
 }
 .sm .pl-mark {
   font-size: 0.9375rem;

@@ -126,6 +126,7 @@ const zhCN = {
     unread: '{n} 封未读',
     viewMail: '查看邮件',
     tabsLabel: '地址分类',
+    more: '更多操作',
     tabActive: '使用中',
     tabDisabled: '已停用',
     subaddress: '接收 +别名',

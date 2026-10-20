@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { CopyOutline, CreateOutline, HelpCircleOutline } from '@vicons/ionicons5'
-import { NButton, NIcon, NInput, NSwitch, NTooltip, useMessage } from 'naive-ui'
-import { computed, nextTick, ref } from 'vue'
+import { CopyOutline, CreateOutline, EllipsisHorizontal, HelpCircleOutline, MailOutline } from '@vicons/ionicons5'
+import { NButton, NDropdown, NIcon, NInput, NSwitch, NTooltip, useMessage } from 'naive-ui'
+import { computed, h, nextTick, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'
 
@@ -10,6 +10,7 @@ import { errorCodeOf } from '@/api/client'
 import { mailboxApi } from '@/api/mailboxes'
 import { copyText } from '@/composables/useClipboard'
 import { formatCount, formatDateTime, formatRelative } from '@/lib/format'
+import { setCurrentMailbox } from '@/stores/current'
 
 const props = defineProps<{ mailbox: PublicMailbox; fresh?: boolean }>()
 const emit = defineEmits<{ changed: [mailbox: PublicMailbox] }>()
@@ -26,7 +27,9 @@ const savingSubaddress = ref(false)
 /** "box+shop@example.com": built here because vue-i18n can't hold '@' in messages. */
 const subaddressExample = computed(() => props.mailbox.address.replace('@', '+shop@'))
 
+/** Copying an address means you're about to use it: it becomes the home page's current address. */
 async function copy(text = props.mailbox.address): Promise<void> {
+  if (props.mailbox.status === 'active') setCurrentMailbox(props.mailbox.id)
   const ok = await copyText(text)
   if (ok) message.success(t('common.copied'))
   else message.warning(t('common.copyFailed'))
@@ -73,6 +76,17 @@ async function setStatus(status: 'active' | 'disabled'): Promise<void> {
   }
 }
 
+const icon = (c: typeof CopyOutline) => () => h(NIcon, null, { default: () => h(c) })
+const moreOptions = computed(() => [
+  ...(props.mailbox.acceptSubaddress ? [{ key: 'alias', label: `${t('home.copyAlias')} +shop`, icon: icon(CopyOutline) }] : []),
+  { key: 'disable', label: t('mailboxes.disable') },
+])
+
+function onMore(key: string): void {
+  if (key === 'alias') void copy(subaddressExample.value)
+  if (key === 'disable') void setStatus('disabled')
+}
+
 async function setSubaddress(acceptSubaddress: boolean): Promise<void> {
   savingSubaddress.value = true
   try {
@@ -89,23 +103,8 @@ async function setSubaddress(acceptSubaddress: boolean): Promise<void> {
 
 <template>
   <li class="item" :class="{ fresh, disabled: mailbox.status === 'disabled' }">
-    <div class="main">
-      <div class="address-line">
-        <span class="address pl-mono"><span class="local">{{ local }}</span><span class="domain">@{{ domain }}</span></span>
-        <NButton quaternary circle size="small" :aria-label="t('home.copyAddressLabel', { address: mailbox.address })" @click="copy()">
-          <template #icon><NIcon><CopyOutline /></NIcon></template>
-        </NButton>
-        <button
-          v-if="mailbox.status === 'active' && mailbox.acceptSubaddress"
-          type="button"
-          class="alias"
-          :title="subaddressExample"
-          @click="copy(subaddressExample)"
-        >
-          {{ t('home.copyAlias') }} <span class="pl-mono">+shop</span>
-        </button>
-      </div>
-
+    <div class="who">
+      <p class="address pl-mono"><span class="local">{{ local }}</span><span class="domain">@{{ domain }}</span></p>
       <form v-if="editing" class="note-edit" @submit.prevent="saveNote">
         <NInput
           ref="noteInput"
@@ -122,46 +121,71 @@ async function setSubaddress(acceptSubaddress: boolean): Promise<void> {
         <span>{{ mailbox.note || t('mailboxes.notePlaceholder') }}</span>
         <NIcon class="note-icon" :aria-label="t('common.edit')"><CreateOutline /></NIcon>
       </button>
+    </div>
 
-      <p class="meta">
-        <span :title="formatDateTime(mailbox.createdAt)">
-          {{ t('mailboxes.createdAt', { time: formatRelative(mailbox.createdAt) }) }}
-        </span>
-        <span v-if="mailbox.lastReceivedAt" :title="formatDateTime(mailbox.lastReceivedAt)">
-          {{ t('home.lastReceived', { time: formatRelative(mailbox.lastReceivedAt) }) }}
-        </span>
-        <span>{{ t('mailboxes.messages', { n: formatCount(mailbox.messageCount, MAILBOX_COUNT_CAP) }, mailbox.messageCount) }}</span>
-        <span v-if="mailbox.unreadCount > 0" class="unread">{{ t('mailboxes.unread', { n: formatCount(mailbox.unreadCount, MAILBOX_COUNT_CAP) }) }}</span>
-        <label v-if="mailbox.status === 'active'" class="subaddress">
-          <NSwitch size="small" :value="mailbox.acceptSubaddress" :loading="savingSubaddress" @update:value="setSubaddress" />
-          <span>{{ t('mailboxes.subaddress') }}</span>
-          <NTooltip>
-            <template #trigger>
-              <NIcon class="help" :aria-label="t('mailboxes.subaddressHelp')"><HelpCircleOutline /></NIcon>
-            </template>
-            {{ t('mailboxes.subaddressHelp') }}
-            <span class="pl-mono">{{ subaddressExample }}</span>
-          </NTooltip>
-        </label>
+    <div class="stats">
+      <p>
+        {{ t('mailboxes.messages', { n: formatCount(mailbox.messageCount, MAILBOX_COUNT_CAP) }, mailbox.messageCount) }}
+        <span v-if="mailbox.unreadCount > 0" class="unread">· {{ t('mailboxes.unread', { n: formatCount(mailbox.unreadCount, MAILBOX_COUNT_CAP) }) }}</span>
+      </p>
+      <p class="muted" :title="formatDateTime(mailbox.lastReceivedAt ?? mailbox.createdAt)">
+        {{
+          mailbox.lastReceivedAt
+            ? t('home.lastReceived', { time: formatRelative(mailbox.lastReceivedAt) })
+            : t('mailboxes.createdAt', { time: formatRelative(mailbox.createdAt) })
+        }}
       </p>
     </div>
 
+    <div class="alias">
+      <template v-if="mailbox.status === 'active'">
+        <NSwitch size="small" :value="mailbox.acceptSubaddress" :loading="savingSubaddress" @update:value="setSubaddress" />
+        <span>{{ t('mailboxes.subaddress') }}</span>
+        <NTooltip>
+          <template #trigger>
+            <NIcon class="help" :aria-label="t('mailboxes.subaddressHelp')"><HelpCircleOutline /></NIcon>
+          </template>
+          {{ t('mailboxes.subaddressHelp') }}
+          <span class="pl-mono">{{ subaddressExample }}</span>
+        </NTooltip>
+      </template>
+    </div>
+
     <div class="actions">
-      <RouterLink v-if="mailbox.messageCount > 0" class="view-mail" :to="{ name: 'inbox', query: { mailbox: mailbox.id } }">
-        {{ t('mailboxes.viewMail') }} →
-      </RouterLink>
-      <NButton v-if="mailbox.status === 'active'" size="small" quaternary @click="setStatus('disabled')">{{ t('mailboxes.disable') }}</NButton>
-      <NButton v-else size="small" type="primary" secondary @click="setStatus('active')">{{ t('mailboxes.enable') }}</NButton>
+      <NTooltip>
+        <template #trigger>
+          <button type="button" class="icon-btn" :aria-label="t('home.copyAddressLabel', { address: mailbox.address })" @click="copy()">
+            <NIcon><CopyOutline /></NIcon>
+          </button>
+        </template>
+        {{ t('home.copyAddress') }}
+      </NTooltip>
+      <NTooltip>
+        <template #trigger>
+          <RouterLink class="icon-btn" :to="{ name: 'inbox', query: { mailbox: mailbox.id } }" :aria-label="t('mailboxes.viewMail')">
+            <NIcon><MailOutline /></NIcon>
+          </RouterLink>
+        </template>
+        {{ t('mailboxes.viewMail') }}
+      </NTooltip>
+      <NDropdown v-if="mailbox.status === 'active'" trigger="click" placement="bottom-end" :options="moreOptions" @select="onMore">
+        <button type="button" class="icon-btn" :aria-label="t('mailboxes.more')">
+          <NIcon><EllipsisHorizontal /></NIcon>
+        </button>
+      </NDropdown>
+      <NButton v-else size="small" secondary @click="setStatus('active')">{{ t('mailboxes.enable') }}</NButton>
     </div>
   </li>
 </template>
 
 <style scoped>
 .item {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 0.9fr) auto;
   align-items: center;
   gap: 16px;
-  padding: 14px 18px 14px 20px;
+  min-height: 64px;
+  padding: 10px 14px 10px 20px;
   border-top: 1px solid var(--pl-line);
 }
 .item:first-child {
@@ -175,19 +199,17 @@ async function setSubaddress(acceptSubaddress: boolean): Promise<void> {
     background-color: var(--pl-code-bg);
   }
 }
-.main {
-  flex: 1;
+p {
+  margin: 0;
+}
+.who {
   min-width: 0;
 }
-.address-line {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 2px 6px;
-}
 .address {
-  font-size: 1rem;
-  overflow-wrap: anywhere;
+  font-size: 0.9375rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .local {
   font-weight: 700;
@@ -198,39 +220,18 @@ async function setSubaddress(acceptSubaddress: boolean): Promise<void> {
 .disabled .local {
   color: var(--pl-muted);
 }
-.alias {
-  height: 26px;
-  padding: 0 10px;
-  border: 1px solid var(--pl-line);
-  border-radius: 999px;
-  background: none;
-  color: var(--pl-ink);
-  font: inherit;
-  font-size: 0.75rem;
-  cursor: pointer;
-}
-.alias .pl-mono {
-  color: var(--pl-muted);
-}
-.alias:hover {
-  border-color: color-mix(in srgb, var(--pl-blue) 45%, var(--pl-line));
-}
-.alias:focus-visible {
-  outline: 2px solid var(--pl-blue);
-  outline-offset: 2px;
-}
 .note {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   max-width: 100%;
-  margin: 2px 0 0;
-  padding: 2px 0;
+  margin-top: 2px;
+  padding: 0;
   border: 0;
   background: none;
   color: var(--pl-ink);
   font: inherit;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   text-align: left;
   cursor: text;
 }
@@ -257,26 +258,32 @@ async function setSubaddress(acceptSubaddress: boolean): Promise<void> {
   border-radius: 3px;
 }
 .note-edit {
-  max-width: 420px;
-  margin-top: 4px;
+  max-width: 360px;
+  margin-top: 2px;
 }
-.meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 16px;
-  margin: 6px 0 0;
-  color: var(--pl-muted);
+.stats {
+  min-width: 0;
   font-size: 0.8125rem;
+  white-space: nowrap;
+}
+.stats .muted {
+  margin-top: 2px;
+  color: var(--pl-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .unread {
   color: var(--pl-blue);
   font-weight: 650;
 }
-.subaddress {
-  display: inline-flex;
+.alias {
+  display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
+  color: var(--pl-muted);
+  font-size: 0.8125rem;
+  white-space: nowrap;
 }
 .help {
   cursor: help;
@@ -284,25 +291,56 @@ async function setSubaddress(acceptSubaddress: boolean): Promise<void> {
 .actions {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex: none;
+  justify-content: flex-end;
+  gap: 2px;
 }
-.view-mail {
-  color: var(--pl-blue);
-  font-size: 0.875rem;
-  text-decoration: none;
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: var(--pl-muted);
+  font-size: 1.0625rem;
+  cursor: pointer;
 }
-.view-mail:hover {
-  text-decoration: underline;
+.icon-btn:hover {
+  background: var(--pl-sunken);
+  color: var(--pl-ink);
 }
-@media (max-width: 600px) {
+.icon-btn:focus-visible {
+  outline: 2px solid var(--pl-blue);
+  outline-offset: -2px;
+}
+@media (max-width: 899px) {
   .item {
-    flex-direction: column;
-    align-items: stretch;
-    padding: 14px 16px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'who actions'
+      'stats alias';
+    gap: 6px 12px;
+    padding: 12px 10px 12px 16px;
+  }
+  .who {
+    grid-area: who;
+  }
+  .stats {
+    grid-area: stats;
+    display: flex;
+    gap: 10px;
+  }
+  .stats .muted {
+    margin-top: 0;
+  }
+  .alias {
+    grid-area: alias;
+    justify-content: flex-end;
   }
   .actions {
-    justify-content: flex-end;
+    grid-area: actions;
   }
   .note-icon {
     opacity: 1;

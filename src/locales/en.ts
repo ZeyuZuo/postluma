@@ -132,6 +132,7 @@ const en: Messages = {
     unread: '{n} unread',
     viewMail: 'View mail',
     tabsLabel: 'Address lists',
+    more: 'More actions',
     tabActive: 'In use',
     tabDisabled: 'Disabled',
     subaddress: 'Accept +aliases',

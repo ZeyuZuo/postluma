@@ -5,11 +5,11 @@ import { nextTick, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'
 
-import { NOTE_MAX, type PublicMailbox } from '../../shared/api'
+import { MAILBOX_COUNT_CAP, NOTE_MAX, type PublicMailbox } from '../../shared/api'
 import { errorCodeOf } from '@/api/client'
 import { mailboxApi } from '@/api/mailboxes'
 import { copyText } from '@/composables/useClipboard'
-import { formatDateTime, formatRelative } from '@/lib/format'
+import { formatCount, formatDateTime, formatRelative } from '@/lib/format'
 
 const props = defineProps<{ mailbox: PublicMailbox; fresh?: boolean }>()
 const emit = defineEmits<{ changed: [mailbox: PublicMailbox] }>()
@@ -108,8 +108,8 @@ function confirmDisable(): void {
         <span :title="formatDateTime(mailbox.createdAt)">
           {{ t('mailboxes.createdAt', { time: formatRelative(mailbox.createdAt) }) }}
         </span>
-        <span>{{ t('mailboxes.messages', mailbox.messageCount) }}</span>
-        <span v-if="mailbox.unreadCount > 0" class="unread">{{ t('mailboxes.unread', { n: mailbox.unreadCount }) }}</span>
+        <span>{{ t('mailboxes.messages', { n: formatCount(mailbox.messageCount, MAILBOX_COUNT_CAP) }, mailbox.messageCount) }}</span>
+        <span v-if="mailbox.unreadCount > 0" class="unread">{{ t('mailboxes.unread', { n: formatCount(mailbox.unreadCount, MAILBOX_COUNT_CAP) }) }}</span>
       </p>
     </div>
 

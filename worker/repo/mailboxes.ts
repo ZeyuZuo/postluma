@@ -2,7 +2,7 @@
  * Tenant-scoped mailbox access. Every function takes the session user's id first and every query
  * filters on it, so one user's mailbox ids are simply invisible (404) to everyone else.
  */
-import type { MailboxQuota, MailboxStatus, PublicMailbox } from '../../shared/api'
+import { MAILBOX_COUNT_CAP, type MailboxQuota, type MailboxStatus, type PublicMailbox } from '../../shared/api'
 import { newId } from '../lib/crypto'
 import { ApiError } from '../lib/errors'
 import { effectiveQuotaSql } from './settings'
@@ -20,11 +20,14 @@ interface MailboxRow {
   last_received_at: number | null
 }
 
+// Counts stop at MAILBOX_COUNT_CAP: an uncapped COUNT(*) reads every message of every listed
+// mailbox (D1 bills rows read), so one list page could cost the user's whole history.
 const SELECT_MAILBOX = `
   SELECT m.id, m.address, d.domain, m.note, m.status, m.created_at,
          (SELECT MAX(g.received_at) FROM messages g WHERE g.mailbox_id = m.id) AS last_received_at,
-         (SELECT COUNT(*) FROM messages g WHERE g.mailbox_id = m.id) AS message_count,
-         (SELECT COUNT(*) FROM messages g WHERE g.mailbox_id = m.id AND g.is_read = 0) AS unread_count
+         (SELECT COUNT(*) FROM (SELECT 1 FROM messages g WHERE g.mailbox_id = m.id LIMIT ${MAILBOX_COUNT_CAP})) AS message_count,
+         (SELECT COUNT(*) FROM (
+           SELECT 1 FROM messages g WHERE g.mailbox_id = m.id AND g.is_read = 0 LIMIT ${MAILBOX_COUNT_CAP})) AS unread_count
   FROM mailboxes m JOIN domains d ON d.id = m.domain_id`
 
 /** Deploy-time limits (worker/lib/config.ts) the mailbox writes enforce. */

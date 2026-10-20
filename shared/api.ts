@@ -109,6 +109,7 @@ export interface PublicMailbox {
   domain: string
   note: string | null
   status: MailboxStatus
+  /** Both counts stop at MAILBOX_COUNT_CAP (shown as "99+"). */
   messageCount: number
   unreadCount: number
   createdAt: number
@@ -254,6 +255,8 @@ export interface InboxSummary {
 
 /** Badges show "99+"; counting further would only cost D1 reads. */
 export const UNREAD_COUNT_CAP = 100
+/** Per-mailbox message/unread counts in mailbox listings stop here, for the same reason. */
+export const MAILBOX_COUNT_CAP = 100
 /** Search looks at this many of the user's newest messages (bounded D1 reads). */
 export const SEARCH_WINDOW = 2_000
 export const SEARCH_MIN_CHARS = 2

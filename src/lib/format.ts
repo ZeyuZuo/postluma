@@ -22,3 +22,8 @@ export function formatRelative(ms: number, now = Date.now()): string {
 export function formatDateTime(ms: number): string {
   return new Intl.DateTimeFormat(currentLocale(), { dateStyle: 'medium', timeStyle: 'short' }).format(ms)
 }
+
+/** "42", or "99+" once a server-capped count reaches its cap. */
+export function formatCount(n: number, cap: number): string {
+  return n >= cap ? `${cap - 1}+` : String(n)
+}

@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:test'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import type { MailboxListResponse, PublicMailbox } from '../shared/api'
+import { MAILBOX_COUNT_CAP, type MailboxListResponse, type PublicMailbox } from '../shared/api'
 import { addDomain, api, createUser, json, login, setSetting } from './helpers'
 
 let cookie: string
@@ -122,6 +122,20 @@ describe('listing, notes and status', () => {
     expect((await list('?q=letter')).items).toHaveLength(1)
     expect((await list('?q=%25')).items).toHaveLength(0)
     expect((await list('?q=_')).items).toHaveLength(0)
+  })
+
+  it('caps per-mailbox message and unread counts (bounded D1 reads)', async () => {
+    const box = (await json<{ mailbox: PublicMailbox }>(await create({ localPart: 'busy' }))).mailbox
+    const insert = Array.from({ length: MAILBOX_COUNT_CAP + 20 }, (_, i) =>
+      env.DB.prepare(
+        `INSERT INTO messages (id, mailbox_id, user_id, from_address, to_address, size, is_read, received_at)
+         VALUES (?, ?, ?, 'x@example.org', 'busy@mail.test', 1, ?, ?)`,
+      ).bind(`m${i}`, box.id, userId, i < 10 ? 1 : 0, 1000 + i),
+    )
+    await env.DB.batch(insert)
+    expect((await list()).items[0]).toMatchObject({ messageCount: MAILBOX_COUNT_CAP, unreadCount: MAILBOX_COUNT_CAP })
+    const { results } = await env.DB.prepare('SELECT 1 FROM messages WHERE mailbox_id = ?').bind(box.id).all()
+    expect(results).toHaveLength(MAILBOX_COUNT_CAP + 20)
   })
 
   it('edits and clears notes, and toggles status back and forth', async () => {

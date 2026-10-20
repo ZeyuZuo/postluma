@@ -22,11 +22,23 @@ function assertTurnstileSiteKey(mode: string): void {
   }
 }
 
+/**
+ * `npm run test:e2e` (POSTLUMA_E2E=1) runs the dev server against its own throwaway local state
+ * (.wrangler/e2e, rebuilt per run) with Turnstile off, so browser tests never touch your dev data.
+ */
+const E2E = process.env.POSTLUMA_E2E === '1'
+const E2E_STATE = '.wrangler/e2e'
+
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   assertTurnstileSiteKey(mode)
   return {
-    plugins: [vue(), cloudflare()],
+    plugins: [
+      vue(),
+      cloudflare(
+        E2E ? { persistState: { path: E2E_STATE }, config: { vars: { TURNSTILE_DISABLED: 'true' } } } : {},
+      ),
+    ],
     resolve: {
       alias: {
         '@': fileURLToPath(new URL('./src', import.meta.url)),

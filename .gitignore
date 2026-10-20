@@ -10,3 +10,5 @@ dist
 *.log
 .env.local
 .claude/logs/
+test-results/
+playwright-report/

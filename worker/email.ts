@@ -57,7 +57,7 @@ async function readPrefix(
 /**
  * Email Routing catch-all entry point. Catch-all is only routing: mail is accepted solely for an
  * active mailbox of an active user, matched exactly on the lowercased envelope recipient.
- * Subaddresses (`name+tag@`) are not supported and therefore rejected.
+ * Subaddresses (`name+tag@`) reach `name@` only when that mailbox opted in (findDeliveryTarget).
  */
 export async function handleEmail(
   message: ForwardableEmailMessage,

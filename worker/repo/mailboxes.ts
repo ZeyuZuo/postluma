@@ -14,6 +14,7 @@ interface MailboxRow {
   domain: string
   note: string | null
   status: MailboxStatus
+  accept_subaddress: number
   message_count: number
   unread_count: number
   created_at: number
@@ -23,7 +24,7 @@ interface MailboxRow {
 // Counts stop at MAILBOX_COUNT_CAP: an uncapped COUNT(*) reads every message of every listed
 // mailbox (D1 bills rows read), so one list page could cost the user's whole history.
 const SELECT_MAILBOX = `
-  SELECT m.id, m.address, d.domain, m.note, m.status, m.created_at,
+  SELECT m.id, m.address, d.domain, m.note, m.status, m.accept_subaddress, m.created_at,
          (SELECT MAX(g.received_at) FROM messages g WHERE g.mailbox_id = m.id) AS last_received_at,
          (SELECT COUNT(*) FROM (SELECT 1 FROM messages g WHERE g.mailbox_id = m.id LIMIT ${MAILBOX_COUNT_CAP})) AS message_count,
          (SELECT COUNT(*) FROM (
@@ -62,6 +63,7 @@ function toPublic(row: MailboxRow): PublicMailbox {
     domain: row.domain,
     note: row.note,
     status: row.status,
+    acceptSubaddress: row.accept_subaddress === 1,
     messageCount: row.message_count,
     unreadCount: row.unread_count,
     createdAt: row.created_at,
@@ -203,7 +205,7 @@ export async function updateMailbox(
   db: D1Database,
   userId: string,
   id: string,
-  patch: { note?: string | null; status?: MailboxStatus },
+  patch: { note?: string | null; status?: MailboxStatus; acceptSubaddress?: boolean },
   defaultQuota: number,
 ): Promise<PublicMailbox> {
   const current = await getMailbox(db, userId, id)
@@ -234,6 +236,12 @@ export async function updateMailbox(
     await db
       .prepare('UPDATE mailboxes SET note = ?, updated_at = ? WHERE id = ? AND user_id = ?')
       .bind(patch.note, now, id, userId)
+      .run()
+  }
+  if (patch.acceptSubaddress !== undefined) {
+    await db
+      .prepare('UPDATE mailboxes SET accept_subaddress = ?, updated_at = ? WHERE id = ? AND user_id = ?')
+      .bind(patch.acceptSubaddress ? 1 : 0, now, id, userId)
       .run()
   }
   return getMailbox(db, userId, id)

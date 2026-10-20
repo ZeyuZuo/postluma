@@ -138,6 +138,16 @@ describe('listing, notes and status', () => {
     expect(results).toHaveLength(MAILBOX_COUNT_CAP + 20)
   })
 
+  it('toggles subaddressing per mailbox, off by default', async () => {
+    const box = (await json<{ mailbox: PublicMailbox }>(await create({ localPart: 'tagged' }))).mailbox
+    expect(box.acceptSubaddress).toBe(false)
+    const patch = (body: unknown) => api(`/api/mailboxes/${box.id}`, { cookie, method: 'PATCH', body })
+    expect((await json<{ mailbox: PublicMailbox }>(await patch({ acceptSubaddress: true }))).mailbox.acceptSubaddress).toBe(true)
+    expect((await list()).items[0]?.acceptSubaddress).toBe(true)
+    expect((await patch({ acceptSubaddress: 'yes' })).status).toBe(400)
+    expect((await json<{ mailbox: PublicMailbox }>(await patch({ acceptSubaddress: false }))).mailbox.acceptSubaddress).toBe(false)
+  })
+
   it('edits and clears notes, and toggles status back and forth', async () => {
     const { mailbox } = await json<{ mailbox: PublicMailbox }>(await create({}))
     const path = `/api/mailboxes/${mailbox.id}`

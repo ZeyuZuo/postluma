@@ -111,6 +111,8 @@ const en: Messages = {
     messages: 'No messages | {n} message | {n} messages',
     unread: '{n} unread',
     viewMail: 'View mail',
+    subaddress: 'Accept +aliases',
+    subaddressHelp: 'When on, mail sent to this address with “+anything” added also arrives here, without using quota. For example:',
     recent: 'Recent addresses',
     viewAll: 'All addresses',
   },

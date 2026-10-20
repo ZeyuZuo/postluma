@@ -42,12 +42,20 @@ describe("user B against user A's mailboxes", () => {
   })
 
   it('cannot change note or status, and nothing is modified', async () => {
-    for (const body of [{ note: 'pwned' }, { status: 'disabled' }, { note: null, status: 'disabled' }]) {
+    for (const body of [{ note: 'pwned' }, { status: 'disabled' }, { note: null, status: 'disabled' }, { acceptSubaddress: true }]) {
       const res = await api(`/api/mailboxes/${aliceBox.id}`, { cookie: bobCookie, method: 'PATCH', body })
       expect(res.status).toBe(404)
     }
-    const row = await env.DB.prepare('SELECT note, status, user_id FROM mailboxes WHERE id = ?').bind(aliceBox.id).first()
-    expect(row).toMatchObject({ note: 'private note', status: 'active' })
+    const row = await env.DB.prepare('SELECT note, status, accept_subaddress FROM mailboxes WHERE id = ?').bind(aliceBox.id).first()
+    expect(row).toMatchObject({ note: 'private note', status: 'active', accept_subaddress: 0 })
+  })
+
+  it("cannot claim a subaddress of A's mailbox as an address of their own", async () => {
+    await api(`/api/mailboxes/${aliceBox.id}`, { cookie: aliceCookie, method: 'PATCH', body: { acceptSubaddress: true } })
+    const domainId = (await env.DB.prepare('SELECT domain_id FROM mailboxes WHERE id = ?').bind(aliceBox.id).first<{ domain_id: string }>())!.domain_id
+    const res = await api('/api/mailboxes', { cookie: bobCookie, body: { domainId, localPart: 'alice-secret+bob' } })
+    expect(res.status).toBe(400)
+    expect(await json(res)).toEqual({ error: 'invalid_local_part' })
   })
 
   it("cannot re-enable A's disabled mailbox", async () => {

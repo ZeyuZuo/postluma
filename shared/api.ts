@@ -109,6 +109,8 @@ export interface PublicMailbox {
   domain: string
   note: string | null
   status: MailboxStatus
+  /** Also receive mail sent to `local+anything@domain`. Off by default. */
+  acceptSubaddress: boolean
   /** Both counts stop at MAILBOX_COUNT_CAP (shown as "99+"). */
   messageCount: number
   unreadCount: number
@@ -184,8 +186,9 @@ export const updateMailboxSchema = z
   .object({
     note: noteSchema.nullable().optional(),
     status: z.enum(['active', 'disabled']).optional(),
+    acceptSubaddress: z.boolean().optional(),
   })
-  .refine((v) => v.note !== undefined || v.status !== undefined)
+  .refine((v) => v.note !== undefined || v.status !== undefined || v.acceptSubaddress !== undefined)
 
 export const listMailboxesQuerySchema = z.object({
   status: z.enum(['active', 'disabled']).default('active'),

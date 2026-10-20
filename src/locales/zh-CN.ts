@@ -105,6 +105,8 @@ const zhCN = {
     messages: '暂无邮件 | {n} 封邮件 | {n} 封邮件',
     unread: '{n} 封未读',
     viewMail: '查看邮件',
+    subaddress: '接收 +别名',
+    subaddressHelp: '开启后，发到“地址+任意词”的邮件也会进入这个地址，不占用地址配额。例如：',
     recent: '最近的地址',
     viewAll: '全部地址',
   },

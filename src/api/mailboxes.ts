@@ -10,7 +10,7 @@ export const mailboxApi = {
   },
   create: (body: { domainId: string; localPart?: string; note?: string }) =>
     http.post<{ mailbox: PublicMailbox }>('/api/mailboxes', body),
-  update: (id: string, body: { note?: string | null; status?: MailboxStatus }) =>
+  update: (id: string, body: { note?: string | null; status?: MailboxStatus; acceptSubaddress?: boolean }) =>
     http.patch<{ mailbox: PublicMailbox }>(`/api/mailboxes/${encodeURIComponent(id)}`, body),
   domains: () => http.get<{ items: PublicDomain[] }>('/api/domains'),
 }

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { CopyOutline, CreateOutline } from '@vicons/ionicons5'
-import { NButton, NIcon, NInput, useDialog, useMessage } from 'naive-ui'
-import { nextTick, ref } from 'vue'
+import { CopyOutline, CreateOutline, HelpCircleOutline } from '@vicons/ionicons5'
+import { NButton, NIcon, NInput, NSwitch, NTooltip, useDialog, useMessage } from 'naive-ui'
+import { computed, nextTick, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'
 
@@ -22,6 +22,10 @@ const editing = ref(false)
 const draft = ref('')
 const saving = ref(false)
 const noteInput = ref<InstanceType<typeof NInput> | null>(null)
+const savingSubaddress = ref(false)
+
+/** "box+shop@example.com": built here because vue-i18n can't hold '@' in messages. */
+const subaddressExample = computed(() => props.mailbox.address.replace('@', '+shop@'))
 
 async function copy(): Promise<void> {
   const ok = await copyText(props.mailbox.address)
@@ -63,6 +67,18 @@ async function setStatus(status: 'active' | 'disabled'): Promise<void> {
     emit('changed', mailbox)
   } catch (err) {
     message.error(t(`errors.${errorCodeOf(err)}`))
+  }
+}
+
+async function setSubaddress(acceptSubaddress: boolean): Promise<void> {
+  savingSubaddress.value = true
+  try {
+    const { mailbox } = await mailboxApi.update(props.mailbox.id, { acceptSubaddress })
+    emit('changed', mailbox)
+  } catch (err) {
+    message.error(t(`errors.${errorCodeOf(err)}`))
+  } finally {
+    savingSubaddress.value = false
   }
 }
 
@@ -110,6 +126,22 @@ function confirmDisable(): void {
         </span>
         <span>{{ t('mailboxes.messages', { n: formatCount(mailbox.messageCount, MAILBOX_COUNT_CAP) }, mailbox.messageCount) }}</span>
         <span v-if="mailbox.unreadCount > 0" class="unread">{{ t('mailboxes.unread', { n: formatCount(mailbox.unreadCount, MAILBOX_COUNT_CAP) }) }}</span>
+        <label v-if="mailbox.status === 'active'" class="subaddress">
+          <NSwitch
+            size="small"
+            :value="mailbox.acceptSubaddress"
+            :loading="savingSubaddress"
+            @update:value="setSubaddress"
+          />
+          <span>{{ t('mailboxes.subaddress') }}</span>
+          <NTooltip>
+            <template #trigger>
+              <NIcon class="help" :aria-label="t('mailboxes.subaddressHelp')"><HelpCircleOutline /></NIcon>
+            </template>
+            {{ t('mailboxes.subaddressHelp') }}
+            <span class="pl-mono">{{ subaddressExample }}</span>
+          </NTooltip>
+        </label>
       </p>
     </div>
 
@@ -208,6 +240,14 @@ function confirmDisable(): void {
 .unread {
   color: var(--pl-blue);
   font-weight: 600;
+}
+.subaddress {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.help {
+  cursor: help;
 }
 .actions {
   display: flex;

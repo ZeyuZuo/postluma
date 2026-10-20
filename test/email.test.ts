@@ -167,7 +167,7 @@ describe('rejecting mail', () => {
     expect(await messageRows()).toHaveLength(0)
   })
 
-  it('rejects subaddresses and Unicode case-folding tricks instead of fuzzy-matching', async () => {
+  it('rejects subaddresses by default and Unicode case-folding tricks instead of fuzzy-matching', async () => {
     await addMailbox(aliceId, 'alice-box@mail.test')
     await addMailbox(aliceId, 'kate@mail.test')
     expect((await deliver(mime({}), 'alice-box+news@mail.test')).rejected).toBe(REJECT_UNAVAILABLE)
@@ -183,6 +183,51 @@ describe('rejecting mail', () => {
     const stub = await deliver(lines.join('\n'), 'alice-box@mail.test')
     expect(stub.rejected).toBe(REJECT_MALFORMED)
     expect(await messageRows()).toHaveLength(0)
+  })
+})
+
+describe('opt-in subaddressing', () => {
+  async function optIn(mailboxId: string, on = true): Promise<void> {
+    await env.DB.prepare('UPDATE mailboxes SET accept_subaddress = ? WHERE id = ?').bind(on ? 1 : 0, mailboxId).run()
+  }
+
+  it('delivers local+tag@ to local@ once the mailbox opts in, keeping the tagged recipient', async () => {
+    const box = await addMailbox(aliceId, 'alice-box@mail.test')
+    await optIn(box)
+    for (const to of ['alice-box+news@mail.test', 'Alice-Box+Shop@MAIL.test', 'alice-box+@mail.test', 'alice-box+a+b@mail.test']) {
+      expect((await deliver(mime({}), to)).rejected, to).toBeNull()
+    }
+    const rows = (await env.DB.prepare('SELECT mailbox_id, to_address FROM messages ORDER BY to_address').all()).results
+    expect(rows.every((r) => r.mailbox_id === box)).toBe(true)
+    expect(rows.map((r) => r.to_address)).toEqual([
+      'alice-box+@mail.test',
+      'alice-box+a+b@mail.test',
+      'alice-box+news@mail.test',
+      'alice-box+shop@mail.test',
+    ])
+  })
+
+  it('still rejects an empty base, non-ASCII tags, disabled mailboxes and opted-out ones', async () => {
+    const box = await addMailbox(aliceId, 'alice-box@mail.test')
+    const off = await addMailbox(aliceId, 'off@mail.test', 'disabled')
+    await optIn(box)
+    await optIn(off)
+    await addMailbox(aliceId, 'plain@mail.test')
+    for (const to of ['+news@mail.test', 'alice-box+caf\u00e9@mail.test', 'off+news@mail.test', 'plain+news@mail.test', 'alice-box+x@other.test']) {
+      expect((await deliver(mime({}), to)).rejected, to).toBe(REJECT_UNAVAILABLE)
+    }
+    await optIn(box, false)
+    expect((await deliver(mime({}), 'alice-box+news@mail.test')).rejected).toBe(REJECT_UNAVAILABLE)
+    expect(await messageRows()).toHaveLength(0)
+  })
+
+  it('counts subaddressed mail against the base mailbox hourly cap', async () => {
+    const box = await addMailbox(aliceId, 'alice-box@mail.test')
+    await optIn(box)
+    const vars = { INGEST_MAX_PER_MAILBOX_PER_HOUR: '2' }
+    const results = []
+    for (const tag of ['a', 'b', 'c']) results.push((await deliver(mime({}), `alice-box+${tag}@mail.test`, {}, vars)).rejected)
+    expect(results).toEqual([null, null, REJECT_FLOODED])
   })
 })
 

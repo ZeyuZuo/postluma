@@ -19,7 +19,7 @@ import MailFrame from '@/components/MailFrame.vue'
 import TextBody from '@/components/TextBody.vue'
 import { formatDateTime } from '@/lib/format'
 import { prepareMailHtml } from '@/lib/mail-html'
-import { loadOriginal, saveFile, type OriginalMail } from '@/lib/original-mail'
+import { forgetOriginal, loadOriginal, saveFile, type OriginalMail } from '@/lib/original-mail'
 import { adjustUnread } from '@/stores/inbox'
 
 const props = defineProps<{ id: string; showBack?: boolean }>()
@@ -39,10 +39,15 @@ const originalLoading = ref(false)
 
 /** Inline images are fetched automatically for messages up to this size, on request beyond it. */
 const AUTO_ORIGINAL_BYTES = 3 * 1024 * 1024
+/** A truncated body is completed from the original automatically up to this size. */
+const AUTO_FULL_BODY_BYTES = 10 * 1024 * 1024
 
-const prepared = computed(() =>
-  message.value?.htmlBody ? prepareMailHtml(message.value.htmlBody, original.value?.inlineImages) : null,
-)
+/** The complete body once the original is parsed; until then, what the server kept. */
+const htmlBody = computed(() => (original.value ? original.value.html : message.value?.htmlBody) ?? null)
+const textBody = computed(() => (original.value ? original.value.text : message.value?.textBody) ?? null)
+/** Only a message whose original we haven't read may still be missing part of its body. */
+const bodyIncomplete = computed(() => Boolean(message.value?.isTruncated) && !original.value)
+const prepared = computed(() => (htmlBody.value ? prepareMailHtml(htmlBody.value, original.value?.inlineImages) : null))
 /** Server metadata until the original is parsed; then the complete list, with content. */
 const files = computed(() => original.value?.files ?? message.value?.attachments.filter((a) => !a.inline) ?? [])
 const imagesBlocked = computed(
@@ -103,7 +108,12 @@ async function load(id: string): Promise<void> {
   message.value = detail
   loading.value = false
   const hasInline = detail.attachments.some((a) => a.inline)
-  if (detail.hasRaw && hasInline && detail.size <= AUTO_ORIGINAL_BYTES) void ensureOriginal()
+  if (
+    detail.hasRaw &&
+    ((hasInline && detail.size <= AUTO_ORIGINAL_BYTES) || (detail.isTruncated && detail.size <= AUTO_FULL_BODY_BYTES))
+  ) {
+    void ensureOriginal()
+  }
   if (detail.isRead) return
   try {
     await messageApi.setRead(id, true)
@@ -140,6 +150,7 @@ function confirmDelete(): void {
     onPositiveClick: async () => {
       try {
         await messageApi.remove(current.id)
+        forgetOriginal(current.id)
         if (!current.isRead) adjustBadge(current, -1)
         toast.success(t('inbox.deleted'))
         emit('deleted', current.id)
@@ -214,8 +225,11 @@ function formatSize(bytes: number): string {
         <CodeChip :code="message.verificationCode" size="lg" />
       </section>
 
-      <NAlert v-if="message.isTruncated" type="warning" :show-icon="false" class="notice">
-        {{ t(message.hasRaw ? 'inbox.truncatedWithOriginal' : 'inbox.truncated') }}
+      <NAlert v-if="bodyIncomplete && !originalLoading" type="warning" :show-icon="false" class="notice">
+        <div class="notice-row">
+          <span>{{ message.hasRaw ? t('inbox.truncatedWithOriginal', { size: formatSize(message.size) }) : t('inbox.truncated') }}</span>
+          <NButton v-if="message.hasRaw" size="small" secondary @click="ensureOriginal">{{ t('inbox.loadFullMessage') }}</NButton>
+        </div>
       </NAlert>
       <NAlert v-if="imagesBlocked" type="info" :show-icon="false" class="notice">
         <div class="notice-row">
@@ -226,7 +240,7 @@ function formatSize(bytes: number): string {
 
       <div class="body">
         <MailFrame v-if="prepared" :html="prepared.html" :allow-remote-images="allowRemoteImages" :title="message.subject || t('inbox.noSubject')" />
-        <TextBody v-else :text="message.textBody ?? message.snippet" />
+        <TextBody v-else :text="textBody ?? message.snippet" />
       </div>
 
       <section v-if="files.length" class="attachments">

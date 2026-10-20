@@ -16,6 +16,9 @@ export interface OriginalAttachment {
 }
 
 export interface OriginalMail {
+  /** The complete bodies (D1 only holds what fit in the server's parse window). Untrusted. */
+  html: string | null
+  text: string | null
   /** Real attachments, in message order (same classification as the server's metadata). */
   files: OriginalAttachment[]
   /** Content-ID (without angle brackets) → data: URI, images only. */
@@ -46,7 +49,30 @@ function isInline(a: Attachment): boolean {
   return a.disposition === 'inline' || Boolean(a.related)
 }
 
-export async function loadOriginal(messageId: string): Promise<OriginalMail> {
+/** The last few parsed originals, so reopening a large message doesn't download it again. */
+const cache = new Map<string, Promise<OriginalMail>>()
+const CACHE_SIZE = 4
+
+export function loadOriginal(messageId: string): Promise<OriginalMail> {
+  const hit = cache.get(messageId)
+  if (hit) {
+    cache.delete(messageId)
+    cache.set(messageId, hit)
+    return hit
+  }
+  const pending = fetchOriginal(messageId)
+  cache.set(messageId, pending)
+  pending.catch(() => cache.delete(messageId))
+  while (cache.size > CACHE_SIZE) cache.delete(cache.keys().next().value!)
+  return pending
+}
+
+/** Forget a message's original (it was deleted). */
+export function forgetOriginal(messageId: string): void {
+  cache.delete(messageId)
+}
+
+async function fetchOriginal(messageId: string): Promise<OriginalMail> {
   const [{ default: PostalMime }, raw] = await Promise.all([import('postal-mime'), messageApi.raw(messageId)])
   const email = await PostalMime.parse(raw, PARSE_LIMITS)
   const files: OriginalAttachment[] = []
@@ -59,7 +85,7 @@ export async function loadOriginal(messageId: string): Promise<OriginalMail> {
     }
     if (!isInline(a)) files.push({ filename: a.filename ?? null, contentType: a.mimeType, size: content.byteLength, content })
   }
-  return { files, inlineImages }
+  return { html: email.html ?? null, text: email.text ?? null, files, inlineImages }
 }
 
 /** Saves a file without ever letting the browser render it (no sniffing, no inline display). */

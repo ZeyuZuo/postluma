@@ -13,7 +13,7 @@
 
 ---
 
-| Home: create an address, mail and codes appear live | Inbox: one line per message, details slide in |
+| Home: current address, latest code and all addresses | Inbox: one line per message, details slide in |
 |---|---|
 | ![Home](docs/screenshots/home.png) | ![Inbox](docs/screenshots/inbox.png) |
 | **Dark theme** | **Phone** |
@@ -23,16 +23,17 @@
 
 ## What it is
 
-PostLuma is a private temporary mailbox for you and people you trust, built for signing up to websites and receiving verification codes. Type a prefix on the home page (or leave it empty for a random one) and press Enter: the address is copied to your clipboard. Mail sent to it appears right below, the verification code is detected, and one click copies it — no page switching.
+PostLuma is a private temporary mailbox for you and people you trust, built for signing up to websites and receiving verification codes. Click “New address” on the home page: a random address is created, copied to your clipboard and becomes your current address. Mail sent to it appears right below it, the verification code is detected and highlighted in amber, and one click copies it — no page switching.
 
 What sets it apart from other Cloudflare mail projects is that **isolation between users** comes first: each user sees only their own mail, admins can't read anyone's mail, and an address that was ever handed out is never given to anyone else.
 
 ## Features
 
 **Receiving and codes**
-- Generate a random address or choose a prefix; Enter creates it and copies it
+- Generate a random address or choose a prefix; a new address is copied and becomes the current one
+- You decide the current address: the one you last created, copied or picked stays current across reloads; the list beside it shows each address's note, unread count and any code not copied yet
 - For 10 minutes after creating an address the app checks for mail every 10 s (otherwise every 30 s); new mail shows up without a reload
-- Verification codes are detected (Chinese, English and Japanese keywords; years, amounts, phone and order numbers excluded) and copied in one click from the list, home page or message
+- Verification codes are detected (Chinese, English and Japanese keywords; years, amounts, phone and order numbers excluded) and copied in one click; copying marks the message read, so amber only highlights codes not copied yet
 - Per-address opt-in `+alias`: mail to `name+shop@domain` also reaches `name@domain`, without using quota
 - Multiple receiving domains, managed by admins
 

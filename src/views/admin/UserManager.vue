@@ -298,6 +298,10 @@ async function deleteUser(user: AdminUser): Promise<void> {
 </template>
 
 <style scoped>
+.users {
+  max-width: 960px;
+  margin: 0 auto;
+}
 .toolbar {
   display: flex;
   flex-wrap: wrap;

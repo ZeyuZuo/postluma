@@ -251,7 +251,8 @@ const zhCN = {
       },
     },
     domains: {
-      intro: '用户只能在已启用的域名下创建地址。每个域名还需要在 Cloudflare 控制台的 Email Routing 中，把 Catch-all 规则设为“发送到 Worker”，并选择 postluma。',
+      intro: '用户只能在已启用的域名下创建地址。',
+      routingNote: '每个域名还需在 Cloudflare Email Routing 中设置 Catch-all → 发送到 Worker → postluma。',
       add: '添加域名',
       placeholder: '例如 mail.example.com',
       invalid: '请输入有效的域名，例如 mail.example.com',

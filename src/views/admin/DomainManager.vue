@@ -101,6 +101,7 @@ function confirmDelete(domain: AdminDomain): void {
         <DomainRow v-for="domain in enabledDomains" :key="domain.id" :domain="domain" @toggle="(v) => toggle(domain, v)" @remove="confirmDelete(domain)" />
       </ul>
       <p v-else-if="!loading" class="empty">{{ t('admin.domains.empty') }}</p>
+      <p class="note">{{ t('admin.domains.routingNote') }}</p>
 
       <NCollapse v-if="disabledDomains.length" class="disabled-section">
         <NCollapseItem :title="t('admin.domains.disabledSection', { n: disabledDomains.length })" name="disabled">
@@ -115,16 +116,18 @@ function confirmDelete(domain: AdminDomain): void {
 </template>
 
 <style scoped>
+.domains {
+  max-width: 720px;
+  margin: 0 auto;
+}
 .intro {
-  max-width: 70ch;
-  margin: 0 0 20px;
+  margin: 0 0 16px;
   color: var(--pl-muted);
   line-height: 1.7;
 }
 .add {
   display: grid;
-  grid-template-columns: minmax(0, 360px) auto;
-  justify-content: start;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px 12px;
   margin-bottom: 20px;
 }
@@ -144,6 +147,11 @@ function confirmDelete(domain: AdminDomain): void {
   border: 1px solid var(--pl-line);
   border-radius: 10px;
   background: var(--pl-surface);
+}
+.note {
+  margin: 10px 0 0;
+  color: var(--pl-muted);
+  font-size: 0.8125rem;
 }
 .disabled-section {
   margin-top: 24px;

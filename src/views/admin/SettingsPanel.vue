@@ -176,6 +176,7 @@ async function runCleanup(days: number): Promise<void> {
   display: grid;
   gap: 20px;
   max-width: 720px;
+  margin: 0 auto;
 }
 .intro {
   margin: 0;

@@ -257,7 +257,8 @@ const en: Messages = {
       },
     },
     domains: {
-      intro: 'Users can create addresses only on enabled domains. Each domain also needs an Email Routing catch-all rule in the Cloudflare dashboard set to “Send to a Worker” → postluma.',
+      intro: 'Users can create addresses only on enabled domains.',
+      routingNote: 'Each domain also needs an Email Routing catch-all: Send to a Worker → postluma.',
       add: 'Add domain',
       placeholder: 'e.g. mail.example.com',
       invalid: 'Enter a valid domain, e.g. mail.example.com',

@@ -171,7 +171,7 @@ async function onUserAction(key: string): Promise<void> {
 .topnav-link.active {
   color: var(--pl-ink);
   font-weight: 650;
-  box-shadow: inset 0 -2px 0 var(--pl-signal);
+  box-shadow: inset 0 -2px 0 var(--pl-ink);
 }
 .topnav-link:focus-visible,
 .tab:focus-visible {
@@ -254,7 +254,7 @@ async function onUserAction(key: string): Promise<void> {
   height: 3px;
   margin-left: -8px;
   border-radius: 2px;
-  background: var(--pl-signal);
+  background: var(--pl-ink);
 }
 .tab-icon {
   position: relative;

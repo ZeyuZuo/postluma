@@ -5,22 +5,37 @@ import { expect, test } from '@playwright/test'
 
 import { createMailbox, deliver, mime, part, signIn, uid } from './helpers'
 
-test('home: Enter creates and copies an address; its first mail appears without a reload', async ({ page, context }) => {
+test('home: creating copies the address and makes it current; its code is copied and marked read', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
   await signIn(context)
+  const older = await createMailbox(context.request)
   await page.goto('/')
+  await page.getByRole('button', { name: '自定义前缀' }).click()
   const local = uid('home')
   await page.locator('#new-local-part').fill(local)
   await page.keyboard.press('Enter')
-  await expect(page.locator('.current .local')).toHaveText(local)
+  await expect(page.locator('section.current .address .local')).toHaveText(local)
   const address = await page.evaluate(() => navigator.clipboard.readText())
   expect(address).toBe(`${local}@e2e.test`)
-  await expect(page.locator('.current .status')).toContainText('每 10 秒')
+  await expect(page.locator('section.current .status')).toContainText('每 10 秒')
 
   await deliver(context.request, address, mime({ to: address, subject: 'Your Acme code', text: 'Your verification code is 615204.' }))
   // The boosted poll runs every 10 s.
-  await expect(page.locator('.current .live')).toContainText('Your Acme code', { timeout: 20_000 })
-  await expect(page.locator('.tiles .digits').first()).toHaveText('615204')
+  await expect(page.locator('section.current .mail')).toContainText('Your Acme code', { timeout: 20_000 })
+  const block = page.locator('.code-block')
+  await expect(block.locator('.code-digits')).toHaveText('615204')
+  await expect(block).toHaveClass(/fresh/)
+  await block.click()
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('615204')
+  await expect(block).not.toHaveClass(/fresh/)
+  const mail = await context.request.get('/api/messages?code=1')
+  expect(((await mail.json()) as { items: { isRead: boolean }[] }).items[0]?.isRead).toBe(true)
+
+  // Picking another address in the list makes it current, and the choice survives a reload.
+  await page.locator('.pick', { hasText: older.address.split('@')[0] }).click()
+  await expect(page.locator('section.current .address .local')).toHaveText(older.address.split('@')[0])
+  await page.reload()
+  await expect(page.locator('section.current .address .local')).toHaveText(older.address.split('@')[0])
 })
 
 test('inbox: filters, j/k navigation and Esc', async ({ page, context }) => {

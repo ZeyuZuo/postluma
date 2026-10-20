@@ -7,7 +7,7 @@ import { RouterLink } from 'vue-router'
 import type { MailboxStatus, PublicMailbox } from '../../shared/api'
 import { errorCodeOf } from '@/api/client'
 import { mailboxApi } from '@/api/mailboxes'
-import AddressCommand from '@/components/AddressCommand.vue'
+import NewAddressForm from '@/components/NewAddressForm.vue'
 import MailboxListPanel from '@/components/MailboxListPanel.vue'
 import { useMailboxList } from '@/composables/useMailboxList'
 
@@ -89,7 +89,7 @@ function offerUndo(mailbox: PublicMailbox): void {
     </nav>
 
     <section v-if="status === 'active'" class="command-panel" :aria-label="t('home.newAddress')">
-      <AddressCommand :quota="quota" @created="onCreated" />
+      <NewAddressForm :quota="quota" @created="onCreated" />
     </section>
     <p v-else class="intro">{{ t('mailboxes.disabledIntro') }}</p>
 
@@ -135,7 +135,7 @@ function offerUndo(mailbox: PublicMailbox): void {
 .tab.on {
   color: var(--pl-ink);
   font-weight: 700;
-  box-shadow: inset 0 -2px 0 var(--pl-signal);
+  box-shadow: inset 0 -2px 0 var(--pl-ink);
 }
 .tab:focus-visible {
   outline: 2px solid var(--pl-blue);

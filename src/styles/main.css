@@ -11,7 +11,7 @@
   /* Links, focus, selection. */
   --pl-blue: #0f6a8b;
   --pl-blue-soft: #e3f1f6;
-  /* The one loud colour: the main action and verification codes. Text on it is always ink. */
+  /* The one loud colour, reserved for verification codes waiting to be copied. Text on it is ink. */
   --pl-signal: #f2c14e;
   --pl-mark: #ffd95a;
   --pl-code-bg: #fff7dc;
@@ -57,6 +57,55 @@ body {
 .pl-mono {
   font-family: var(--pl-mono);
   font-feature-settings: 'zero' 1;
+}
+
+/* Buttons outside Naive components: primary (ink), default (outlined) and quiet. */
+.pl-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid var(--pl-line);
+  border-radius: 10px;
+  background: var(--pl-surface);
+  color: var(--pl-ink);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s, opacity 0.15s;
+}
+.pl-btn:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--pl-ink) 30%, var(--pl-line));
+}
+.pl-btn.primary {
+  border-color: var(--pl-ink);
+  background: var(--pl-ink);
+  color: var(--pl-surface);
+}
+.pl-btn.primary:hover:not(:disabled) {
+  opacity: 0.88;
+}
+.pl-btn.quiet {
+  border-color: transparent;
+  background: transparent;
+  color: var(--pl-muted);
+  font-weight: 500;
+}
+.pl-btn.quiet:hover:not(:disabled) {
+  background: var(--pl-sunken);
+  color: var(--pl-ink);
+}
+.pl-btn:focus-visible {
+  outline: 2px solid var(--pl-blue);
+  outline-offset: 2px;
+}
+.pl-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Read by screen readers, not shown (page titles under the top navigation). */

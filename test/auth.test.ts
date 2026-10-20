@@ -127,7 +127,9 @@ describe('login and sessions', () => {
   it('rate-limits repeated login attempts from one IP', async () => {
     const ip = uniqueIp()
     const statuses: number[] = []
-    for (let i = 0; i < 12; i++) {
+    // The limiter counts per fixed 60 s window (limit 10). 21 attempts guarantee one window holds
+    // 11+ even when the burst straddles a window boundary (12 used to fail when split 6/6).
+    for (let i = 0; i < 21; i++) {
       const res = await api('/api/auth/login', { ip, body: { username: `ghost${i}`, password: 'whatever-pass' } })
       statuses.push(res.status)
     }

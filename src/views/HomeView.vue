@@ -116,6 +116,9 @@ function openMessage(id: string): void {
 <style scoped>
 .home {
   display: grid;
+  /* minmax(0, …): otherwise the column grows to the widest nowrap line (a long snippet) and the
+     sections overflow the phone screen. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 28px;
 }
 .greeting {

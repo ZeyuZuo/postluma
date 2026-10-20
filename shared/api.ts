@@ -239,7 +239,13 @@ export interface MessageDetail extends MessageSummary {
   htmlBody: string | null
   isTruncated: boolean
   size: number
+  /**
+   * From the parse window, so possibly incomplete when `isTruncated`. With `hasRaw`, the client gets
+   * the complete list (and the content) by parsing GET /api/messages/:id/raw.
+   */
   attachments: MessageAttachment[]
+  /** The original message is kept in R2 and can be downloaded. */
+  hasRaw: boolean
 }
 
 export interface MessageListResponse {

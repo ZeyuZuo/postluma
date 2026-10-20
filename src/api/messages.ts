@@ -24,6 +24,8 @@ export const messageApi = {
     return http.get<MessageListResponse>(`/api/messages?${query}`)
   },
   get: (id: string) => http.get<{ message: MessageDetail }>(`/api/messages/${encodeURIComponent(id)}`),
+  rawUrl: (id: string) => `/api/messages/${encodeURIComponent(id)}/raw`,
+  raw: (id: string) => http.binary(`/api/messages/${encodeURIComponent(id)}/raw`),
   setRead: (id: string, isRead: boolean) => http.patch<void>(`/api/messages/${encodeURIComponent(id)}`, { isRead }),
   remove: (id: string) => http.delete<void>(`/api/messages/${encodeURIComponent(id)}`),
   markAllRead: (mailboxId?: string | null) =>

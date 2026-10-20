@@ -150,10 +150,15 @@ export async function countUserMessages(db: D1Database, targetId: string, cap = 
 }
 
 /** One budgeted batch of a user's messages (oldest first). Never reads their content. */
-export async function purgeUserMessages(db: D1Database, targetId: string, maxDeletesPerDay: number): Promise<BatchDeleteResponse> {
+export async function purgeUserMessages(
+  db: D1Database,
+  bucket: R2Bucket | null,
+  targetId: string,
+  maxDeletesPerDay: number,
+): Promise<BatchDeleteResponse> {
   const user = await getTarget(db, targetId)
   if (user.role === 'admin') throw new ApiError(403, 'cannot_modify_admin')
-  return deleteBatch(db, { kind: 'user', userId: targetId }, maxDeletesPerDay)
+  return deleteBatch(db, bucket, { kind: 'user', userId: targetId }, maxDeletesPerDay)
 }
 
 /**

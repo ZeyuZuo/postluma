@@ -26,6 +26,7 @@ const INT_VARS = {
   INGEST_PARSE_WINDOW_KB: { fallback: 256, min: 64, max: 4_096 },
   MESSAGE_RETENTION_DAYS: { fallback: 30, min: 0, max: 3_650 },
   MAX_DELETES_PER_DAY: { fallback: 5_000, min: 100, max: 1_000_000 },
+  RAW_MAIL_MAX_MB_PER_DAY: { fallback: 250, min: 0, max: 1_000_000 },
 } satisfies Record<string, IntSpec>
 
 type IntVar = keyof typeof INT_VARS
@@ -43,13 +44,16 @@ export interface AppConfig {
     messagesPerDay: number
     bytesPerDay: number
     parseWindowBytes: number
+    /** R2 bytes of original messages per UTC day; 0 = originals are not kept. */
+    rawBytesPerDay: number
   }
   /** 0 = keep forever. */
   retentionDays: number
   /** Messages deletable per UTC day across retention cleanup, user purges and manual cleanups. */
   maxDeletesPerDay: number
   /**
-   * Longest retention that fits the database: INGEST_MAX_MB_PER_DAY × days ≤ 80 % of 500 MB.
+   * Longest retention that fits the free tiers: INGEST_MAX_MB_PER_DAY × days ≤ 80 % of D1's 500 MB
+   * and, when originals go to R2, RAW_MAIL_MAX_MB_PER_DAY × days ≤ 90 % of R2's 10 GB.
    * Admin overrides beyond this (or 0 = forever) are refused.
    */
   maxRetentionDays: number
@@ -58,6 +62,9 @@ export interface AppConfig {
 const DAY_MS = 24 * 60 * 60 * 1000
 /** 80 % of the Free plan's 500 MB D1 limit, leaving room for indexes and other tables. */
 const DB_BUDGET_BYTES = 0.8 * 500 * 1024 * 1024
+/** 90 % of the R2 free tier's 10 GB. */
+const R2_BUDGET_BYTES = 0.9 * 10 * 1024 * 1024 * 1024
+const MB = 1024 * 1024
 const warned = new Set<string>()
 
 function warnOnce(name: string, raw: unknown, fallback: unknown): void {
@@ -85,7 +92,18 @@ function readBool(env: Env, name: 'REGISTRATION_OPEN', fallback: boolean): boole
   return fallback
 }
 
+/** The R2 binding, if this deployment has one (it is optional; see wrangler.jsonc). */
+export function mailBucket(env: Env): R2Bucket | null {
+  return (env as { MAIL_BUCKET?: R2Bucket }).MAIL_BUCKET ?? null
+}
+
 export function getConfig(env: Env): AppConfig {
+  const ingestMb = readInt(env, 'INGEST_MAX_MB_PER_DAY')
+  const rawMb = mailBucket(env) ? readInt(env, 'RAW_MAIL_MAX_MB_PER_DAY') : 0
+  const maxRetentionDays = Math.min(
+    Math.floor(DB_BUDGET_BYTES / (ingestMb * MB)),
+    rawMb > 0 ? Math.floor(R2_BUDGET_BYTES / (rawMb * MB)) : Infinity,
+  )
   return {
     registrationOpen: readBool(env, 'REGISTRATION_OPEN', true),
     passwordIterations: readInt(env, 'PASSWORD_PBKDF2_ITERATIONS'),
@@ -97,11 +115,12 @@ export function getConfig(env: Env): AppConfig {
       perMailboxPerHour: readInt(env, 'INGEST_MAX_PER_MAILBOX_PER_HOUR'),
       perUserPerHour: readInt(env, 'INGEST_MAX_PER_USER_PER_HOUR'),
       messagesPerDay: readInt(env, 'INGEST_MAX_MESSAGES_PER_DAY'),
-      bytesPerDay: readInt(env, 'INGEST_MAX_MB_PER_DAY') * 1024 * 1024,
+      bytesPerDay: ingestMb * MB,
       parseWindowBytes: readInt(env, 'INGEST_PARSE_WINDOW_KB') * 1024,
+      rawBytesPerDay: rawMb * MB,
     },
     retentionDays: readInt(env, 'MESSAGE_RETENTION_DAYS'),
     maxDeletesPerDay: readInt(env, 'MAX_DELETES_PER_DAY'),
-    maxRetentionDays: Math.max(1, Math.floor(DB_BUDGET_BYTES / (readInt(env, 'INGEST_MAX_MB_PER_DAY') * 1024 * 1024))),
+    maxRetentionDays: Math.max(1, maxRetentionDays),
   }
 }

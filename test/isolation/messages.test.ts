@@ -16,6 +16,8 @@ beforeEach(async () => {
   await createUser('root-admin', { role: 'admin' })
   aliceBox = await addMailboxRow(aliceId, domainId, 'alice@mail.test')
   aliceMessage = await addMessageRow(aliceBox, { subject: 'secret', code: '777777', html: '<p>private</p>' })
+  await env.MAIL_BUCKET.put(`u/${aliceId}/${aliceMessage}.eml`, 'Subject: secret\r\n\r\nprivate')
+  await env.DB.prepare('UPDATE messages SET raw_r2_key = ? WHERE id = ?').bind(`u/${aliceId}/${aliceMessage}.eml`, aliceMessage).run()
   callers = { bob: await login('bob'), admin: await login('root-admin') }
 })
 
@@ -34,6 +36,7 @@ describe("other users (including admins) against user A's mail", () => {
       const missing = await api('/api/messages/nope', { cookie })
       for (const req of [
         api(`/api/messages/${aliceMessage}`, { cookie }),
+        api(`/api/messages/${aliceMessage}/raw`, { cookie }),
         api(`/api/messages/${aliceMessage}`, { cookie, method: 'PATCH', body: { isRead: true } }),
         api(`/api/messages/${aliceMessage}`, { cookie, method: 'DELETE' }),
         api(`/api/messages?mailbox=${aliceBox}`, { cookie }),
@@ -43,8 +46,9 @@ describe("other users (including admins) against user A's mail", () => {
         expect(res.status).toBe(404)
         expect(await json(res)).toEqual(await json(missing.clone()))
       }
-      const row = await env.DB.prepare('SELECT is_read FROM messages WHERE id = ?').bind(aliceMessage).first<{ is_read: number }>()
+      const row = await env.DB.prepare('SELECT is_read, raw_r2_key FROM messages WHERE id = ?').bind(aliceMessage).first<{ is_read: number; raw_r2_key: string }>()
       expect(row?.is_read).toBe(0)
+      expect(await env.MAIL_BUCKET.head(row!.raw_r2_key)).not.toBeNull()
     })
 
     it(`${who}: "mark all read" never touches A's mail`, async () => {
@@ -55,7 +59,7 @@ describe("other users (including admins) against user A's mail", () => {
   }
 
   it('anonymous callers get 401 everywhere', async () => {
-    for (const path of ['/api/messages', '/api/messages/summary', `/api/messages/${aliceMessage}`]) {
+    for (const path of ['/api/messages', '/api/messages/summary', `/api/messages/${aliceMessage}`, `/api/messages/${aliceMessage}/raw`]) {
       expect((await api(path)).status, path).toBe(401)
     }
   })

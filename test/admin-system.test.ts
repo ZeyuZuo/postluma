@@ -51,9 +51,15 @@ describe('settings', () => {
     expect(tooLong.status).toBe(400)
     expect(await json(tooLong)).toEqual({ error: 'retention_too_long' })
     expect((await api('/api/admin/settings', { cookie: admin, method: 'PATCH', body: { retentionDays: 33 } })).status).toBe(200)
-    // A smaller daily intake allows a longer retention.
-    const roomy = await api('/api/admin/settings', { cookie: admin, method: 'PATCH', body: { retentionDays: 365 }, env: { INGEST_MAX_MB_PER_DAY: '1' } })
-    expect(roomy.status).toBe(200)
+    // A smaller daily intake allows a longer retention, as long as R2 can hold the originals too.
+    const patch = (retentionDays: number, vars: Record<string, string>) =>
+      api('/api/admin/settings', { cookie: admin, method: 'PATCH', body: { retentionDays }, env: vars })
+    expect((await patch(365, { INGEST_MAX_MB_PER_DAY: '1', RAW_MAIL_MAX_MB_PER_DAY: '0' })).status).toBe(200)
+    // 250 MB/day of originals × days must stay under 9 GB → at most 36 days.
+    expect((await patch(37, { INGEST_MAX_MB_PER_DAY: '1' })).status).toBe(400)
+    expect((await patch(36, { INGEST_MAX_MB_PER_DAY: '1' })).status).toBe(200)
+    // Without the R2 binding only the database limits retention.
+    expect((await patch(365, { INGEST_MAX_MB_PER_DAY: '1', MAIL_BUCKET: undefined as unknown as string })).status).toBe(200)
   })
 })
 

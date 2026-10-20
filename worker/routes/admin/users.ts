@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 
 import { adminUserActionSchema, adminUserQuotaSchema, adminUsersQuerySchema } from '../../../shared/api'
-import { getConfig } from '../../lib/config'
+import { getConfig, mailBucket } from '../../lib/config'
 import { clientIp, parseJson, parseQuery } from '../../lib/request'
 import {
   applyUserAction,
@@ -38,7 +38,7 @@ adminUserRoutes.get('/:id/message-count', async (c) => c.json({ count: await cou
 
 adminUserRoutes.post('/:id/purge-messages', async (c) => {
   const id = c.req.param('id')
-  const result = await purgeUserMessages(c.env.DB, id, getConfig(c.env).maxDeletesPerDay)
+  const result = await purgeUserMessages(c.env.DB, mailBucket(c.env), id, getConfig(c.env).maxDeletesPerDay)
   if (result.deleted > 0) {
     await writeAudit(c.env.DB, { actorId: c.get('user').id, action: 'admin.user_purge_messages', targetId: id, detail: { deleted: result.deleted }, ip: clientIp(c) })
   }

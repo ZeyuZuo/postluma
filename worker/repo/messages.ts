@@ -48,6 +48,7 @@ interface DetailRow extends SummaryRow {
   is_truncated: number
   size: number
   attachments_json: string | null
+  has_raw: number
 }
 
 const SUMMARY_COLUMNS = `g.id, g.mailbox_id, m.address AS mailbox_address, m.status AS mailbox_status,
@@ -177,7 +178,7 @@ export async function getMessage(db: D1Database, userId: string, id: string): Pr
   const row = await db
     .prepare(
       `SELECT ${SUMMARY_COLUMNS}, g.to_address, g.envelope_from, g.text_body, g.html_body, g.is_truncated, g.size,
-              g.attachments_json
+              g.attachments_json, g.raw_r2_key IS NOT NULL AS has_raw
        ${FROM_MESSAGES}
        WHERE g.id = ? AND g.user_id = ?`,
     )
@@ -193,7 +194,18 @@ export async function getMessage(db: D1Database, userId: string, id: string): Pr
     isTruncated: row.is_truncated === 1,
     size: row.size,
     attachments: parseAttachments(row.attachments_json),
+    hasRaw: row.has_raw === 1,
   }
+}
+
+/** R2 key of a message's original; 404 unless it is this user's and an original was kept. */
+export async function getRawKey(db: D1Database, userId: string, id: string): Promise<string> {
+  const row = await db
+    .prepare('SELECT raw_r2_key FROM messages WHERE id = ? AND user_id = ?')
+    .bind(id, userId)
+    .first<{ raw_r2_key: string | null }>()
+  if (!row?.raw_r2_key) throw new ApiError(404, 'not_found')
+  return row.raw_r2_key
 }
 
 export async function setMessageRead(db: D1Database, userId: string, id: string, isRead: boolean): Promise<void> {
@@ -204,9 +216,14 @@ export async function setMessageRead(db: D1Database, userId: string, id: string,
   if (!result.meta.changes) throw new ApiError(404, 'not_found')
 }
 
-export async function deleteMessage(db: D1Database, userId: string, id: string): Promise<void> {
-  const result = await db.prepare('DELETE FROM messages WHERE id = ? AND user_id = ?').bind(id, userId).run()
-  if (!result.meta.changes) throw new ApiError(404, 'not_found')
+/** Deletes one of the user's messages and returns its R2 key (if any) for the caller to remove. */
+export async function deleteMessage(db: D1Database, userId: string, id: string): Promise<string | null> {
+  const row = await db
+    .prepare('DELETE FROM messages WHERE id = ? AND user_id = ? RETURNING raw_r2_key')
+    .bind(id, userId)
+    .first<{ raw_r2_key: string | null }>()
+  if (!row) throw new ApiError(404, 'not_found')
+  return row.raw_r2_key
 }
 
 /**

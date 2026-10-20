@@ -34,10 +34,35 @@ const REMOTE_RESOURCE = /\b(?:src|srcset|background|poster)\s*=\s*["']?\s*(?:htt
 export interface PreparedMail {
   html: string
   hasRemoteImages: boolean
+  /** Inline (cid:) images that could not be resolved yet. */
+  hasInlineImages: boolean
 }
 
-export function prepareMailHtml(raw: string): PreparedMail {
-  const html = purifier.sanitize(raw, {
+// `src="cid:…"` (RFC 2392; the id may be percent-encoded).
+const CID_SRC = /(\bsrc\s*=\s*)(["']?)cid:([^"'\s>]+)\2/gi
+
+function decodeCid(value: string): string {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return value
+  }
+}
+
+/**
+ * Sanitizes received HTML. `inlineImages` (Content-ID → data: URI, from the original message)
+ * replaces cid: references first: DOMPurify drops cid: URLs, while data: images pass it and the
+ * frame's CSP.
+ */
+export function prepareMailHtml(raw: string, inlineImages?: ReadonlyMap<string, string>): PreparedMail {
+  let hasInlineImages = false
+  const resolved = raw.replace(CID_SRC, (match, attr: string, quote: string, cid: string) => {
+    const uri = inlineImages?.get(decodeCid(cid))
+    if (uri) return `${attr}${quote}${uri}${quote}`
+    hasInlineImages = true
+    return match
+  })
+  const html = purifier.sanitize(resolved, {
     FORBID_TAGS,
     FORBID_ATTR,
     FORCE_BODY: true, // keep a leading <style>, which email layouts rely on
@@ -46,7 +71,7 @@ export function prepareMailHtml(raw: string): PreparedMail {
   // Detection only drives the "load images" button; the CSP blocks remote loads either way.
   // DOMPurify serializes quotes inside style attributes as entities, so decode them first.
   const decoded = html.replace(/&quot;|&#34;|&#x22;/gi, '"').replace(/&#39;|&#x27;|&apos;/gi, "'")
-  return { html, hasRemoteImages: REMOTE_RESOURCE.test(decoded) || /\bsrcset\s*=/i.test(decoded) }
+  return { html, hasRemoteImages: REMOTE_RESOURCE.test(decoded) || /\bsrcset\s*=/i.test(decoded), hasInlineImages }
 }
 
 const BASE_STYLE = `

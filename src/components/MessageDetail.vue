@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { ArrowBackOutline, AttachOutline, InformationCircleOutline, MailUnreadOutline, TrashOutline } from '@vicons/ionicons5'
+import {
+  ArrowBackOutline,
+  AttachOutline,
+  DownloadOutline,
+  InformationCircleOutline,
+  MailUnreadOutline,
+  TrashOutline,
+} from '@vicons/ionicons5'
 import { NAlert, NButton, NIcon, NSpin, NTooltip, useDialog, useMessage } from 'naive-ui'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -12,6 +19,7 @@ import MailFrame from '@/components/MailFrame.vue'
 import TextBody from '@/components/TextBody.vue'
 import { formatDateTime } from '@/lib/format'
 import { prepareMailHtml } from '@/lib/mail-html'
+import { loadOriginal, saveFile, type OriginalMail } from '@/lib/original-mail'
 import { adjustUnread } from '@/stores/inbox'
 
 const props = defineProps<{ id: string; showBack?: boolean }>()
@@ -25,9 +33,51 @@ const message = ref<MessageDetail | null>(null)
 const loading = ref(false)
 const failed = ref(false)
 const allowRemoteImages = ref(false)
+/** The original message, parsed in the browser (attachments, inline images); loaded on demand. */
+const original = ref<OriginalMail | null>(null)
+const originalLoading = ref(false)
 
-const prepared = computed(() => (message.value?.htmlBody ? prepareMailHtml(message.value.htmlBody) : null))
-const files = computed(() => message.value?.attachments.filter((a) => !a.inline) ?? [])
+/** Inline images are fetched automatically for messages up to this size, on request beyond it. */
+const AUTO_ORIGINAL_BYTES = 3 * 1024 * 1024
+
+const prepared = computed(() =>
+  message.value?.htmlBody ? prepareMailHtml(message.value.htmlBody, original.value?.inlineImages) : null,
+)
+/** Server metadata until the original is parsed; then the complete list, with content. */
+const files = computed(() => original.value?.files ?? message.value?.attachments.filter((a) => !a.inline) ?? [])
+const imagesBlocked = computed(
+  () =>
+    (prepared.value?.hasRemoteImages && !allowRemoteImages.value) ||
+    (prepared.value?.hasInlineImages && message.value?.hasRaw && !original.value),
+)
+
+async function ensureOriginal(): Promise<OriginalMail | null> {
+  const current = message.value
+  if (!current?.hasRaw) return null
+  if (original.value) return original.value
+  originalLoading.value = true
+  try {
+    const parsed = await loadOriginal(current.id)
+    if (message.value?.id === current.id) original.value = parsed
+    return parsed
+  } catch (err) {
+    toast.error(t(`errors.${errorCodeOf(err)}`))
+    return null
+  } finally {
+    originalLoading.value = false
+  }
+}
+
+async function loadImages(): Promise<void> {
+  allowRemoteImages.value = true
+  await ensureOriginal()
+}
+
+async function download(index: number): Promise<void> {
+  const parsed = await ensureOriginal()
+  const file = parsed?.files[index]
+  if (file) saveFile(file.content, file.filename || t('inbox.attachmentFallbackName', { n: index + 1 }))
+}
 
 /** The badge only counts active mailboxes, so only their messages move it. */
 function adjustBadge(m: MessageDetail, delta: number): void {
@@ -38,6 +88,7 @@ async function load(id: string): Promise<void> {
   loading.value = true
   failed.value = false
   allowRemoteImages.value = false
+  original.value = null
   let detail: MessageDetail
   try {
     detail = (await messageApi.get(id)).message
@@ -51,6 +102,8 @@ async function load(id: string): Promise<void> {
   if (id !== props.id) return
   message.value = detail
   loading.value = false
+  const hasInline = detail.attachments.some((a) => a.inline)
+  if (detail.hasRaw && hasInline && detail.size <= AUTO_ORIGINAL_BYTES) void ensureOriginal()
   if (detail.isRead) return
   try {
     await messageApi.setRead(id, true)
@@ -114,6 +167,12 @@ function formatSize(bytes: number): string {
             {{ t('inbox.back') }}
           </NButton>
           <span class="spacer" />
+          <a v-if="message.hasRaw" class="n-button-like" :href="messageApi.rawUrl(message.id)" download="message.eml">
+            <NButton quaternary size="small" tag="span">
+              <template #icon><NIcon><DownloadOutline /></NIcon></template>
+              {{ t('inbox.downloadOriginal') }}
+            </NButton>
+          </a>
           <NButton quaternary size="small" @click="markUnread">
             <template #icon><NIcon><MailUnreadOutline /></NIcon></template>
             {{ t('inbox.markUnread') }}
@@ -155,11 +214,13 @@ function formatSize(bytes: number): string {
         <CodeChip :code="message.verificationCode" size="lg" />
       </section>
 
-      <NAlert v-if="message.isTruncated" type="warning" :show-icon="false" class="notice">{{ t('inbox.truncated') }}</NAlert>
-      <NAlert v-if="prepared?.hasRemoteImages && !allowRemoteImages" type="info" :show-icon="false" class="notice">
+      <NAlert v-if="message.isTruncated" type="warning" :show-icon="false" class="notice">
+        {{ t(message.hasRaw ? 'inbox.truncatedWithOriginal' : 'inbox.truncated') }}
+      </NAlert>
+      <NAlert v-if="imagesBlocked" type="info" :show-icon="false" class="notice">
         <div class="notice-row">
-          <span>{{ t('inbox.remoteBlocked') }}</span>
-          <NButton size="small" secondary @click="allowRemoteImages = true">{{ t('inbox.loadImages') }}</NButton>
+          <span>{{ t(prepared?.hasRemoteImages && !allowRemoteImages ? 'inbox.remoteBlocked' : 'inbox.inlineNotLoaded') }}</span>
+          <NButton size="small" secondary :loading="originalLoading" @click="loadImages">{{ t('inbox.loadImages') }}</NButton>
         </div>
       </NAlert>
 
@@ -175,9 +236,12 @@ function formatSize(bytes: number): string {
             <NIcon><AttachOutline /></NIcon>
             <span class="file">{{ file.filename || file.contentType }}</span>
             <span class="size">{{ formatSize(file.size) }}</span>
+            <NButton v-if="message.hasRaw" text size="small" type="primary" :loading="originalLoading" @click="download(i)">
+              {{ t('inbox.downloadAttachment') }}
+            </NButton>
           </li>
         </ul>
-        <p class="note">{{ t('inbox.attachmentNotStored') }}</p>
+        <p v-if="!message.hasRaw" class="note">{{ t('inbox.attachmentNotStored') }}</p>
       </section>
     </article>
     <p v-else-if="failed" class="failed">{{ t('inbox.loadFailed') }}</p>
@@ -294,6 +358,9 @@ function formatSize(bytes: number): string {
 }
 .file {
   overflow-wrap: anywhere;
+}
+.n-button-like {
+  text-decoration: none;
 }
 .size,
 .note {

@@ -1,4 +1,4 @@
-import { getConfig } from '../lib/config'
+import { getConfig, mailBucket } from '../lib/config'
 import { utcDay } from '../repo/ingest'
 import { deleteBatch } from '../repo/maintenance'
 import { getRetentionDays } from '../repo/settings'
@@ -23,7 +23,7 @@ export async function runCleanup(env: Env, now = Date.now()): Promise<CleanupRes
   if (retentionDays > 0) {
     const scope = { kind: 'olderThan', cutoff: now - retentionDays * DAY_MS } as const
     for (let i = 0; i < MAX_BATCHES; i++) {
-      const batch = await deleteBatch(env.DB, scope, config.maxDeletesPerDay, now)
+      const batch = await deleteBatch(env.DB, mailBucket(env), scope, config.maxDeletesPerDay, now)
       messagesDeleted += batch.deleted
       if (batch.done || batch.budgetExhausted) break
     }
@@ -38,5 +38,5 @@ export async function runCleanup(env: Env, now = Date.now()): Promise<CleanupRes
 
 /** One budgeted batch of "delete mail older than N days" for the admin panel. Never reads content. */
 export async function deleteOlderThan(env: Env, days: number, now = Date.now()) {
-  return deleteBatch(env.DB, { kind: 'olderThan', cutoff: now - days * DAY_MS }, getConfig(env).maxDeletesPerDay, now)
+  return deleteBatch(env.DB, mailBucket(env), { kind: 'olderThan', cutoff: now - days * DAY_MS }, getConfig(env).maxDeletesPerDay, now)
 }

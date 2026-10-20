@@ -3,9 +3,11 @@
  * and the Free plan's 100k writes/day are shared by login, ingest and everything else, so all
  * bulk deletes (retention cron, admin user purge, admin manual cleanup) draw from one per-UTC-day
  * budget (`MAX_DELETES_PER_DAY`, counted in ingest_counters.deleted). Single-message deletes by
- * their owner are not budgeted.
+ * their owner are not budgeted. Originals in R2 (if any) are removed with their rows; R2 deletes are
+ * free and don't touch D1.
  */
 import type { BatchDeleteResponse } from '../../shared/api'
+import { deleteRaw } from '../lib/raw-mail'
 import { utcDay } from './ingest'
 
 export const DELETE_BATCH = 500
@@ -27,6 +29,7 @@ export async function remainingDeletes(db: D1Database, maxPerDay: number, now = 
 /** Deletes one batch within today's budget and records it. */
 export async function deleteBatch(
   db: D1Database,
+  bucket: R2Bucket | null,
   scope: DeleteScope,
   maxPerDay: number,
   now = Date.now(),
@@ -35,10 +38,14 @@ export async function deleteBatch(
   if (remaining === 0) return { deleted: 0, done: false, budgetExhausted: true }
   const limit = Math.min(DELETE_BATCH, remaining)
   const { where, params } = scopeSql(scope)
-  const { meta } = await db
-    .prepare(`DELETE FROM messages WHERE id IN (SELECT id FROM messages WHERE ${where} ORDER BY received_at LIMIT ?)`)
+  const { results, meta } = await db
+    .prepare(
+      `DELETE FROM messages WHERE id IN (SELECT id FROM messages WHERE ${where} ORDER BY received_at LIMIT ?)
+       RETURNING raw_r2_key`,
+    )
     .bind(...params, limit)
-    .run()
+    .all<{ raw_r2_key: string | null }>()
+  await deleteRaw(bucket, results.map((r) => r.raw_r2_key))
   if (meta.changes > 0) {
     await db
       .prepare(

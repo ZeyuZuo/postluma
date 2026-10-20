@@ -1,8 +1,18 @@
 import PostalMime, { type Email } from 'postal-mime'
 
-import { getConfig } from './lib/config'
+import { getConfig, mailBucket } from './lib/config'
+import { newId } from './lib/crypto'
 import { prepareMessage } from './lib/mail-content'
-import { findDeliveryTarget, ingestBlock, storeMessage, type IngestBlock } from './repo/ingest'
+import { deleteRaw, rawKey } from './lib/raw-mail'
+import {
+  findDeliveryTarget,
+  ingestBlock,
+  rawBytesToday,
+  storeMessage,
+  type DeliveryTarget,
+  type IngestBlock,
+  type StoredRaw,
+} from './repo/ingest'
 
 const PARSE_LIMITS = { maxNestingDepth: 20, maxPartCount: 200, maxHeadersSize: 256 * 1024 }
 
@@ -80,15 +90,24 @@ export async function handleEmail(
     return
   }
 
+  // The original goes to R2 only if this deployment has a bucket and today's R2 budget has room.
+  const bucket = mailBucket(env)
+  const keepRaw =
+    bucket !== null &&
+    message.rawSize > 0 &&
+    (await rawBytesToday(env.DB, receivedAt)) + message.rawSize <= config.ingest.rawBytesPerDay
+  const [parseStream, rawStream] = keepRaw ? message.raw.tee() : [message.raw, null]
+
   // Only a prefix is read and parsed: parsing (mostly base64-decoding attachments we never store)
   // dominates CPU, and the Workers Free plan allows 10 ms per invocation. Beyond it: truncated.
-  const raw = await readPrefix(message.raw, config.ingest.parseWindowBytes)
+  const raw = await readPrefix(parseStream, config.ingest.parseWindowBytes)
   let email: Email
   try {
     email = await PostalMime.parse(raw.bytes, PARSE_LIMITS)
   } catch (err) {
     // Malformed MIME fails identically on every retry; bounce instead of looping.
     console.warn('Rejecting unparseable message', { mailboxId: target.mailboxId, error: String(err) })
+    await rawStream?.cancel()
     message.setReject(REJECT_MALFORMED)
     return
   }
@@ -98,6 +117,58 @@ export async function handleEmail(
     rawSize: message.rawSize,
     windowTruncated: raw.truncated,
   })
-  const result = await storeMessage(env.DB, target, prepared, receivedAt, config.ingest)
-  if (!result.stored) message.setReject(BLOCK_REASONS[result.reason])
+  const id = newId()
+  const stored = bucket && rawStream ? await putRaw(bucket, rawStream, target, id, message.rawSize) : null
+  const result = await storeMessage(env.DB, target, id, prepared, stored, receivedAt, config.ingest)
+  if (!result.stored) {
+    if (stored) await deleteRaw(bucket, [stored.key])
+    message.setReject(BLOCK_REASONS[result.reason])
+  }
+}
+
+/**
+ * Copies chunks by hand: workerd can't pipeTo() from a tee() branch into another TransformStream.
+ * Chunks are passed through untouched, so this costs a few microseconds per 64 KB.
+ */
+async function pump(from: ReadableStream<Uint8Array>, to: WritableStream<Uint8Array>): Promise<void> {
+  const reader = from.getReader()
+  const writer = to.getWriter()
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      await writer.write(value)
+    }
+    await writer.close()
+  } catch (err) {
+    await writer.abort(err).catch(() => {})
+    await reader.cancel(err).catch(() => {})
+    throw err
+  }
+}
+
+/**
+ * Streams the original into R2 (no CPU spent on the bytes). R2 needs the length up front, which
+ * Email Routing provides. A failure only means this message has no original; delivery goes on.
+ */
+async function putRaw(
+  bucket: R2Bucket,
+  stream: ReadableStream<Uint8Array>,
+  target: DeliveryTarget,
+  id: string,
+  size: number,
+): Promise<StoredRaw | null> {
+  const key = rawKey(target.userId, id)
+  try {
+    const sized = new FixedLengthStream(size)
+    const [, object] = await Promise.all([
+      pump(stream, sized.writable),
+      bucket.put(key, sized.readable, { httpMetadata: { contentType: 'message/rfc822' } }),
+    ])
+    return { key, bytes: object.size }
+  } catch (err) {
+    console.warn('Could not store the original message', { mailboxId: target.mailboxId, error: String(err) })
+    await deleteRaw(bucket, [key])
+    return null
+  }
 }

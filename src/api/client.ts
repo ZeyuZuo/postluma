@@ -47,7 +47,22 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   return data as T
 }
 
+/** A binary download (e.g. an original message); errors follow the same rules as JSON calls. */
+async function requestBinary(path: string): Promise<ArrayBuffer> {
+  let res: Response
+  try {
+    res = await fetch(path, { credentials: 'same-origin' })
+  } catch {
+    throw new ApiRequestError(0, 'network')
+  }
+  if (res.ok) return res.arrayBuffer()
+  if (res.status === 401) onUnauthorized?.()
+  const code = ((await res.json().catch(() => null)) as { error?: unknown } | null)?.error
+  throw new ApiRequestError(res.status, (ERROR_CODES as readonly unknown[]).includes(code) ? (code as ErrorCode) : 'internal_error')
+}
+
 export const http = {
+  binary: requestBinary,
   get: <T>(path: string) => request<T>('GET', path),
   post: <T>(path: string, body?: unknown) => request<T>('POST', path, body ?? {}),
   patch: <T>(path: string, body: unknown) => request<T>('PATCH', path, body),

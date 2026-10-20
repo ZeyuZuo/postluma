@@ -143,8 +143,6 @@ describe('accepting mail', () => {
       { filename: 'invoicegpj.pdf', contentType: 'application/pdf', size: 13, contentId: null, inline: false },
       { filename: null, contentType: 'image/png', size: 3, contentId: '<logo@x>', inline: true },
     ])
-    const stored = await env.DB.prepare('SELECT COUNT(*) AS n FROM attachments').first<{ n: number }>()
-    expect(stored?.n).toBe(0) // content/rows only once R2 is enabled
   })
 
   it('strips bidi-override and control characters from the subject and sender name', async () => {

@@ -55,7 +55,7 @@ const en: Messages = {
     listening: 'New mail appears here automatically',
     listeningFast: 'Waiting for mail · checking every 10 s',
     copyAddress: 'Copy address',
-    newRandom: 'New address',
+    newRandom: 'Random address',
     customPrefix: 'Custom address',
     copyAlias: 'Copy alias',
     latestCode: 'Latest code · click to copy',

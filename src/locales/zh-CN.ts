@@ -49,7 +49,7 @@ const zhCN = {
     listening: '有新邮件会自动出现',
     listeningFast: '正在等待新邮件 · 每 10 秒检查',
     copyAddress: '复制地址',
-    newRandom: '新地址',
+    newRandom: '随机新地址',
     customPrefix: '自定义地址',
     copyAlias: '复制别名',
     latestCode: '最新验证码 · 点击复制',

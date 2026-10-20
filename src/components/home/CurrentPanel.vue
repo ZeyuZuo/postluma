@@ -159,7 +159,7 @@ function onCreated(mailbox: PublicMailbox): void {
       <p v-else-if="loaded" class="waiting">{{ t('home.waiting') }}</p>
     </div>
 
-    <NModal :show="openId !== null" :auto-focus="false" @update:show="(v: boolean) => { if (!v) openId = null }">
+    <NModal :show="openId !== null" :auto-focus="false" transform-origin="center" @update:show="(v: boolean) => { if (!v) openId = null }">
       <div class="mail-dialog" role="dialog" :aria-label="t('inbox.detailLabel')">
         <button type="button" class="dialog-close" :aria-label="t('inbox.close')" @click="openId = null">
           <NIcon><CloseOutline /></NIcon>
@@ -411,8 +411,9 @@ h3 {
 }
 .mail-dialog {
   position: relative;
+  /* A fixed size: the frame doesn't resize while the message loads mid-animation. */
   width: min(880px, calc(100vw - 32px));
-  max-height: calc(100dvh - 64px);
+  height: min(860px, calc(100dvh - 64px));
   padding: 20px 28px 24px;
   box-sizing: border-box;
   overflow: auto;

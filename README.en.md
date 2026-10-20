@@ -23,7 +23,7 @@
 
 ## What it is
 
-PostLuma is a private temporary mailbox for you and people you trust, built for signing up to websites and receiving verification codes. Click “New address” on the home page: a random address is created, copied to your clipboard and becomes your current address. Mail sent to it appears right below it, the verification code is detected and highlighted in amber, and one click copies it — no page switching.
+PostLuma is a private temporary mailbox for you and people you trust, built for signing up to websites and receiving verification codes. Click “Random address” on the home page: a random address is created, copied to your clipboard and becomes your current address. Mail sent to it appears right below it, the verification code is detected and highlighted in amber, and one click copies it — no page switching.
 
 What sets it apart from other Cloudflare mail projects is that **isolation between users** comes first: each user sees only their own mail, admins can't read anyone's mail, and an address that was ever handed out is never given to anyone else.
 

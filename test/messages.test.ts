@@ -26,6 +26,7 @@ beforeEach(async () => {
 
 describe('listing messages', () => {
   it('shows the global inbox newest first, excluding disabled mailboxes', async () => {
+    await env.DB.prepare("UPDATE mailboxes SET note = 'Shop' WHERE id = ?").bind(boxB).run()
     const first = await addMessageRow(boxA, { subject: 'first' })
     const second = await addMessageRow(boxB, { subject: 'second', code: '482913' })
     await addMessageRow(offBox, { subject: 'from a disabled mailbox' })
@@ -33,11 +34,13 @@ describe('listing messages', () => {
     expect(items.map((m) => m.id)).toEqual([second, first])
     expect(items[0]).toMatchObject({
       mailboxAddress: 'b@mail.test',
+      mailboxNote: 'Shop',
       mailboxStatus: 'active',
       subject: 'second',
       verificationCode: '482913',
       isRead: false,
     })
+    expect(items[1]).toMatchObject({ mailboxNote: null })
     expect(items[0]).not.toHaveProperty('htmlBody')
   })
 

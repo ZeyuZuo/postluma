@@ -49,7 +49,7 @@ const filter = computed<Filter>(() =>
 const mailboxOptions = computed(() => {
   const active = mailboxes.value.filter((m) => m.status === 'active')
   const disabled = mailboxes.value.filter((m) => m.status === 'disabled')
-  const toOption = (m: PublicMailbox) => ({ value: m.id, label: m.address })
+  const toOption = (m: PublicMailbox) => ({ value: m.id, label: m.note ? `${m.address} · ${m.note}` : m.address })
   return [
     { value: '', label: t('inbox.allMailboxes') },
     ...active.map(toOption),

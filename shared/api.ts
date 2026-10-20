@@ -212,6 +212,8 @@ export interface MessageSummary {
   id: string
   mailboxId: string
   mailboxAddress: string
+  /** The owner's own note on the receiving address ("which site is this for"). */
+  mailboxNote: string | null
   mailboxStatus: MailboxStatus
   fromAddress: string
   fromName: string | null

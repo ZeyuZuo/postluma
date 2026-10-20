@@ -1,18 +1,16 @@
 <script setup lang="ts">
 import { CopyOutline } from '@vicons/ionicons5'
-import { NIcon, useMessage } from 'naive-ui'
+import { NIcon } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 
-import { copyText } from '@/composables/useClipboard'
+import { useCopyCode, type CodeMessage } from '@/composables/useCopyCode'
 
-const props = defineProps<{ code: string; size?: 'sm' | 'lg' }>()
+/** With `message`, copying also marks that message read. */
+const props = defineProps<{ code: string; size?: 'sm' | 'lg'; message?: CodeMessage }>()
 const { t } = useI18n()
-const message = useMessage()
+const copyCode = useCopyCode()
 
-async function copy(): Promise<void> {
-  if (await copyText(props.code)) message.success(t('inbox.codeCopied', { code: props.code }))
-  else message.warning(t('common.copyFailed'))
-}
+const copy = () => copyCode(props.code, props.message)
 </script>
 
 <template>

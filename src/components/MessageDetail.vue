@@ -244,6 +244,7 @@ function formatSize(bytes: number): string {
           <p class="to">
             {{ t('inbox.sentTo') }}
             <span class="pl-mono addr">{{ toParts.base }}<mark v-if="toParts.tag" class="tag-part">{{ toParts.tag }}</mark>{{ toParts.domain }}</span>
+            <span v-if="message.mailboxNote" class="note-tag">{{ message.mailboxNote }}</span>
             <span v-if="message.mailboxStatus === 'disabled'" class="tag">{{ t('inbox.disabledMailbox') }}</span>
           </p>
           <p v-if="message.envelopeFrom && message.envelopeFrom !== message.fromAddress" class="via">
@@ -410,6 +411,14 @@ function formatSize(bytes: number): string {
   border-radius: 4px;
   background: var(--pl-blue-soft);
   color: var(--pl-blue);
+}
+.note-tag {
+  margin-left: 8px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--pl-sunken);
+  color: var(--pl-ink);
+  font-size: 0.75rem;
 }
 .tag {
   margin-left: 8px;

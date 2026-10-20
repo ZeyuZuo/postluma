@@ -35,9 +35,11 @@ const { t } = useI18n()
       <span v-if="message.snippet" class="snippet"> — {{ message.snippet }}</span>
     </span>
     <span class="code">
-      <CodeChip v-if="message.verificationCode" :code="message.verificationCode" />
+      <CodeChip v-if="message.verificationCode" :code="message.verificationCode" :message="message" />
     </span>
-    <span v-if="showMailbox" class="mailbox pl-mono" :title="message.mailboxAddress">{{ message.mailboxAddress.split('@')[0] }}</span>
+    <span v-if="showMailbox" class="mailbox" :class="{ 'pl-mono': !message.mailboxNote }" :title="message.mailboxAddress">
+      {{ message.mailboxNote || message.mailboxAddress.split('@')[0] }}
+    </span>
     <time class="time" :datetime="new Date(message.receivedAt).toISOString()" :title="formatDateTime(message.receivedAt)">
       {{ formatListTime(message.receivedAt) }}
     </time>
@@ -58,7 +60,7 @@ const { t } = useI18n()
   outline: none;
 }
 .row.with-mailbox {
-  grid-template-columns: 8px minmax(0, 170px) minmax(0, 1fr) auto minmax(0, 120px) 64px;
+  grid-template-columns: 8px minmax(0, 170px) minmax(0, 1fr) auto minmax(0, 140px) 64px;
   grid-template-areas: 'dot sender text code mailbox time';
 }
 .row:hover {

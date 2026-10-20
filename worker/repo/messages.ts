@@ -29,6 +29,7 @@ interface SummaryRow {
   id: string
   mailbox_id: string
   mailbox_address: string
+  mailbox_note: string | null
   mailbox_status: MailboxStatus
   from_address: string
   from_name: string | null
@@ -51,7 +52,7 @@ interface DetailRow extends SummaryRow {
   has_raw: number
 }
 
-const SUMMARY_COLUMNS = `g.id, g.mailbox_id, m.address AS mailbox_address, m.status AS mailbox_status,
+const SUMMARY_COLUMNS = `g.id, g.mailbox_id, m.address AS mailbox_address, m.note AS mailbox_note, m.status AS mailbox_status,
   g.from_address, g.from_name, g.subject, g.snippet, g.verification_code, g.is_read, g.has_attachments, g.received_at`
 
 function toSummary(row: SummaryRow): MessageSummary {
@@ -59,6 +60,7 @@ function toSummary(row: SummaryRow): MessageSummary {
     id: row.id,
     mailboxId: row.mailbox_id,
     mailboxAddress: row.mailbox_address,
+    mailboxNote: row.mailbox_note,
     mailboxStatus: row.mailbox_status,
     fromAddress: row.from_address,
     fromName: row.from_name,

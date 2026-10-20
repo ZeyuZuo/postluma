@@ -4,7 +4,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'
 
-import { isValidLocalPart, normalizeLocalPart, type MailboxQuota, type PublicDomain, type PublicMailbox } from '../../../shared/api'
+import { isValidLocalPart, normalizeLocalPart, type MailboxQuota, type PublicDomain, type PublicMailbox } from '../../shared/api'
 import { errorCodeOf } from '@/api/client'
 import { mailboxApi } from '@/api/mailboxes'
 import { copyText } from '@/composables/useClipboard'

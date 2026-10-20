@@ -27,11 +27,14 @@ const savingSubaddress = ref(false)
 /** "box+shop@example.com": built here because vue-i18n can't hold '@' in messages. */
 const subaddressExample = computed(() => props.mailbox.address.replace('@', '+shop@'))
 
-async function copy(): Promise<void> {
-  const ok = await copyText(props.mailbox.address)
+async function copy(text = props.mailbox.address): Promise<void> {
+  const ok = await copyText(text)
   if (ok) message.success(t('common.copied'))
   else message.warning(t('common.copyFailed'))
 }
+
+const local = computed(() => props.mailbox.address.split('@')[0])
+const domain = computed(() => props.mailbox.address.split('@')[1])
 
 async function startEdit(): Promise<void> {
   draft.value = props.mailbox.note ?? ''
@@ -94,13 +97,22 @@ function confirmDisable(): void {
 </script>
 
 <template>
-  <li class="item" :class="{ fresh }">
+  <li class="item" :class="{ fresh, disabled: mailbox.status === 'disabled' }">
     <div class="main">
       <div class="address-line">
-        <span class="address pl-mono">{{ mailbox.address }}</span>
-        <NButton quaternary circle size="small" :aria-label="t('common.copy')" @click="copy">
+        <span class="address pl-mono"><span class="local">{{ local }}</span><span class="domain">@{{ domain }}</span></span>
+        <NButton quaternary circle size="small" :aria-label="t('home.copyAddressLabel', { address: mailbox.address })" @click="copy()">
           <template #icon><NIcon><CopyOutline /></NIcon></template>
         </NButton>
+        <button
+          v-if="mailbox.status === 'active' && mailbox.acceptSubaddress"
+          type="button"
+          class="alias"
+          :title="subaddressExample"
+          @click="copy(subaddressExample)"
+        >
+          {{ t('home.copyAlias') }} <span class="pl-mono">+shop</span>
+        </button>
       </div>
 
       <form v-if="editing" class="note-edit" @submit.prevent="saveNote">
@@ -124,15 +136,13 @@ function confirmDisable(): void {
         <span :title="formatDateTime(mailbox.createdAt)">
           {{ t('mailboxes.createdAt', { time: formatRelative(mailbox.createdAt) }) }}
         </span>
+        <span v-if="mailbox.lastReceivedAt" :title="formatDateTime(mailbox.lastReceivedAt)">
+          {{ t('home.lastReceived', { time: formatRelative(mailbox.lastReceivedAt) }) }}
+        </span>
         <span>{{ t('mailboxes.messages', { n: formatCount(mailbox.messageCount, MAILBOX_COUNT_CAP) }, mailbox.messageCount) }}</span>
         <span v-if="mailbox.unreadCount > 0" class="unread">{{ t('mailboxes.unread', { n: formatCount(mailbox.unreadCount, MAILBOX_COUNT_CAP) }) }}</span>
         <label v-if="mailbox.status === 'active'" class="subaddress">
-          <NSwitch
-            size="small"
-            :value="mailbox.acceptSubaddress"
-            :loading="savingSubaddress"
-            @update:value="setSubaddress"
-          />
+          <NSwitch size="small" :value="mailbox.acceptSubaddress" :loading="savingSubaddress" @update:value="setSubaddress" />
           <span>{{ t('mailboxes.subaddress') }}</span>
           <NTooltip>
             <template #trigger>
@@ -147,9 +157,9 @@ function confirmDisable(): void {
 
     <div class="actions">
       <RouterLink v-if="mailbox.messageCount > 0" class="view-mail" :to="{ name: 'inbox', query: { mailbox: mailbox.id } }">
-        {{ t('mailboxes.viewMail') }}
+        {{ t('mailboxes.viewMail') }} →
       </RouterLink>
-      <NButton v-if="mailbox.status === 'active'" size="small" secondary @click="confirmDisable">{{ t('mailboxes.disable') }}</NButton>
+      <NButton v-if="mailbox.status === 'active'" size="small" quaternary @click="confirmDisable">{{ t('mailboxes.disable') }}</NButton>
       <NButton v-else size="small" type="primary" secondary @click="setStatus('active')">{{ t('mailboxes.enable') }}</NButton>
     </div>
   </li>
@@ -160,9 +170,8 @@ function confirmDisable(): void {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 14px 20px;
+  padding: 14px 18px 14px 20px;
   border-top: 1px solid var(--pl-line);
-  transition: background-color 1.2s ease-out;
 }
 .item:first-child {
   border-top: 0;
@@ -172,7 +181,7 @@ function confirmDisable(): void {
 }
 @keyframes arrive {
   from {
-    background-color: color-mix(in srgb, var(--pl-blue) 12%, transparent);
+    background-color: var(--pl-code-bg);
   }
 }
 .main {
@@ -181,12 +190,43 @@ function confirmDisable(): void {
 }
 .address-line {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 4px;
+  gap: 2px 6px;
 }
 .address {
-  font-size: 0.9375rem;
+  font-size: 1rem;
   overflow-wrap: anywhere;
+}
+.local {
+  font-weight: 700;
+}
+.domain {
+  color: var(--pl-faint);
+}
+.disabled .local {
+  color: var(--pl-muted);
+}
+.alias {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--pl-line);
+  border-radius: 999px;
+  background: none;
+  color: var(--pl-ink);
+  font: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+.alias .pl-mono {
+  color: var(--pl-muted);
+}
+.alias:hover {
+  border-color: color-mix(in srgb, var(--pl-blue) 45%, var(--pl-line));
+}
+.alias:focus-visible {
+  outline: 2px solid var(--pl-blue);
+  outline-offset: 2px;
 }
 .note {
   display: inline-flex;
@@ -209,7 +249,7 @@ function confirmDisable(): void {
   white-space: nowrap;
 }
 .note.empty {
-  color: var(--pl-muted);
+  color: var(--pl-faint);
 }
 .note-icon {
   flex: none;
@@ -232,6 +272,7 @@ function confirmDisable(): void {
 .meta {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 4px 16px;
   margin: 6px 0 0;
   color: var(--pl-muted);
@@ -239,7 +280,7 @@ function confirmDisable(): void {
 }
 .unread {
   color: var(--pl-blue);
-  font-weight: 600;
+  font-weight: 650;
 }
 .subaddress {
   display: inline-flex;
@@ -252,7 +293,7 @@ function confirmDisable(): void {
 .actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   flex: none;
 }
 .view-mail {

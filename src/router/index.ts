@@ -36,16 +36,19 @@ const router = createRouter({
       children: [
         { path: '', name: 'home', component: () => import('@/views/HomeView.vue'), meta: { titleKey: 'nav.home' } },
         { path: 'inbox/:id?', name: 'inbox', component: () => import('@/views/InboxView.vue'), meta: { titleKey: 'nav.inbox' } },
+        // One view, two tabs: addresses in use and disabled ones (history still readable).
         {
           path: 'mailboxes',
           name: 'mailboxes',
           component: () => import('@/views/MailboxesView.vue'),
+          props: { status: 'active' },
           meta: { titleKey: 'nav.mailboxes' },
         },
         {
           path: 'mailboxes/disabled',
           name: 'mailboxes-disabled',
-          component: () => import('@/views/DisabledMailboxesView.vue'),
+          component: () => import('@/views/MailboxesView.vue'),
+          props: { status: 'disabled' },
           meta: { titleKey: 'nav.disabled' },
         },
         {

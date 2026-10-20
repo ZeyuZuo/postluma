@@ -4,7 +4,6 @@ import {
   FileTrayFullOutline,
   HomeOutline,
   LogOutOutline,
-  PauseCircleOutline,
   SettingsOutline,
   ShieldCheckmarkOutline,
 } from '@vicons/ionicons5'
@@ -37,12 +36,11 @@ interface NavItem {
 
 const isAdmin = computed(() => session.user?.role === 'admin')
 
-/** Top bar on desktop, bottom tab bar on phones (where "disabled" lives in the user menu). */
+/** Top bar on desktop, bottom tab bar on phones. Disabled addresses are a tab of "Addresses". */
 const navItems = computed<NavItem[]>(() => [
   { name: 'home', labelKey: 'nav.home', icon: HomeOutline },
   { name: 'inbox', labelKey: 'nav.inbox', icon: FileTrayFullOutline },
-  { name: 'mailboxes', labelKey: 'nav.mailboxes', icon: AtOutline },
-  ...(isMobile.value ? [] : [{ name: 'mailboxes-disabled', labelKey: 'nav.disabled', icon: PauseCircleOutline }]),
+  { name: 'mailboxes', labelKey: 'nav.mailboxes', icon: AtOutline, also: ['mailboxes-disabled'] },
   ...(isAdmin.value ? [{ name: 'admin', labelKey: 'nav.admin', icon: ShieldCheckmarkOutline }] : []),
 ])
 
@@ -51,7 +49,6 @@ const unreadLabel = computed(() => (inbox.unread > 99 ? '99+' : String(inbox.unr
 
 const icon = (c: Component) => () => h(NIcon, null, { default: () => h(c) })
 const userOptions = computed(() => [
-  ...(isMobile.value ? [{ key: 'mailboxes-disabled', label: t('nav.disabled'), icon: icon(PauseCircleOutline) }] : []),
   { key: 'account', label: t('nav.account'), icon: icon(SettingsOutline) },
   { type: 'divider', key: 'd' },
   { key: 'logout', label: t('auth.logout'), icon: icon(LogOutOutline) },

@@ -56,14 +56,15 @@ const emptyMessage = computed(() => (query.value.trim() ? t('mailboxes.emptySear
   margin: 0;
   padding: 0;
   border: 1px solid var(--pl-line);
-  border-radius: 10px;
+  border-radius: 14px;
   background: var(--pl-surface);
+  overflow: hidden;
 }
 .empty {
   margin: 0;
   padding: 40px 16px;
   border: 1px dashed var(--pl-line);
-  border-radius: 10px;
+  border-radius: 14px;
   color: var(--pl-muted);
   text-align: center;
 }

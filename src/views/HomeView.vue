@@ -5,7 +5,7 @@ import { RouterLink } from 'vue-router'
 
 import type { MessageSummary, PublicMailbox } from '../../shared/api'
 import { messageApi } from '@/api/messages'
-import AddressCommand from '@/components/home/AddressCommand.vue'
+import AddressCommand from '@/components/AddressCommand.vue'
 import AddressShortList from '@/components/home/AddressShortList.vue'
 import CodeTiles from '@/components/home/CodeTiles.vue'
 import CurrentAddress from '@/components/home/CurrentAddress.vue'

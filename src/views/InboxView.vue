@@ -231,7 +231,7 @@ const showDetail = computed(() => !isMobile.value || !!selectedId.value)
   display: grid;
   grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
   gap: 24px;
-  height: calc(100vh - 60px - 56px);
+  height: calc(100dvh - var(--pl-chrome, 120px));
   min-height: 520px;
 }
 .inbox.mobile {

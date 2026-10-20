@@ -1,39 +1,49 @@
 import type { GlobalThemeOverrides } from 'naive-ui'
 
+// Keep in sync with --pl-font / --pl-mono and the colour tokens in src/styles/main.css.
 const FONT =
-  'system-ui, -apple-system, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif'
-const MONO = '"IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace'
+  '"Schibsted Grotesk Variable", system-ui, -apple-system, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif'
+const MONO = '"JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace'
 
 const shared: GlobalThemeOverrides['common'] = {
   fontFamily: FONT,
   fontFamilyMono: MONO,
-  borderRadius: '6px',
+  borderRadius: '8px',
+  borderRadiusSmall: '6px',
 }
 
 export const lightOverrides: GlobalThemeOverrides = {
   common: {
     ...shared,
-    primaryColor: '#2E5AAC',
-    primaryColorHover: '#3D6BC0',
-    primaryColorPressed: '#244A90',
-    primaryColorSuppl: '#3D6BC0',
-    bodyColor: '#F5F6F8',
-    textColorBase: '#1C2430',
+    primaryColor: '#0F6A8B',
+    primaryColorHover: '#1A7FA3',
+    primaryColorPressed: '#0B5670',
+    primaryColorSuppl: '#1A7FA3',
+    bodyColor: '#F3F4F6',
+    textColorBase: '#13161B',
+    textColor1: '#13161B',
+    textColor2: '#2B3038',
+    textColor3: '#5B6471',
+    dividerColor: '#E1E4E9',
+    borderColor: '#D9DDE3',
   },
-  Layout: { color: '#F5F6F8', headerColor: '#F5F6F8', siderColor: '#FFFFFF' },
+  Layout: { color: '#F3F4F6', headerColor: '#FFFFFF', siderColor: '#FFFFFF' },
 }
 
 export const darkOverrides: GlobalThemeOverrides = {
   common: {
     ...shared,
-    primaryColor: '#86A8EE',
-    primaryColorHover: '#9DB9F2',
-    primaryColorPressed: '#6E91DA',
-    primaryColorSuppl: '#9DB9F2',
-    bodyColor: '#15181D',
-    cardColor: '#1C2027',
-    modalColor: '#1C2027',
-    popoverColor: '#232831',
+    primaryColor: '#7FD3EA',
+    primaryColorHover: '#9FDDEF',
+    primaryColorPressed: '#5FBFD9',
+    primaryColorSuppl: '#9FDDEF',
+    bodyColor: '#0E1116',
+    cardColor: '#151920',
+    modalColor: '#151920',
+    popoverColor: '#1D222B',
+    inputColor: '#0B0D11',
+    dividerColor: '#262C35',
+    borderColor: '#2A313C',
   },
-  Layout: { color: '#15181D', headerColor: '#15181D', siderColor: '#1C2027' },
+  Layout: { color: '#0E1116', headerColor: '#0E1116', siderColor: '#151920' },
 }

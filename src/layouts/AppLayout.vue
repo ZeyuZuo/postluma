@@ -4,27 +4,12 @@ import {
   FileTrayFullOutline,
   HomeOutline,
   LogOutOutline,
-  MenuOutline,
   PauseCircleOutline,
-  PersonCircleOutline,
   SettingsOutline,
   ShieldCheckmarkOutline,
 } from '@vicons/ionicons5'
-import {
-  NButton,
-  NDrawer,
-  NDrawerContent,
-  NDropdown,
-  NIcon,
-  NLayout,
-  NLayoutContent,
-  NLayoutHeader,
-  NLayoutSider,
-  NBadge,
-  NMenu,
-  type MenuOption,
-} from 'naive-ui'
-import { computed, h, onBeforeUnmount, onMounted, ref, type Component } from 'vue'
+import { NButton, NDropdown, NIcon } from 'naive-ui'
+import { computed, h, onBeforeUnmount, onMounted, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 
@@ -38,133 +23,268 @@ const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const isMobile = useIsMobile()
-const drawerOpen = ref(false)
-
-const icon = (c: Component) => () => h(NIcon, null, { default: () => h(c) })
-const link = (name: string, labelKey: string) => () =>
-  h(RouterLink, { to: { name }, onClick: () => (drawerOpen.value = false) }, { default: () => t(labelKey) })
 
 onMounted(startInboxPolling)
 onBeforeUnmount(stopInboxPolling)
 
-const inboxLabel = () =>
-  h('span', { class: 'nav-inbox' }, [
-    link('inbox', 'nav.inbox')(),
-    inbox.unread > 0 ? h(NBadge, { value: inbox.unread, max: 99, class: 'nav-badge' }) : null,
-  ])
+interface NavItem {
+  name: string
+  labelKey: string
+  icon: Component
+  /** Other route names that light this item up. */
+  also?: string[]
+}
 
-const menuOptions = computed<MenuOption[]>(() => {
-  const items: MenuOption[] = [
-    { key: 'home', label: link('home', 'nav.home'), icon: icon(HomeOutline) },
-    { key: 'inbox', label: inboxLabel, icon: icon(FileTrayFullOutline) },
-    { key: 'mailboxes', label: link('mailboxes', 'nav.mailboxes'), icon: icon(AtOutline) },
-    { key: 'mailboxes-disabled', label: link('mailboxes-disabled', 'nav.disabled'), icon: icon(PauseCircleOutline) },
-  ]
-  if (session.user?.role === 'admin') {
-    items.push({ type: 'divider', key: 'admin-divider' })
-    items.push({ key: 'admin', label: link('admin', 'nav.admin'), icon: icon(ShieldCheckmarkOutline) })
-  }
-  return items
-})
+const isAdmin = computed(() => session.user?.role === 'admin')
 
+/** Top bar on desktop, bottom tab bar on phones (where "disabled" lives in the user menu). */
+const navItems = computed<NavItem[]>(() => [
+  { name: 'home', labelKey: 'nav.home', icon: HomeOutline },
+  { name: 'inbox', labelKey: 'nav.inbox', icon: FileTrayFullOutline },
+  { name: 'mailboxes', labelKey: 'nav.mailboxes', icon: AtOutline },
+  ...(isMobile.value ? [] : [{ name: 'mailboxes-disabled', labelKey: 'nav.disabled', icon: PauseCircleOutline }]),
+  ...(isAdmin.value ? [{ name: 'admin', labelKey: 'nav.admin', icon: ShieldCheckmarkOutline }] : []),
+])
+
+const isActive = (item: NavItem) => route.name === item.name || (item.also ?? []).includes(String(route.name))
+const unreadLabel = computed(() => (inbox.unread > 99 ? '99+' : String(inbox.unread)))
+
+const icon = (c: Component) => () => h(NIcon, null, { default: () => h(c) })
 const userOptions = computed(() => [
+  ...(isMobile.value ? [{ key: 'mailboxes-disabled', label: t('nav.disabled'), icon: icon(PauseCircleOutline) }] : []),
   { key: 'account', label: t('nav.account'), icon: icon(SettingsOutline) },
+  { type: 'divider', key: 'd' },
   { key: 'logout', label: t('auth.logout'), icon: icon(LogOutOutline) },
 ])
 
 const pageTitle = computed(() => (route.meta.titleKey ? t(route.meta.titleKey) : ''))
+const initial = computed(() => (session.user?.username ?? '?').slice(0, 1).toUpperCase())
 
 async function onUserAction(key: string): Promise<void> {
-  if (key === 'account') await router.push({ name: 'account' })
   if (key === 'logout') {
     await logout()
     await router.push({ name: 'login' })
+    return
   }
+  await router.push({ name: key })
 }
 </script>
 
 <template>
-  <NLayout has-sider class="shell">
-    <NLayoutSider v-if="!isMobile" bordered :width="232" class="sider">
-      <div class="sider-brand"><BrandMark size="sm" /></div>
-      <NMenu :value="String(route.name)" :options="menuOptions" :indent="20" />
-    </NLayoutSider>
+  <div class="shell" :class="{ mobile: isMobile }">
+    <header class="topbar">
+      <RouterLink :to="{ name: 'home' }" class="brand" :aria-label="t('nav.home')"><BrandMark size="sm" /></RouterLink>
 
-    <NDrawer v-else v-model:show="drawerOpen" placement="left" :width="260">
-      <NDrawerContent body-content-style="padding: 0">
-        <div class="sider-brand"><BrandMark size="sm" /></div>
-        <NMenu :value="String(route.name)" :options="menuOptions" :indent="20" />
-      </NDrawerContent>
-    </NDrawer>
+      <nav v-if="!isMobile" class="topnav" :aria-label="t('nav.main')">
+        <RouterLink
+          v-for="item in navItems"
+          :key="item.name"
+          :to="{ name: item.name }"
+          class="topnav-link"
+          :class="{ active: isActive(item) }"
+          :aria-current="isActive(item) ? 'page' : undefined"
+        >
+          {{ t(item.labelKey) }}
+          <span v-if="item.name === 'inbox' && inbox.unread > 0" class="count">{{ unreadLabel }}</span>
+        </RouterLink>
+      </nav>
 
-    <NLayout class="main">
-      <NLayoutHeader class="header">
-        <NButton v-if="isMobile" quaternary circle :aria-label="t('nav.openMenu')" @click="drawerOpen = true">
-          <template #icon><NIcon><MenuOutline /></NIcon></template>
+      <span class="spacer" />
+      <PreferenceSwitches />
+      <NDropdown trigger="click" placement="bottom-end" :options="userOptions" @select="onUserAction">
+        <NButton quaternary class="user" :aria-label="t('nav.userMenu')">
+          <span class="avatar" aria-hidden="true">{{ initial }}</span>
+          <span v-if="!isMobile" class="username">{{ session.user?.username }}</span>
         </NButton>
-        <h1 class="title">{{ pageTitle }}</h1>
-        <PreferenceSwitches />
-        <NDropdown trigger="click" :options="userOptions" @select="onUserAction">
-          <NButton quaternary class="user">
-            <template #icon><NIcon><PersonCircleOutline /></NIcon></template>
-            <span class="username">{{ session.user?.username }}</span>
-          </NButton>
-        </NDropdown>
-      </NLayoutHeader>
-      <NLayoutContent class="content" content-class="content-inner">
+      </NDropdown>
+    </header>
+
+    <main class="content">
+      <h1 class="visually-hidden">{{ pageTitle }}</h1>
+      <div class="content-inner">
         <RouterView />
-      </NLayoutContent>
-    </NLayout>
-  </NLayout>
+      </div>
+    </main>
+
+    <nav v-if="isMobile" class="tabbar" :aria-label="t('nav.main')">
+      <RouterLink
+        v-for="item in navItems"
+        :key="item.name"
+        :to="{ name: item.name }"
+        class="tab"
+        :class="{ active: isActive(item) }"
+        :aria-current="isActive(item) ? 'page' : undefined"
+      >
+        <span class="tab-icon">
+          <NIcon :size="22"><component :is="item.icon" /></NIcon>
+          <span v-if="item.name === 'inbox' && inbox.unread > 0" class="tab-badge">{{ unreadLabel }}</span>
+        </span>
+        <span>{{ t(item.labelKey) }}</span>
+      </RouterLink>
+    </nav>
+  </div>
 </template>
 
 <style scoped>
 .shell {
+  /* Header + content padding; views that fill the viewport (the inbox) subtract this. */
+  --pl-chrome: calc(64px + 56px);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   height: 100vh;
+  height: 100dvh;
 }
-.sider-brand {
-  padding: 20px 24px 16px;
+.shell.mobile {
+  --pl-chrome: calc(56px + 64px + 40px);
+  grid-template-rows: auto minmax(0, 1fr) auto;
 }
-:deep(.nav-inbox) {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-.header {
+.topbar {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 60px;
+  height: 64px;
   padding: 0 20px 0 28px;
+  background: var(--pl-surface);
   border-bottom: 1px solid var(--pl-line);
 }
-.title {
+.brand {
+  display: flex;
+  margin-right: 20px;
+  text-decoration: none;
+}
+.topnav {
+  display: flex;
+  align-self: stretch;
+  gap: 4px;
+}
+.topnav-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  color: var(--pl-muted);
+  font-weight: 500;
+  text-decoration: none;
+  box-shadow: inset 0 -2px 0 transparent;
+  transition: color 0.15s, box-shadow 0.15s;
+}
+.topnav-link:hover {
+  color: var(--pl-ink);
+}
+.topnav-link.active {
+  color: var(--pl-ink);
+  font-weight: 650;
+  box-shadow: inset 0 -2px 0 var(--pl-signal);
+}
+.topnav-link:focus-visible,
+.tab:focus-visible {
+  outline: 2px solid var(--pl-blue);
+  outline-offset: -2px;
+  border-radius: 6px;
+}
+.count {
+  min-width: 20px;
+  padding: 0 6px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: var(--pl-ink);
+  color: var(--pl-surface);
+  font-size: 0.75rem;
+  font-weight: 650;
+  line-height: 20px;
+  text-align: center;
+}
+.spacer {
   flex: 1;
-  margin: 0;
-  font-size: 1.0625rem;
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+}
+.user {
+  padding: 0 6px;
+}
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--pl-sunken);
+  color: var(--pl-ink);
+  font-weight: 700;
 }
 .username {
   max-width: 10em;
+  margin-left: 8px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.content :deep(.content-inner) {
-  max-width: 1120px;
-  padding: 28px;
+.content {
+  overflow: auto;
+}
+.content-inner {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 28px 32px;
+}
+.tabbar {
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  padding-bottom: env(safe-area-inset-bottom);
+  background: var(--pl-surface);
+  border-top: 1px solid var(--pl-line);
+}
+.tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: 64px;
+  color: var(--pl-muted);
+  font-size: 0.6875rem;
+  text-decoration: none;
+}
+.tab.active {
+  color: var(--pl-ink);
+  font-weight: 650;
+}
+.tab.active .tab-icon::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -5px;
+  width: 16px;
+  height: 3px;
+  margin-left: -8px;
+  border-radius: 2px;
+  background: var(--pl-signal);
+}
+.tab-icon {
+  position: relative;
+  display: flex;
+}
+.tab-badge {
+  position: absolute;
+  top: -4px;
+  left: 14px;
+  min-width: 16px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  border-radius: 8px;
+  background: var(--pl-ink);
+  color: var(--pl-surface);
+  font-size: 0.625rem;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
 }
 @media (max-width: 767px) {
-  .header {
-    padding: 0 12px;
+  .topbar {
+    height: 56px;
+    padding: 0 8px 0 16px;
   }
-  .content :deep(.content-inner) {
+  .content-inner {
     padding: 20px 16px;
-  }
-  .username {
-    display: none;
   }
 }
 </style>

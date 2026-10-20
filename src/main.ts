@@ -1,5 +1,6 @@
-import '@fontsource/ibm-plex-mono/400.css'
-import '@fontsource/ibm-plex-mono/600.css'
+import '@fontsource-variable/schibsted-grotesk/wght.css'
+import '@fontsource/jetbrains-mono/400.css'
+import '@fontsource/jetbrains-mono/700.css'
 import './styles/main.css'
 
 import { createApp } from 'vue'

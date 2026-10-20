@@ -1,24 +1,44 @@
 :root {
-  --pl-paper: #f5f6f8;
+  /* Direction B ("signal desk"), light. Dark is the same system on an ink ground. */
+  --pl-paper: #f3f4f6;
   --pl-surface: #ffffff;
-  --pl-ink: #1c2430;
-  --pl-muted: #6b7584;
-  --pl-line: #e3e6eb;
-  --pl-blue: #2e5aac;
-  --pl-mark: #ffe27a;
-  --pl-glow: color-mix(in srgb, #ffe27a 22%, transparent);
-  --pl-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --pl-sunken: #eceef1;
+  --pl-ink: #13161b;
+  --pl-muted: #5b6471;
+  /* De-emphasised text that still passes 4.5:1 on the surface (e.g. "@domain"). */
+  --pl-faint: #6c7480;
+  --pl-line: #e1e4e9;
+  /* Links, focus, selection. */
+  --pl-blue: #0f6a8b;
+  --pl-blue-soft: #e3f1f6;
+  /* The one loud colour: the main action and verification codes. Text on it is always ink. */
+  --pl-signal: #f2c14e;
+  --pl-mark: #ffd95a;
+  --pl-code-bg: #fff7dc;
+  --pl-code-line: #efd27c;
+  --pl-danger: #b4321c;
+  --pl-glow: color-mix(in srgb, #ffd95a 22%, transparent);
+  --pl-font: 'Schibsted Grotesk Variable', system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+  --pl-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 }
 
 :root[data-theme='dark'] {
-  --pl-paper: #15181d;
-  --pl-surface: #1c2027;
-  --pl-ink: #e6e9ee;
-  --pl-muted: #97a0ad;
-  --pl-line: #2a2f37;
-  --pl-blue: #86a8ee;
-  --pl-mark: #e8c547;
-  --pl-glow: color-mix(in srgb, #86a8ee 7%, transparent);
+  --pl-paper: #0e1116;
+  --pl-surface: #151920;
+  --pl-sunken: #0b0d11;
+  --pl-ink: #e7eaee;
+  --pl-muted: #98a2b0;
+  --pl-faint: #7d8796;
+  --pl-line: #262c35;
+  --pl-blue: #7fd3ea;
+  --pl-blue-soft: #1a2a33;
+  --pl-signal: #f2c14e;
+  --pl-mark: #f2c14e;
+  --pl-code-bg: #1b1f17;
+  --pl-code-line: #6b5a24;
+  --pl-danger: #f08a74;
+  --pl-glow: color-mix(in srgb, #7fd3ea 7%, transparent);
 }
 
 html,
@@ -29,6 +49,7 @@ body {
 }
 
 body {
+  font-family: var(--pl-font);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -38,11 +59,24 @@ body {
   font-feature-settings: 'zero' 1;
 }
 
+/* Read by screen readers, not shown (page titles under the top navigation). */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* The highlighter stroke used for verification codes throughout the app. */
 .pl-mark {
   font-family: var(--pl-mono);
   font-weight: 600;
-  color: #1c2430;
+  color: #13161b;
   padding: 0 0.25em;
   border-radius: 2px;
   background-image: linear-gradient(var(--pl-mark), var(--pl-mark));

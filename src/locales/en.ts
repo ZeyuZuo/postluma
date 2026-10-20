@@ -11,7 +11,8 @@ const en: Messages = {
     disabled: 'Disabled addresses',
     admin: 'Admin',
     account: 'Account settings',
-    openMenu: 'Open menu',
+    main: 'Main navigation',
+    userMenu: 'Account menu',
   },
   auth: {
     loginTitle: 'Sign in',

@@ -17,7 +17,8 @@
     "deploy": "npm run build && wrangler d1 migrations apply DB --remote && wrangler deploy"
   },
   "dependencies": {
-    "@fontsource/ibm-plex-mono": "^5.3.0",
+    "@fontsource-variable/schibsted-grotesk": "^5.3.0",
+    "@fontsource/jetbrains-mono": "^5.3.0",
     "@vicons/ionicons5": "^0.13.0",
     "dompurify": "3.4.16",
     "hono": "^4.13.13",

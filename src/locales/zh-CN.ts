@@ -9,7 +9,8 @@ const zhCN = {
     disabled: '已停用邮箱',
     admin: '管理',
     account: '账户设置',
-    openMenu: '打开菜单',
+    main: '主导航',
+    userMenu: '账户菜单',
   },
   auth: {
     loginTitle: '登录',

@@ -18,7 +18,7 @@ defineProps<{ size?: 'sm' | 'md' }>()
   display: inline-flex;
   align-items: center;
   gap: 0.5em;
-  color: var(--pl-blue);
+  color: var(--pl-ink);
 }
 .glyph {
   width: 1.6em;
@@ -31,8 +31,8 @@ defineProps<{ size?: 'sm' | 'md' }>()
 }
 .word {
   color: var(--pl-ink);
-  font-weight: 650;
-  letter-spacing: -0.01em;
+  font-weight: 800;
+  letter-spacing: -0.02em;
 }
 .sm {
   font-size: 1rem;

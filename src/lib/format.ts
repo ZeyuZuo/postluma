@@ -27,3 +27,29 @@ export function formatDateTime(ms: number): string {
 export function formatCount(n: number, cap: number): string {
   return n >= cap ? `${cap - 1}+` : String(n)
 }
+
+/** Compact list time: "14:32" today, "10月18日" / "Oct 18" this year, a full date before that. */
+export function formatListTime(ms: number, now = Date.now()): string {
+  const date = new Date(ms)
+  const today = new Date(now)
+  const locale = currentLocale()
+  if (date.toDateString() === today.toDateString()) {
+    return new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit', hour12: false }).format(date)
+  }
+  if (date.getFullYear() === today.getFullYear()) {
+    return new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' }).format(date)
+  }
+  return new Intl.DateTimeFormat(locale, { dateStyle: 'short' }).format(date)
+}
+
+export type DayGroup = 'today' | 'yesterday' | 'earlier'
+
+/** Which list section a message falls into, by the viewer's local calendar day. */
+export function dayGroup(ms: number, now = Date.now()): DayGroup {
+  const startOfToday = new Date(now)
+  startOfToday.setHours(0, 0, 0, 0)
+  const start = startOfToday.getTime()
+  if (ms >= start) return 'today'
+  if (ms >= start - 24 * 60 * 60 * 1000) return 'yesterday'
+  return 'earlier'
+}

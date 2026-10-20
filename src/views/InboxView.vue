@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { CheckmarkDoneOutline, SearchOutline } from '@vicons/ionicons5'
+import { CloseOutline, SearchOutline } from '@vicons/ionicons5'
 import { NButton, NIcon, NInput, NSelect, NSpin, useMessage } from 'naive-ui'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -10,13 +10,16 @@ import { errorCodeOf } from '@/api/client'
 import { mailboxApi } from '@/api/mailboxes'
 import { messageApi } from '@/api/messages'
 import MessageDetail from '@/components/MessageDetail.vue'
-import MessageListItem from '@/components/MessageListItem.vue'
+import MessageRow from '@/components/MessageRow.vue'
 import { useIsMobile } from '@/composables/useIsMobile'
+import { dayGroup, type DayGroup } from '@/lib/format'
 import { inbox, refreshInbox } from '@/stores/inbox'
 
 const SEARCH_DEBOUNCE_MS = 400
 /** Safety stop for "mark all read" on a huge backlog (each batch is MARK_READ_BATCH rows). */
 const MARK_READ_MAX_BATCHES = 10
+
+type Filter = 'all' | 'unread' | 'code'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -30,6 +33,7 @@ const loading = ref(false)
 const loadingMore = ref(false)
 const mailboxes = ref<PublicMailbox[]>([])
 const search = ref(typeof route.query.q === 'string' ? route.query.q : '')
+const searchInput = ref<InstanceType<typeof NInput> | null>(null)
 
 /** Searches shorter than SEARCH_MIN_CHARS aren't sent (every search scans rows). */
 const effectiveQuery = computed(() => {
@@ -38,6 +42,9 @@ const effectiveQuery = computed(() => {
 })
 const selectedId = computed(() => (typeof route.params.id === 'string' && route.params.id ? route.params.id : null))
 const mailboxFilter = computed(() => (typeof route.query.mailbox === 'string' ? route.query.mailbox : null))
+const filter = computed<Filter>(() =>
+  route.query.filter === 'unread' || route.query.filter === 'code' ? route.query.filter : 'all',
+)
 
 const mailboxOptions = computed(() => {
   const active = mailboxes.value.filter((m) => m.status === 'active')
@@ -52,12 +59,34 @@ const mailboxOptions = computed(() => {
   ]
 })
 
+const filters = computed(() => [
+  { key: 'all' as const, label: t('inbox.filterAll') },
+  {
+    key: 'unread' as const,
+    // The badge counts every active mailbox; only show it when the list does too.
+    label:
+      !mailboxFilter.value && inbox.unread > 0
+        ? `${t('inbox.filterUnread')} ${inbox.unread > 99 ? '99+' : inbox.unread}`
+        : t('inbox.filterUnread'),
+  },
+  { key: 'code' as const, label: t('inbox.filterCode') },
+])
+
+function listParams() {
+  return {
+    mailbox: mailboxFilter.value,
+    q: effectiveQuery.value,
+    unread: filter.value === 'unread',
+    code: filter.value === 'code',
+  }
+}
+
 let requestId = 0
 async function reload(): Promise<void> {
   const id = ++requestId
   loading.value = true
   try {
-    const res = await messageApi.list({ mailbox: mailboxFilter.value, q: effectiveQuery.value })
+    const res = await messageApi.list(listParams())
     if (id !== requestId) return
     items.value = res.items
     nextCursor.value = res.nextCursor
@@ -73,7 +102,7 @@ async function loadMore(): Promise<void> {
   const id = requestId
   loadingMore.value = true
   try {
-    const res = await messageApi.list({ mailbox: mailboxFilter.value, q: effectiveQuery.value, cursor: nextCursor.value })
+    const res = await messageApi.list({ ...listParams(), cursor: nextCursor.value })
     if (id !== requestId) return
     items.value = [...items.value, ...res.items]
     nextCursor.value = res.nextCursor
@@ -89,7 +118,7 @@ async function pullNew(): Promise<void> {
   if (newest === undefined) return void reload()
   const id = requestId
   try {
-    const res = await messageApi.list({ mailbox: mailboxFilter.value, q: effectiveQuery.value, since: newest })
+    const res = await messageApi.list({ ...listParams(), since: newest })
     if (id !== requestId) return
     // More than one page arrived (e.g. after the tab was hidden): refresh instead of leaving a gap.
     if (res.nextCursor) return void reload()
@@ -100,8 +129,21 @@ async function pullNew(): Promise<void> {
   }
 }
 
+/** Sections by local day, keeping the list order. */
+const groups = computed(() => {
+  const out: { key: DayGroup; items: MessageSummary[] }[] = []
+  for (const m of items.value) {
+    const key = dayGroup(m.receivedAt)
+    const last = out.at(-1)
+    if (last?.key === key) last.items.push(m)
+    else out.push({ key, items: [m] })
+  }
+  return out
+})
+
 onMounted(async () => {
   void reload()
+  window.addEventListener('keydown', onKey)
   try {
     const [active, disabled] = await Promise.all([
       mailboxApi.list({ status: 'active' }),
@@ -112,8 +154,9 @@ onMounted(async () => {
     // The filter is optional; the list still works without it.
   }
 })
+onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
-watch(mailboxFilter, () => void reload())
+watch([mailboxFilter, filter], () => void reload())
 // `previous != null`: the first summary after page load isn't "new mail".
 watch(() => inbox.latestReceivedAt, (latest, previous) => {
   if (latest && previous != null && latest !== previous) void pullNew()
@@ -132,12 +175,35 @@ function setMailbox(value: string): void {
   void router.replace({ name: 'inbox', params: {}, query: { ...route.query, mailbox: value || undefined } })
 }
 
+function setFilter(value: Filter): void {
+  void router.replace({ name: 'inbox', params: {}, query: { ...route.query, filter: value === 'all' ? undefined : value } })
+}
+
 function open(message: MessageSummary): void {
   void router.push({ name: 'inbox', params: { id: message.id }, query: route.query })
 }
 
 function closeDetail(): void {
   void router.push({ name: 'inbox', params: {}, query: route.query })
+}
+
+/** j/k move through the list, / focuses search, Esc closes the message — never while typing. */
+function onKey(e: KeyboardEvent): void {
+  if (e.metaKey || e.ctrlKey || e.altKey) return
+  const target = e.target as HTMLElement | null
+  if (target?.closest('input, textarea, select, [contenteditable="true"]')) return
+  if (e.key === '/') {
+    e.preventDefault()
+    searchInput.value?.focus()
+  } else if (e.key === 'Escape' && selectedId.value) {
+    closeDetail()
+  } else if (e.key === 'j' || e.key === 'k') {
+    const index = items.value.findIndex((m) => m.id === selectedId.value)
+    const next = items.value[index === -1 ? 0 : index + (e.key === 'j' ? 1 : -1)]
+    if (!next) return
+    open(next)
+    void nextTick(() => document.querySelector(`[data-id="${CSS.escape(next.id)}"]`)?.scrollIntoView({ block: 'nearest' }))
+  }
 }
 
 function onReadChanged(id: string, isRead: boolean): void {
@@ -168,17 +234,41 @@ async function markAllRead(): Promise<void> {
 
 const emptyText = computed(() => {
   if (effectiveQuery.value) return t('inbox.emptySearch')
+  if (filter.value === 'unread') return t('inbox.emptyUnread')
+  if (filter.value === 'code') return t('inbox.emptyCode')
   if (mailboxFilter.value) return t('inbox.emptyMailbox')
   return t('inbox.empty')
 })
+/** Phones show either the list or one message; wider screens slide the message over the list. */
 const showList = computed(() => !isMobile.value || !selectedId.value)
-const showDetail = computed(() => !isMobile.value || !!selectedId.value)
 </script>
 
 <template>
   <div class="inbox" :class="{ mobile: isMobile }">
-    <section v-if="showList" class="list-pane">
-      <div class="filters">
+    <section v-if="showList" class="list-pane" :aria-label="t('inbox.listLabel')">
+      <div class="toolbar">
+        <NInput
+          ref="searchInput"
+          v-model:value="search"
+          class="search"
+          clearable
+          :placeholder="isMobile ? t('inbox.searchPlaceholder') : t('inbox.searchPlaceholderKey')"
+          :input-props="{ 'aria-label': t('inbox.searchPlaceholder') }"
+        >
+          <template #prefix><NIcon><SearchOutline /></NIcon></template>
+        </NInput>
+        <div class="segmented" role="group" :aria-label="t('inbox.filterLabel')">
+          <button
+            v-for="f in filters"
+            :key="f.key"
+            type="button"
+            :class="{ on: filter === f.key }"
+            :aria-pressed="filter === f.key"
+            @click="setFilter(f.key)"
+          >
+            {{ f.label }}
+          </button>
+        </div>
         <NSelect
           class="mailbox-filter"
           :value="mailboxFilter ?? ''"
@@ -187,95 +277,138 @@ const showDetail = computed(() => !isMobile.value || !!selectedId.value)
           :consistent-menu-width="false"
           @update:value="setMailbox"
         />
-        <NButton quaternary circle :title="t('inbox.markAllRead')" :aria-label="t('inbox.markAllRead')" @click="markAllRead">
-          <template #icon><NIcon><CheckmarkDoneOutline /></NIcon></template>
-        </NButton>
+        <NButton class="mark-all" quaternary @click="markAllRead">{{ t('inbox.markAllRead') }}</NButton>
       </div>
-      <NInput v-model:value="search" clearable :placeholder="t('inbox.searchPlaceholder')" class="search">
-        <template #prefix><NIcon><SearchOutline /></NIcon></template>
-      </NInput>
+
       <NSpin :show="loading" :delay="150" class="list-spin">
-        <ul v-if="items.length" class="list">
-          <MessageListItem
-            v-for="message in items"
-            :key="message.id"
-            :message="message"
-            :selected="message.id === selectedId"
-            :show-mailbox="!mailboxFilter"
-            @open="open(message)"
-          />
-        </ul>
+        <template v-if="items.length">
+          <section v-for="g in groups" :key="g.key" class="group">
+            <h2 class="group-label">{{ t(`inbox.day.${g.key}`) }}</h2>
+            <ul class="list">
+              <MessageRow
+                v-for="message in g.items"
+                :key="message.id"
+                :message="message"
+                :selected="message.id === selectedId"
+                :show-mailbox="!mailboxFilter"
+                @open="open(message)"
+              />
+            </ul>
+          </section>
+          <div v-if="nextCursor" class="more">
+            <NButton :loading="loadingMore" @click="loadMore">{{ t('common.loadMore') }}</NButton>
+          </div>
+        </template>
         <p v-else-if="!loading" class="empty">{{ emptyText }}</p>
       </NSpin>
-      <div v-if="nextCursor" class="more">
-        <NButton :loading="loadingMore" @click="loadMore">{{ t('common.loadMore') }}</NButton>
-      </div>
+      <p v-if="!isMobile && items.length" class="keys">{{ t('inbox.shortcuts') }}</p>
     </section>
 
-    <section v-if="showDetail" class="detail-pane">
-      <MessageDetail
-        v-if="selectedId"
-        :id="selectedId"
-        :show-back="isMobile"
-        @back="closeDetail"
-        @deleted="onDeleted"
-        @read-changed="onReadChanged"
-      />
-      <p v-else class="hint">{{ t('inbox.selectHint') }}</p>
-    </section>
+    <Transition name="drawer">
+      <aside v-if="selectedId" class="drawer" :aria-label="t('inbox.detailLabel')">
+        <NButton v-if="!isMobile" class="close" quaternary circle :aria-label="t('inbox.close')" @click="closeDetail">
+          <template #icon><NIcon><CloseOutline /></NIcon></template>
+        </NButton>
+        <MessageDetail
+          :id="selectedId"
+          :show-back="isMobile"
+          @back="closeDetail"
+          @deleted="onDeleted"
+          @read-changed="onReadChanged"
+        />
+      </aside>
+    </Transition>
   </div>
 </template>
 
 <style scoped>
 .inbox {
-  display: grid;
-  grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
-  gap: 24px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
   height: calc(100dvh - var(--pl-chrome, 120px));
-  min-height: 520px;
-}
-.inbox.mobile {
-  /* minmax(0, …): nowrap subjects must not widen the column past the viewport */
-  grid-template-columns: minmax(0, 1fr);
-  height: auto;
+  min-height: 480px;
 }
 .list-pane {
   display: flex;
   flex-direction: column;
-  min-width: 0;
+  flex: 1;
   min-height: 0;
 }
-.filters {
+.toolbar {
   display: flex;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-.mailbox-filter {
-  flex: 1;
-  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
 }
 .search {
-  margin-bottom: 12px;
+  flex: 0 1 300px;
+}
+.segmented {
+  display: flex;
+  padding: 3px;
+  border: 1px solid var(--pl-line);
+  border-radius: 10px;
+  background: var(--pl-sunken);
+}
+.segmented button {
+  height: 28px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--pl-muted);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.segmented button.on {
+  background: var(--pl-surface);
+  color: var(--pl-ink);
+  font-weight: 650;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
+}
+.segmented button:focus-visible {
+  outline: 2px solid var(--pl-blue);
+  outline-offset: -2px;
+}
+.mailbox-filter {
+  width: 220px;
+}
+.mark-all {
+  margin-left: auto;
 }
 .list-spin {
   flex: 1;
   min-height: 0;
   overflow: auto;
+  border: 1px solid var(--pl-line);
+  border-radius: 14px;
+  background: var(--pl-surface);
+}
+.group-label {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 0;
+  padding: 8px 16px 6px 36px;
+  border-bottom: 1px solid var(--pl-line);
+  background: var(--pl-surface);
+  color: var(--pl-muted);
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
 }
 .list {
   list-style: none;
   margin: 0;
   padding: 0;
-  border: 1px solid var(--pl-line);
-  border-radius: 10px;
-  background: var(--pl-surface);
-  overflow: hidden;
 }
 .empty {
   margin: 0;
-  padding: 40px 16px;
-  border: 1px dashed var(--pl-line);
-  border-radius: 10px;
+  padding: 56px 24px;
   color: var(--pl-muted);
   text-align: center;
   line-height: 1.7;
@@ -283,24 +416,83 @@ const showDetail = computed(() => !isMobile.value || !!selectedId.value)
 .more {
   display: flex;
   justify-content: center;
-  padding-top: 12px;
+  padding: 14px;
 }
-.detail-pane {
-  min-width: 0;
-  min-height: 0;
+.keys {
+  margin: 8px 4px 0;
+  color: var(--pl-faint);
+  font-size: 0.75rem;
+}
+.drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 5;
+  width: min(680px, 62%);
+  padding: 20px 28px 24px;
+  box-sizing: border-box;
   overflow: auto;
+  border: 1px solid var(--pl-line);
+  border-radius: 16px;
+  background: var(--pl-surface);
+  box-shadow: -24px 0 48px rgb(19 22 27 / 0.12);
 }
-.hint {
-  display: grid;
-  place-items: center;
-  height: 100%;
-  margin: 0;
-  color: var(--pl-muted);
+:root[data-theme='dark'] .drawer {
+  box-shadow: -24px 0 48px rgb(0 0 0 / 0.45);
 }
-@media (max-width: 1023px) and (min-width: 768px) {
-  .inbox {
-    grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
-    gap: 16px;
+.close {
+  position: absolute;
+  top: 18px;
+  left: 16px;
+  z-index: 1;
+}
+.drawer-enter-active,
+.drawer-leave-active {
+  transition: transform 0.2s ease-out, opacity 0.2s ease-out;
+}
+.drawer-enter-from,
+.drawer-leave-to {
+  transform: translateX(24px);
+  opacity: 0;
+}
+@media (max-width: 1023px) {
+  .drawer {
+    width: min(680px, 86%);
+  }
+}
+.inbox.mobile {
+  height: auto;
+  min-height: 0;
+}
+.inbox.mobile .list-spin {
+  overflow: visible;
+}
+.inbox.mobile .drawer {
+  position: static;
+  width: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.inbox.mobile .search,
+.inbox.mobile .mailbox-filter {
+  flex: 1 1 100%;
+  width: auto;
+  min-width: 0;
+}
+.inbox.mobile .mailbox-filter {
+  order: -1;
+}
+.inbox.mobile .search {
+  order: -2;
+}
+@media (prefers-reduced-motion: reduce) {
+  .drawer-enter-active,
+  .drawer-leave-active {
+    transition: none;
   }
 }
 </style>

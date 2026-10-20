@@ -3,10 +3,10 @@ import { NSkeleton } from 'naive-ui'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import type { PublicMailbox } from '../../shared/api'
 import AddressSwitchList from '@/components/home/AddressSwitchList.vue'
 import CurrentPanel from '@/components/home/CurrentPanel.vue'
 import NewAddressForm from '@/components/NewAddressForm.vue'
+import { createdMailbox } from '@/composables/useCreateMailbox'
 import { useMailboxList } from '@/composables/useMailboxList'
 import { currentMailboxId, setCurrentMailbox } from '@/stores/current'
 import { boostPolling, inbox } from '@/stores/inbox'
@@ -37,18 +37,19 @@ watch(() => inbox.arrivals, () => void list.reload())
 // Copying a code or opening a message marks it read; keep the unread dots in step.
 watch(() => inbox.unread, () => void list.reload())
 
-function onCreated(mailbox: PublicMailbox): void {
+watch(createdMailbox, (mailbox) => {
+  if (!mailbox) return
   list.prepend(mailbox)
   if (quota.value) quota.value = { ...quota.value, used: quota.value.used + 1 }
   boostPolling(BOOST_MS)
-}
+})
 </script>
 
 <template>
   <div class="home">
     <template v-if="current">
       <div class="panel main">
-        <CurrentPanel :mailbox="current" :quota="quota" @created="onCreated" />
+        <CurrentPanel :mailbox="current" :quota="quota" />
       </div>
       <div class="panel side">
         <AddressSwitchList
@@ -63,7 +64,7 @@ function onCreated(mailbox: PublicMailbox): void {
     <section v-else-if="listLoaded" class="panel first" aria-labelledby="first-title">
       <h2 id="first-title">{{ t('home.firstTitle') }}</h2>
       <p>{{ t('home.firstBody') }}</p>
-      <NewAddressForm :quota="quota" autofocus @created="onCreated" />
+      <NewAddressForm :quota="quota" autofocus />
     </section>
 
     <div v-else class="panel main" aria-hidden="true">

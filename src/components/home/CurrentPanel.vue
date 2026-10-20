@@ -20,7 +20,6 @@ import { inbox, isBoosted } from '@/stores/inbox'
  * until it is copied; the mail list below never repeats it. Mail opens in a dialog on this page.
  */
 const props = defineProps<{ mailbox: PublicMailbox; quota: MailboxQuota | null }>()
-const emit = defineEmits<{ created: [mailbox: PublicMailbox] }>()
 
 const LIVE_ITEMS = 5
 /** A code older than this is no longer "the code you're waiting for". */
@@ -74,8 +73,7 @@ async function copyAddress(): Promise<void> {
 }
 
 async function createRandom(): Promise<void> {
-  const mailbox = await create()
-  if (mailbox) emit('created', mailbox)
+  await create()
 }
 
 function onReadChanged(id: string, isRead: boolean): void {
@@ -88,9 +86,8 @@ function onDeleted(id: string): void {
   openId.value = null
 }
 
-function onCreated(mailbox: PublicMailbox): void {
+function onCreated(): void {
   customOpen.value = false
-  emit('created', mailbox)
 }
 </script>
 

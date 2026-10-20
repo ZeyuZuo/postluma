@@ -43,6 +43,14 @@ test('home: creating copies the address and makes it current; its code is copied
   await expect(page.locator('section.current .address .local')).toHaveText(older.address.split('@')[0])
   await page.reload()
   await expect(page.locator('section.current .address .local')).toHaveText(older.address.split('@')[0])
+
+  // With an older address current, a custom one still becomes current and joins the list.
+  await page.getByRole('button', { name: '自定义地址' }).click()
+  const another = uid('again')
+  await page.locator('#new-local-part').fill(another)
+  await page.keyboard.press('Enter')
+  await expect(page.locator('section.current .address .local')).toHaveText(another)
+  await expect(page.locator('.pick', { hasText: another })).toHaveCount(1)
 })
 
 test('inbox: filters, j/k navigation and Esc', async ({ page, context }) => {

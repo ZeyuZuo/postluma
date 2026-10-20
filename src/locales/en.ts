@@ -306,6 +306,8 @@ const en: Messages = {
     deliveredBy: 'Delivered by',
     deliveredByHint: 'The server that actually delivered this message. Mail sent through a mailing service usually shows that service’s domain here, which is normal.',
     code: 'Code',
+    sentTo: 'To',
+    clickToCopy: 'Click to copy',
     copyCode: 'Copy code',
     codeCopied: 'Copied code {code}',
     remoteBlocked: 'Remote images are blocked to protect your privacy (they can reveal that you opened the message).',

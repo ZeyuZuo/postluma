@@ -300,6 +300,8 @@ const zhCN = {
     deliveredBy: '投递来源',
     deliveredByHint: '实际投递这封邮件的服务器地址。经邮件服务商代发的邮件，这里通常和发件人的域名不同，这是正常的。',
     code: '验证码',
+    sentTo: '发给',
+    clickToCopy: '点击复制',
     copyCode: '复制验证码',
     codeCopied: '验证码 {code} 已复制',
     remoteBlocked: '为保护隐私，已阻止加载远程图片（可能用于追踪你是否读过邮件）。',

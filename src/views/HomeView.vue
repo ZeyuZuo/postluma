@@ -1,198 +1,193 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { RouterLink, useRouter } from 'vue-router'
+import { RouterLink } from 'vue-router'
 
 import type { MessageSummary, PublicMailbox } from '../../shared/api'
 import { messageApi } from '@/api/messages'
-import CodeChip from '@/components/CodeChip.vue'
-import MailboxCreator from '@/components/MailboxCreator.vue'
-import MailboxItem from '@/components/MailboxItem.vue'
-import MessageListItem from '@/components/MessageListItem.vue'
+import AddressCommand from '@/components/home/AddressCommand.vue'
+import AddressShortList from '@/components/home/AddressShortList.vue'
+import CodeTiles from '@/components/home/CodeTiles.vue'
+import CurrentAddress from '@/components/home/CurrentAddress.vue'
 import { useMailboxList } from '@/composables/useMailboxList'
-import { formatRelative } from '@/lib/format'
-import { inbox } from '@/stores/inbox'
-import { session } from '@/stores/session'
+import { boostPolling, inbox } from '@/stores/inbox'
 
-const RECENT_MAILBOXES = 5
-const LATEST_MESSAGES = 5
-const RECENT_CODES = 4
+const SHORT_LIST = 6
+const RECENT_CODES = 6
 /** Older codes are useless, and the bound keeps the query to a few index rows. */
 const CODE_WINDOW_MS = 24 * 60 * 60 * 1000
+/** After creating an address, check for its first mail every 10 s for this long. */
+const BOOST_MS = 10 * 60 * 1000
 
 const { t } = useI18n()
-const router = useRouter()
 const list = useMailboxList('active')
 const { items, quota } = list
 const freshId = ref<string | null>(null)
-const recent = computed(() => items.value.slice(0, RECENT_MAILBOXES))
-const latest = ref<MessageSummary[]>([])
 const codes = ref<MessageSummary[]>([])
+const codesLoaded = ref(false)
 
-async function loadMail(): Promise<void> {
+/** The address being signed up with: the one just created, else the newest active one. */
+const current = computed(() => items.value.find((m) => m.id === freshId.value) ?? items.value[0] ?? null)
+const shortList = computed(() => items.value.slice(0, SHORT_LIST))
+
+async function loadCodes(): Promise<void> {
   try {
-    const [l, c] = await Promise.all([messageApi.list({ limit: LATEST_MESSAGES }), messageApi.list({ code: true, limit: RECENT_CODES, since: Date.now() - CODE_WINDOW_MS })])
-    latest.value = l.items
-    codes.value = c.items
+    codes.value = (await messageApi.list({ code: true, limit: RECENT_CODES, since: Date.now() - CODE_WINDOW_MS })).items
   } catch {
-    // Home stays usable without mail previews.
+    // Home stays usable without codes.
+  } finally {
+    codesLoaded.value = true
   }
 }
 
 onMounted(() => {
   void list.reload()
-  void loadMail()
+  void loadCodes()
 })
 watch(() => inbox.latestReceivedAt, (now, before) => {
-  if (now && before != null && now !== before) void loadMail()
+  if (now && before != null && now !== before) {
+    void loadCodes()
+    void list.reload() // unread counts and "last received"
+  }
 })
 
 function onCreated(mailbox: PublicMailbox): void {
   freshId.value = mailbox.id
   list.prepend(mailbox)
   if (quota.value) quota.value = { ...quota.value, used: quota.value.used + 1 }
-}
-
-function onChanged(mailbox: PublicMailbox): void {
-  list.apply(mailbox)
-  if (mailbox.status === 'disabled' && quota.value) quota.value = { ...quota.value, used: quota.value.used - 1 }
-}
-
-function openMessage(id: string): void {
-  void router.push({ name: 'inbox', params: { id } })
+  boostPolling(BOOST_MS)
 }
 </script>
 
 <template>
   <div class="home">
-    <h2 class="greeting">{{ t('home.greeting', { name: session.user?.username }) }}</h2>
-    <MailboxCreator :quota="quota" @created="onCreated" />
-
-    <section v-if="codes.length" class="codes">
-      <header>
-        <h3>{{ t('inbox.recentCodes') }}</h3>
-      </header>
-      <ul class="code-grid">
-        <li v-for="m in codes" :key="m.id" class="code-card" @click="openMessage(m.id)">
-          <CodeChip :code="m.verificationCode!" size="lg" />
-          <span class="code-from">{{ m.fromName || m.fromAddress }}</span>
-          <span class="code-meta">
-            <span class="pl-mono">{{ m.mailboxAddress }}</span>
-            <span>{{ formatRelative(m.receivedAt) }}</span>
-          </span>
-        </li>
-      </ul>
+    <section class="panel hero" :aria-label="t('home.newAddress')">
+      <AddressCommand :quota="quota" @created="onCreated" />
+      <CurrentAddress v-if="current" :mailbox="current" class="current" />
     </section>
 
-    <section class="latest">
-      <header>
-        <h3>{{ t('inbox.latest') }}</h3>
-        <RouterLink :to="{ name: 'inbox' }">{{ t('inbox.viewInbox') }}</RouterLink>
-      </header>
-      <ul v-if="latest.length" class="list">
-        <MessageListItem v-for="m in latest" :key="m.id" :message="m" show-mailbox @open="openMessage(m.id)" />
-      </ul>
-      <p v-else class="empty">{{ t('inbox.noMail') }}</p>
-    </section>
+    <div class="columns">
+      <section class="codes" aria-labelledby="codes-title">
+        <header class="section-head">
+          <h2 id="codes-title">{{ t('home.codes') }}</h2>
+          <span class="hint">{{ t('home.codesHint') }}</span>
+        </header>
+        <CodeTiles v-if="codes.length" :messages="codes" />
+        <p v-else-if="codesLoaded" class="empty">{{ t('home.noCodes') }}</p>
+      </section>
 
-    <section v-if="recent.length" class="recent">
-      <header>
-        <h3>{{ t('mailboxes.recent') }}</h3>
-        <RouterLink :to="{ name: 'mailboxes' }">{{ t('mailboxes.viewAll') }}</RouterLink>
-      </header>
-      <ul class="list">
-        <MailboxItem
-          v-for="mailbox in recent"
-          :key="mailbox.id"
-          :mailbox="mailbox"
-          :fresh="mailbox.id === freshId"
-          @changed="onChanged"
-        />
-      </ul>
-    </section>
+      <section class="addresses" aria-labelledby="addresses-title">
+        <header class="section-head">
+          <h2 id="addresses-title">{{ t('home.addresses') }}</h2>
+          <RouterLink :to="{ name: 'mailboxes' }" class="link">{{ t('home.manage') }} →</RouterLink>
+        </header>
+        <div class="panel flush">
+          <AddressShortList v-if="shortList.length" :mailboxes="shortList" :fresh-id="freshId" />
+          <p v-else class="empty plain">{{ t('mailboxes.emptyActive') }}</p>
+          <RouterLink :to="{ name: 'inbox' }" class="inbox-link">
+            <span>{{ inbox.unread > 0 ? t('home.unreadMail', { n: inbox.unread > 99 ? '99+' : inbox.unread }) : t('home.noUnread') }}</span>
+            <span class="link">{{ t('inbox.viewInbox') }} →</span>
+          </RouterLink>
+        </div>
+      </section>
+    </div>
   </div>
 </template>
 
 <style scoped>
 .home {
   display: grid;
-  /* minmax(0, …): otherwise the column grows to the widest nowrap line (a long snippet) and the
-     sections overflow the phone screen. */
+  /* minmax(0, …): otherwise the column grows to the widest nowrap line and overflows phones. */
   grid-template-columns: minmax(0, 1fr);
   gap: 28px;
 }
-.greeting {
-  margin: 0;
-  font-size: 1.5rem;
-  font-weight: 650;
+.panel {
+  border: 1px solid var(--pl-line);
+  border-radius: 18px;
+  background: var(--pl-surface);
 }
-section header {
+.hero {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding: 22px 24px;
+}
+.current {
+  padding-top: 20px;
+  border-top: 1px solid var(--pl-line);
+}
+.columns {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 28px;
+}
+.codes {
+  flex: 7 1 520px;
+  min-width: 0;
+}
+.addresses {
+  flex: 5 1 340px;
+  min-width: 0;
+}
+.section-head {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
-  margin-bottom: 10px;
+  gap: 12px;
+  margin-bottom: 12px;
 }
-h3 {
+h2 {
   margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
+  font-size: 1.25rem;
+  font-weight: 750;
+  letter-spacing: -0.01em;
 }
-header a {
+.hint {
+  color: var(--pl-muted);
+  font-size: 0.8125rem;
+}
+.link {
+  margin-left: auto;
   color: var(--pl-blue);
   font-size: 0.875rem;
   text-decoration: none;
 }
-.code-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 12px;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.code-card {
-  display: grid;
-  gap: 6px;
-  justify-items: start;
-  padding: 14px 16px;
-  border: 1px solid var(--pl-line);
-  border-radius: 10px;
-  background: var(--pl-surface);
-  cursor: pointer;
-}
-.code-card:hover {
-  border-color: color-mix(in srgb, var(--pl-blue) 40%, var(--pl-line));
-}
-.code-from {
-  font-weight: 600;
-  font-size: 0.875rem;
-  max-width: 100%;
+.flush {
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
-.code-meta {
+.inbox-link {
   display: flex;
-  flex-wrap: wrap;
-  gap: 2px 10px;
-  color: var(--pl-muted);
-  font-size: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  color: var(--pl-ink);
+  font-weight: 650;
+  text-decoration: none;
 }
-.list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  border: 1px solid var(--pl-line);
-  border-radius: 10px;
-  background: var(--pl-surface);
-  overflow: hidden;
+.inbox-link:hover .link {
+  text-decoration: underline;
 }
 .empty {
   margin: 0;
-  padding: 24px 16px;
+  padding: 28px 16px;
   border: 1px dashed var(--pl-line);
-  border-radius: 10px;
+  border-radius: 14px;
   color: var(--pl-muted);
   text-align: center;
+}
+.empty.plain {
+  border: 0;
+  border-bottom: 1px solid var(--pl-line);
+  border-radius: 0;
+}
+@media (max-width: 600px) {
+  .hero {
+    padding: 16px;
+  }
+  .home,
+  .columns {
+    gap: 22px;
+  }
 }
 </style>

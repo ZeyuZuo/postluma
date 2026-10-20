@@ -38,6 +38,8 @@ export interface PreparedMail {
   hasInlineImages: boolean
 }
 
+const BLANK_PIXEL = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
+
 // `src="cid:…"` (RFC 2392; the id may be percent-encoded).
 const CID_SRC = /(\bsrc\s*=\s*)(["']?)cid:([^"'\s>]+)\2/gi
 
@@ -56,11 +58,12 @@ function decodeCid(value: string): string {
  */
 export function prepareMailHtml(raw: string, inlineImages?: ReadonlyMap<string, string>): PreparedMail {
   let hasInlineImages = false
-  const resolved = raw.replace(CID_SRC, (match, attr: string, quote: string, cid: string) => {
+  const resolved = raw.replace(CID_SRC, (_match, attr: string, quote: string, cid: string) => {
     const uri = inlineImages?.get(decodeCid(cid))
     if (uri) return `${attr}${quote}${uri}${quote}`
     hasInlineImages = true
-    return match
+    // Not available (yet): a blank pixel instead of a broken-image icon and a CSP violation.
+    return `${attr}${quote}${BLANK_PIXEL}${quote}`
   })
   const html = purifier.sanitize(resolved, {
     FORBID_TAGS,

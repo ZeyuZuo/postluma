@@ -53,7 +53,8 @@ describe('sending switched off (the default)', () => {
     expect(await json(await send(mail()))).toEqual({ error: 'sending_not_allowed' })
     await env.DB.prepare('UPDATE users SET can_send = 1 WHERE id = ?').bind(aliceId).run()
     expect(await json(await send(mail()))).toEqual({ error: 'sending_domain_not_allowed' })
-    expect(await json<OutboxStatus>(await api('/api/outbox/status', { cookie }))).toMatchObject({ canSend: false })
+    // Allowed but no address can send yet: the UI shows up and explains, sending stays refused.
+    expect(await json<OutboxStatus>(await api('/api/outbox/status', { cookie }))).toMatchObject({ canSend: true, mailboxIds: [] })
   })
 })
 
@@ -143,6 +144,16 @@ describe('sending switched on', () => {
     await send(mail({ replyToId: original }), { env: resendEnv })
     const second = spy.mock.calls.find(([url]) => String(url) === `${RESEND_API}/emails`)!
     expect(JSON.parse(String(second[1]!.body)).headers).toBeUndefined()
+  })
+
+  it('lets admins send without a per-user switch, within the same quotas', async () => {
+    const adminId = await createUser('boss', { role: 'admin' })
+    const adminBox = await addMailboxRow(adminId, domainId, 'boss@mail.test')
+    const adminCookie = await login('boss')
+    expect(await json<{ canSend: boolean }>(await api('/api/auth/me', { cookie: adminCookie }))).toMatchObject({ canSend: true })
+    expect((await send(mail({ mailboxId: adminBox }), { cookie: adminCookie })).status).toBe(201)
+    await env.DB.prepare('UPDATE users SET send_quota = 1 WHERE id = ?').bind(adminId).run()
+    expect(await json(await send(mail({ mailboxId: adminBox }), { cookie: adminCookie }))).toEqual({ error: 'send_quota_exceeded' })
   })
 
   it('refuses disabled addresses', async () => {

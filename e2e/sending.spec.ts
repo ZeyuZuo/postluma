@@ -76,4 +76,9 @@ test('user: reply to a message, compose a new one, find both under Sent', async 
   await expect(page.locator('.sent .row').first()).toContainText('friend@example.org +1')
   await page.locator('.sent .row', { hasText: 'Re: Question' }).click()
   await expect(page.locator('.drawer')).toContainText('Yes, size M.')
+
+  // Home: compose from the current address.
+  await page.goto('/')
+  await page.locator('section.current').getByRole('button', { name: '写邮件' }).click()
+  await expect(page.locator('.compose-dialog form.compose')).toContainText(box.address)
 })

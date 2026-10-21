@@ -38,7 +38,7 @@ describe('admin sending controls', () => {
 
   it('switches sending on and back to the deploy default, with audit rows', async () => {
     const initial = await json<AdminSendingStatus>(await api('/api/admin/sending', { cookie: admin }))
-    expect(initial).toMatchObject({ enabled: false, overridden: false, provider: 'log', configured: true, perDay: 100, usedToday: 0 })
+    expect(initial).toMatchObject({ enabled: false, overridden: false, provider: 'log', configured: true, perDay: 100, usedToday: 0, sendingDomains: 0, sendingUsers: 1 }) // the admin
     const on = await api('/api/admin/sending', { cookie: admin, method: 'PATCH', body: { enabled: true } })
     expect(await json<AdminSendingStatus>(on)).toMatchObject({ enabled: true, overridden: true })
     const reset = await api('/api/admin/sending', { cookie: admin, method: 'PATCH', body: { enabled: null } })

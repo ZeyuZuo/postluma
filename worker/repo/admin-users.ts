@@ -40,7 +40,8 @@ function toAdminUser(r: AdminUserRow): AdminUser {
     role: r.role,
     status: r.status,
     mailboxQuota: r.mailbox_quota,
-    canSend: r.can_send === 1,
+    // Admins can always send; their own switch only matters if they stop being admins.
+    canSend: r.can_send === 1 || r.role === 'admin',
     sendQuota: r.send_quota,
     activeMailboxes: r.active_mailboxes,
     totalMailboxes: r.total_mailboxes,

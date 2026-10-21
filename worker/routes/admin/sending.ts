@@ -23,6 +23,10 @@ async function status(env: Env): Promise<AdminSendingStatus> {
   )
     .bind(Date.now() - DAY_MS, config.sending.perDay)
     .first<{ n: number }>()
+  const counts = await env.DB.prepare(
+    `SELECT (SELECT COUNT(*) FROM domains WHERE can_send = 1) AS domains,
+            (SELECT COUNT(*) FROM users WHERE (can_send = 1 OR role = 'admin') AND status = 'active') AS users`,
+  ).first<{ domains: number; users: number }>()
   return {
     enabled: override === null ? config.sending.enabled : override === 'true',
     overridden: override !== null,
@@ -33,6 +37,8 @@ async function status(env: Env): Promise<AdminSendingStatus> {
     perUserPerDay: config.sending.perUserPerDay,
     maxRecipients: config.sending.maxRecipients,
     usedToday: used?.n ?? 0,
+    sendingDomains: counts?.domains ?? 0,
+    sendingUsers: counts?.users ?? 0,
   }
 }
 

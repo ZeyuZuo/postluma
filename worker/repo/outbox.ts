@@ -3,7 +3,7 @@
  * someone else's ids behave like missing ones (404). Admins have no access to content here.
  *
  * Sending is two steps: `reserveSend()` inserts a 'sending' row only if every rule holds — the
- * mailbox is the user's own and active, the user and the mailbox's domain are allowed to send, and
+ * mailbox is the user's own and active, the user (admins always) and the mailbox's domain are allowed to send, and
  * both rolling-24 h quotas have room — in one conditional INSERT, so concurrent sends can't
  * overshoot. The route then calls the provider and `finishSend()` records the outcome.
  */
@@ -65,7 +65,7 @@ export async function reserveSend(
          SELECT ?1, u.id, m.id, m.address, ?4, ?5, ?6, ?7, 'sending', ?8, ?9, ?10, ?10
          FROM mailboxes m CROSS JOIN users u CROSS JOIN domains d
          WHERE m.id = ?3 AND m.user_id = ?2 AND u.id = m.user_id AND d.id = m.domain_id
-           AND m.status = 'active' AND u.status = 'active' AND u.can_send = 1 AND d.can_send = 1
+           AND m.status = 'active' AND u.status = 'active' AND (u.can_send = 1 OR u.role = 'admin') AND d.can_send = 1
            AND (?7 IS NULL OR EXISTS (SELECT 1 FROM messages WHERE id = ?7 AND user_id = ?2))
            AND ${userSendsSql('?2', '?11', '?12')} < ${userQuotaOf('?2', '?12')}
            AND ${allSendsSql('?11', '?13')} < ?13
@@ -122,7 +122,7 @@ async function reserveFailure(
 ): Promise<[403 | 404 | 429, ErrorCode]> {
   const row = await db
     .prepare(
-      `SELECT m.status AS mailbox_status, u.can_send AS user_can, d.can_send AS domain_can,
+      `SELECT m.status AS mailbox_status, (u.can_send = 1 OR u.role = 'admin') AS user_can, d.can_send AS domain_can,
               (?3 IS NULL OR EXISTS (SELECT 1 FROM messages WHERE id = ?3 AND user_id = ?1)) AS reply_ok,
               ${userSendsSql('?1', '?4', '?5')} >= ${userQuotaOf('?1', '?5')} AS user_full,
               ${allSendsSql('?4', '?6')} >= ?6 AS all_full
@@ -225,7 +225,7 @@ export async function getOutboxStatus(
   if (!enabled) return closed
   const user = await db
     .prepare(
-      `SELECT u.can_send, ${userQuotaOf('?1', '?3')} AS quota, ${userSendsSql('?1', '?2', '?3')} AS used
+      `SELECT (u.can_send = 1 OR u.role = 'admin') AS can_send, ${userQuotaOf('?1', '?3')} AS quota, ${userSendsSql('?1', '?2', '?3')} AS used
        FROM users u WHERE u.id = ?1 AND u.status = 'active'`,
     )
     .bind(userId, now - DAY_MS, limits.perUserPerDay)
@@ -239,8 +239,10 @@ export async function getOutboxStatus(
     )
     .bind(userId)
     .all<{ id: string }>()
+  // Allowed users see the sending UI even while none of their addresses can send yet: the compose
+  // form explains why, instead of everything silently staying hidden.
   return {
-    canSend: results.length > 0,
+    canSend: true,
     remaining: Math.max(0, user.quota - user.used),
     limit: user.quota,
     maxRecipients: limits.maxRecipients,

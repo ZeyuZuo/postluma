@@ -110,7 +110,7 @@ authRoutes.post('/logout', async (c) => {
 /** `canSend` decides whether the client shows any sending control (the server enforces it anyway). */
 authRoutes.get('/me', async (c) => {
   const user = c.get('user')
-  const canSend = user.can_send === 1 && (await isSendingEnabled(c.env.DB, getConfig(c.env)))
+  const canSend = (user.can_send === 1 || user.role === 'admin') && (await isSendingEnabled(c.env.DB, getConfig(c.env)))
   return c.json({ user: toPublicUser(user), canSend })
 })
 

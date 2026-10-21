@@ -75,6 +75,17 @@ async function sendTest(): Promise<void> {
         <NButton v-if="status.overridden" text type="primary" size="tiny" @click="setEnabled(null)">{{ t('admin.settings.reset') }}</NButton>
       </p>
 
+      <ul class="checklist" :aria-label="t('admin.sending.checklist')">
+        <li :class="{ ok: status.configured }">{{ status.configured ? '✓' : '✗' }} {{ t('admin.sending.checkKey') }}</li>
+        <li :class="{ ok: status.enabled }">{{ status.enabled ? '✓' : '✗' }} {{ t('admin.sending.checkSwitch') }}</li>
+        <li :class="{ ok: status.sendingDomains > 0 }">
+          {{ status.sendingDomains > 0 ? '✓' : '✗' }} {{ t('admin.sending.checkDomains', { n: status.sendingDomains }) }}
+        </li>
+        <li :class="{ ok: status.sendingUsers > 0 }">
+          {{ status.sendingUsers > 0 ? '✓' : '✗' }} {{ t('admin.sending.checkUsers', { n: status.sendingUsers }) }}
+        </li>
+      </ul>
+
       <div class="facts">
         <span>{{ t('admin.sending.provider') }}: <b>{{ status.provider }}</b></span>
         <NTag size="small" :bordered="false" :type="status.configured ? 'success' : 'error'">
@@ -122,6 +133,20 @@ async function sendTest(): Promise<void> {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+.checklist {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  list-style: none;
+  border-radius: 10px;
+  background: var(--pl-sunken);
+  color: #b4243f;
+  font-size: 0.875rem;
+}
+.checklist li.ok {
+  color: var(--pl-muted);
 }
 .facts {
   display: flex;

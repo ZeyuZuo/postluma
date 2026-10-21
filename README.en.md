@@ -46,7 +46,7 @@ What sets it apart from other Cloudflare mail projects is that **isolation betwe
 - Inbox filters (All / Unread / Codes), per-address filter, search and keyboard navigation (`j` / `k`, `/` to search, `Esc` to close)
 
 **Sending (optional, off by default)**
-- Once an admin switches it on and allows domains and users one by one, those users can reply or write new mail from their own addresses
+- Once an admin switches it on and allows domains and users one by one (admins themselves always can), those users can reply or write new mail from their own addresses (from the inbox, the message view and the home page; sent mail is under “Sent” in the inbox)
 - Plain text only, up to 5 recipients per message, 20 per user and 100 service-wide per day (all tunable); replies carry threading headers so the recipient sees one conversation
 - Sent through Resend (100/day on its free plan); while off, no sending feature appears anywhere
 

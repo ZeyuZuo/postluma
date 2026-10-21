@@ -516,7 +516,10 @@ export interface OutboxListResponse {
   nextCursor: string | null
 }
 
-/** What the compose UI may offer. `canSend: false` hides every sending control. */
+/**
+ * What the compose UI may offer. `canSend: false` hides every sending control; `true` means the
+ * service switch is on and this user is allowed — `mailboxIds` may still be empty (no domain open).
+ */
 export interface OutboxStatus {
   canSend: boolean
   /** Sends left in the user's rolling 24 h. */
@@ -542,6 +545,9 @@ export interface AdminSendingStatus {
   maxRecipients: number
   /** Sends counted in the last 24 h, service-wide. */
   usedToday: number
+  /** For the setup checklist: domains open for sending, users allowed to send. */
+  sendingDomains: number
+  sendingUsers: number
 }
 
 /** `null` removes the override (back to the deploy default). */

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AddOutline, CloseOutline, CopyOutline, OpenOutline } from '@vicons/ionicons5'
+import { AddOutline, CloseOutline, CopyOutline, CreateOutline, OpenOutline } from '@vicons/ionicons5'
 import { NIcon, NModal, useMessage } from 'naive-ui'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -7,6 +7,7 @@ import { RouterLink } from 'vue-router'
 
 import type { MailboxQuota, MessageSummary, PublicMailbox } from '../../../shared/api'
 import { messageApi } from '@/api/messages'
+import ComposePanel from '@/components/ComposePanel.vue'
 import MessageDetail from '@/components/MessageDetail.vue'
 import NewAddressForm from '@/components/NewAddressForm.vue'
 import { copyText } from '@/composables/useClipboard'
@@ -15,6 +16,7 @@ import { useCreateMailbox } from '@/composables/useCreateMailbox'
 import { formatRelative } from '@/lib/format'
 import { safeLink } from '@/lib/links'
 import { inbox, isBoosted } from '@/stores/inbox'
+import { canSend, loadOutboxStatus } from '@/stores/outbox'
 
 /**
  * The address in use and what it receives. The newest code is the one thing in amber, and only
@@ -35,6 +37,9 @@ const loaded = ref(false)
 const customOpen = ref(false)
 /** Mail opens in a dialog here; the inbox is one link away. */
 const openId = ref<string | null>(null)
+/** Compose from the current address (sending only). */
+const composing = ref(false)
+void loadOutboxStatus()
 
 const now = ref(Date.now())
 const ticker = setInterval(() => (now.value = Date.now()), 10_000)
@@ -124,6 +129,9 @@ function onCreated(): void {
       <button type="button" class="pl-btn" :aria-expanded="customOpen" @click="customOpen = !customOpen">
         {{ t('home.customPrefix') }}
       </button>
+      <button v-if="canSend()" type="button" class="pl-btn" @click="composing = true">
+        <NIcon><CreateOutline /></NIcon>{{ t('compose.newButton') }}
+      </button>
     </div>
     <NewAddressForm v-if="customOpen" :quota="quota" autofocus class="custom" @created="onCreated" />
 
@@ -176,6 +184,15 @@ function onCreated(): void {
       </ul>
       <p v-else-if="loaded" class="waiting">{{ t('home.waiting') }}</p>
     </div>
+
+    <NModal :show="composing" :auto-focus="false" transform-origin="center" @update:show="(v: boolean) => { if (!v) composing = false }">
+      <div class="mail-dialog compose-dialog" role="dialog" :aria-label="t('compose.newTitle')">
+        <button type="button" class="dialog-close" :aria-label="t('inbox.close')" @click="composing = false">
+          <NIcon><CloseOutline /></NIcon>
+        </button>
+        <ComposePanel v-if="composing" @sent="composing = false" @cancel="composing = false" />
+      </div>
+    </NModal>
 
     <NModal :show="openId !== null" :auto-focus="false" transform-origin="center" @update:show="(v: boolean) => { if (!v) openId = null }">
       <div class="mail-dialog" role="dialog" :aria-label="t('inbox.detailLabel')">
@@ -454,6 +471,14 @@ a.code-block {
   border-radius: 16px;
   background: var(--pl-surface);
   box-shadow: 0 24px 60px rgb(0 0 0 / 0.22);
+}
+.compose-dialog {
+  width: min(680px, calc(100vw - 32px));
+  height: auto;
+}
+.compose-dialog :deep(.compose > .title) {
+  padding-left: 32px;
+  line-height: 34px;
 }
 .dialog-close {
   position: absolute;

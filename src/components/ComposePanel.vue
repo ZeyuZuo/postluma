@@ -27,6 +27,7 @@ const to = ref(props.replyTo ? props.replyTo.fromAddress : '')
 const subject = ref(props.replyTo ? replySubject(props.replyTo.subject) : '')
 const text = ref(props.replyTo ? `\n\n${quote(props.replyTo)}` : '')
 const sending = ref(false)
+const loaded = ref(false)
 // One key per compose: a double click or a retry after a timeout never sends twice.
 const idempotencyKey = crypto.randomUUID().replace(/-/g, '')
 
@@ -73,6 +74,7 @@ onMounted(async () => {
   // A reply goes out from the address it was sent to; otherwise the current address.
   const preferred = props.replyTo?.mailboxId ?? currentMailboxId().value
   from.value = mailboxes.value.find((m) => m.id === preferred)?.id ?? mailboxes.value[0]?.id ?? null
+  loaded.value = true
 })
 
 async function send(): Promise<void> {
@@ -105,6 +107,7 @@ async function send(): Promise<void> {
 <template>
   <form class="compose" @submit.prevent="send">
     <h2 class="title">{{ replyTo ? t('compose.replyTitle') : t('compose.newTitle') }}</h2>
+    <p v-if="loaded && !mailboxes.length" class="blocked">{{ t('compose.noFromHint') }}</p>
     <label class="field">
       <span>{{ t('compose.from') }}</span>
       <NSelect v-model:value="from" :options="options" :placeholder="t('compose.noFrom')" />
@@ -158,6 +161,15 @@ async function send(): Promise<void> {
   min-width: 0;
   color: var(--pl-muted);
   font-size: 0.8125rem;
+}
+.blocked {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--pl-sunken);
+  color: var(--pl-ink);
+  font-size: 0.875rem;
+  line-height: 1.6;
 }
 .note {
   margin: 0;

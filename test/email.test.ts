@@ -106,14 +106,13 @@ describe('accepting mail', () => {
   it('records Cloudflare sender authentication only when SENDER_AUTH_HINTS is on', async () => {
     await addMailbox(aliceId, 'alice-box@mail.test')
     const headers = 'ARC-Authentication-Results: i=1; mx.cloudflare.net; dkim=pass header.d=example.org; dmarc=pass header.from=example.org; spf=pass smtp.mailfrom=example.org'
-    await deliver(mime({ subject: 'off', headers }), 'alice-box@mail.test')
+    await deliver(mime({ subject: 'off', headers }), 'alice-box@mail.test', {}, { SENDER_AUTH_HINTS: 'false' })
     await deliver(mime({ subject: 'on', headers }), 'alice-box@mail.test', {}, { SENDER_AUTH_HINTS: 'true' })
-    const rows = await messageRows()
-    expect(rows.map((r) => [r.subject, r.auth_results])).toEqual([
-      ['off', null],
-      ['on', 'spf=pass;dkim=pass;dmarc=pass'],
-    ])
-    const res = await api(`/api/messages/${rows[1]!.id}`, { cookie: await login('alice') })
+    // Both arrive in the same millisecond: look rows up by subject, not by order.
+    const bySubject = new Map((await messageRows()).map((r) => [r.subject, r]))
+    expect(bySubject.get('off')!.auth_results).toBeNull()
+    expect(bySubject.get('on')!.auth_results).toBe('spf=pass;dkim=pass;dmarc=pass')
+    const res = await api(`/api/messages/${bySubject.get('on')!.id}`, { cookie: await login('alice') })
     expect((await json<{ message: MessageDetail }>(res)).message.senderAuth).toEqual({ spf: 'pass', dkim: 'pass', dmarc: 'pass' })
   })
 

@@ -1,11 +1,12 @@
-import { ref, watch } from 'vue'
+import { ref, toValue, watch, type MaybeRefOrGetter } from 'vue'
 
 import type { MailboxQuota, MailboxStatus, PublicMailbox } from '../../shared/api'
 import { mailboxApi } from '@/api/mailboxes'
 
 const SEARCH_DEBOUNCE_MS = 250
 
-export function useMailboxList(status: MailboxStatus) {
+/** `status` may be reactive: the two address tabs share one view instance, which Vue reuses. */
+export function useMailboxList(statusSource: MaybeRefOrGetter<MailboxStatus>) {
   const items = ref<PublicMailbox[]>([])
   const quota = ref<MailboxQuota | null>(null)
   const query = ref('')
@@ -18,7 +19,7 @@ export function useMailboxList(status: MailboxStatus) {
     const id = ++requestId
     loading.value = true
     try {
-      const res = await mailboxApi.list({ status, q: query.value.trim() || undefined })
+      const res = await mailboxApi.list({ status: toValue(statusSource), q: query.value.trim() || undefined })
       if (id !== requestId) return
       items.value = res.items
       quota.value = res.quota
@@ -33,7 +34,7 @@ export function useMailboxList(status: MailboxStatus) {
     const id = requestId
     loadingMore.value = true
     try {
-      const res = await mailboxApi.list({ status, q: query.value.trim() || undefined, cursor: nextCursor.value })
+      const res = await mailboxApi.list({ status: toValue(statusSource), q: query.value.trim() || undefined, cursor: nextCursor.value })
       if (id !== requestId) return // the search changed meanwhile; drop this stale page
       items.value = [...items.value, ...res.items]
       quota.value = res.quota
@@ -45,7 +46,7 @@ export function useMailboxList(status: MailboxStatus) {
 
   /** Keep a changed mailbox in this list only while it still has this list's status. */
   function apply(mailbox: PublicMailbox): void {
-    if (mailbox.status !== status) {
+    if (mailbox.status !== toValue(statusSource)) {
       items.value = items.value.filter((m) => m.id !== mailbox.id)
     } else {
       items.value = items.value.map((m) => (m.id === mailbox.id ? mailbox : m))

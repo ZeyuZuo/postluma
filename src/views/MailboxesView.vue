@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { NButton, useMessage } from 'naive-ui'
-import { h, onMounted, ref } from 'vue'
+import { h, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'
 
@@ -16,7 +16,7 @@ import { loadOutboxStatus } from '@/stores/outbox'
 const props = defineProps<{ status: MailboxStatus }>()
 
 const { t } = useI18n()
-const list = useMailboxList(props.status)
+const list = useMailboxList(() => props.status)
 const { items, quota, query, nextCursor, loading, loadingMore } = list
 const freshId = ref<string | null>(null)
 const toast = useMessage()
@@ -26,6 +26,15 @@ onMounted(() => {
   void list.reload()
   void loadOutboxStatus(true)
 })
+// Switching tabs keeps this instance (same component on both routes): reload for the new status.
+watch(
+  () => props.status,
+  () => {
+    list.items.value = []
+    freshId.value = null
+    void list.reload()
+  },
+)
 
 function onCreated(mailbox: PublicMailbox): void {
   freshId.value = mailbox.id

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { CopyOutline, CreateOutline, EllipsisHorizontal, HelpCircleOutline, MailOutline } from '@vicons/ionicons5'
-import { NButton, NDropdown, NIcon, NInput, NSwitch, NTooltip, useMessage } from 'naive-ui'
-import { computed, h, nextTick, ref } from 'vue'
+import { CopyOutline, CreateOutline, HelpCircleOutline, MailOutline } from '@vicons/ionicons5'
+import { NButton, NIcon, NInput, NSwitch, NTooltip, useMessage } from 'naive-ui'
+import { computed, nextTick, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'
 
@@ -77,17 +77,6 @@ async function setStatus(status: 'active' | 'disabled'): Promise<void> {
   } catch (err) {
     message.error(t(`errors.${errorCodeOf(err)}`))
   }
-}
-
-const icon = (c: typeof CopyOutline) => () => h(NIcon, null, { default: () => h(c) })
-const moreOptions = computed(() => [
-  ...(props.mailbox.acceptSubaddress ? [{ key: 'alias', label: `${t('home.copyAlias')} +shop`, icon: icon(CopyOutline) }] : []),
-  { key: 'disable', label: t('mailboxes.disable') },
-])
-
-function onMore(key: string): void {
-  if (key === 'alias') void copy(subaddressExample.value)
-  if (key === 'disable') void setStatus('disabled')
 }
 
 async function setSubaddress(acceptSubaddress: boolean): Promise<void> {
@@ -169,12 +158,10 @@ async function setSubaddress(acceptSubaddress: boolean): Promise<void> {
         </template>
         {{ t('mailboxes.viewMail') }}
       </NTooltip>
-      <NDropdown v-if="mailbox.status === 'active'" trigger="click" placement="bottom-end" :options="moreOptions" @select="onMore">
-        <button type="button" class="icon-btn" :aria-label="t('mailboxes.more')">
-          <NIcon><EllipsisHorizontal /></NIcon>
-        </button>
-      </NDropdown>
-      <NButton v-else size="small" secondary @click="setStatus('active')">{{ t('mailboxes.enable') }}</NButton>
+      <NButton v-if="mailbox.status === 'active'" size="small" secondary class="status-btn" @click="setStatus('disabled')">
+        {{ t('mailboxes.disable') }}
+      </NButton>
+      <NButton v-else size="small" secondary class="status-btn" @click="setStatus('active')">{{ t('mailboxes.enable') }}</NButton>
     </div>
   </li>
 </template>
@@ -325,6 +312,9 @@ p {
 .icon-btn:hover {
   background: var(--pl-sunken);
   color: var(--pl-ink);
+}
+.status-btn {
+  margin-left: 6px;
 }
 .icon-btn:focus-visible {
   outline: 2px solid var(--pl-blue);

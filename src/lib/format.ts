@@ -41,15 +41,3 @@ export function formatListTime(ms: number, now = Date.now()): string {
   }
   return new Intl.DateTimeFormat(locale, { dateStyle: 'short' }).format(date)
 }
-
-export type DayGroup = 'today' | 'yesterday' | 'earlier'
-
-/** Which list section a message falls into, by the viewer's local calendar day. */
-export function dayGroup(ms: number, now = Date.now()): DayGroup {
-  const startOfToday = new Date(now)
-  startOfToday.setHours(0, 0, 0, 0)
-  const start = startOfToday.getTime()
-  if (ms >= start) return 'today'
-  if (ms >= start - 24 * 60 * 60 * 1000) return 'yesterday'
-  return 'earlier'
-}

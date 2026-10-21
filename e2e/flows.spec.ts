@@ -99,11 +99,20 @@ test('addresses: disabling is immediate and can be undone', async ({ page, conte
   const box = await createMailbox(context.request)
   await page.goto('/mailboxes')
   const row = page.locator('li.item', { hasText: box.address.split('@')[0] })
-  await row.getByRole('button', { name: '更多操作' }).click()
-  await page.getByText('停用', { exact: true }).click()
+  await row.getByRole('button', { name: '停用', exact: true }).click()
   await expect(row).toHaveCount(0)
   await page.getByRole('button', { name: '撤销' }).click()
   await expect(page.locator('li.item', { hasText: box.address.split('@')[0] })).toHaveCount(1)
+
+  // The disabled tab lists only disabled addresses (the view instance is reused across tabs).
+  const other = await createMailbox(context.request)
+  await page.reload()
+  await page.locator('li.item', { hasText: other.address.split('@')[0] }).getByRole('button', { name: '停用', exact: true }).click()
+  await page.getByRole('link', { name: '已停用' }).click()
+  const disabled = page.locator('li.item')
+  await expect(disabled).toHaveCount(1)
+  await expect(disabled).toContainText(other.address.split('@')[0])
+  await expect(disabled.getByRole('button', { name: '启用', exact: true })).toBeVisible()
 })
 
 test('attachments, inline images and long bodies come from the original in R2', async ({ page, context }) => {

@@ -13,7 +13,6 @@ import ComposePanel from '@/components/ComposePanel.vue'
 import MessageDetail from '@/components/MessageDetail.vue'
 import MessageRow from '@/components/MessageRow.vue'
 import { useIsMobile } from '@/composables/useIsMobile'
-import { dayGroup, type DayGroup } from '@/lib/format'
 import { inbox, refreshInbox } from '@/stores/inbox'
 import { canSend, loadOutboxStatus } from '@/stores/outbox'
 
@@ -130,18 +129,6 @@ async function pullNew(): Promise<void> {
     // The next poll tries again.
   }
 }
-
-/** Sections by local day, keeping the list order. */
-const groups = computed(() => {
-  const out: { key: DayGroup; items: MessageSummary[] }[] = []
-  for (const m of items.value) {
-    const key = dayGroup(m.receivedAt)
-    const last = out.at(-1)
-    if (last?.key === key) last.items.push(m)
-    else out.push({ key, items: [m] })
-  }
-  return out
-})
 
 onMounted(async () => {
   void reload()
@@ -303,19 +290,16 @@ const showList = computed(() => !isMobile.value || (!selectedId.value && !compos
           </div>
         </div>
         <template v-else-if="items.length">
-          <section v-for="g in groups" :key="g.key" class="group">
-            <h2 class="group-label">{{ t(`inbox.day.${g.key}`) }}</h2>
-            <ul class="list">
-              <MessageRow
-                v-for="message in g.items"
-                :key="message.id"
-                :message="message"
-                :selected="message.id === selectedId"
-                :show-mailbox="!mailboxFilter"
-                @open="open(message)"
-              />
-            </ul>
-          </section>
+          <ul class="list">
+            <MessageRow
+              v-for="message in items"
+              :key="message.id"
+              :message="message"
+              :selected="message.id === selectedId"
+              :show-mailbox="!mailboxFilter"
+              @open="open(message)"
+            />
+          </ul>
           <div v-if="nextCursor" class="more">
             <NButton :loading="loadingMore" @click="loadMore">{{ t('common.loadMore') }}</NButton>
           </div>
@@ -431,19 +415,6 @@ const showList = computed(() => !isMobile.value || (!selectedId.value && !compos
   border: 1px solid var(--pl-line);
   border-radius: 14px;
   background: var(--pl-surface);
-}
-.group-label {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  margin: 0;
-  padding: 8px 16px 6px 36px;
-  border-bottom: 1px solid var(--pl-line);
-  background: var(--pl-surface);
-  color: var(--pl-muted);
-  font-size: 0.75rem;
-  font-weight: 650;
-  letter-spacing: 0.06em;
 }
 .list {
   list-style: none;

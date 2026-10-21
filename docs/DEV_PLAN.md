@@ -206,6 +206,18 @@
 | 8.4 | 个人 API Token | 只读、可撤销、库里只存哈希；`/api/v1/*` 只认 Bearer、不认 Cookie；提供“取最新验证码”；附 Agent 用的 SKILL.md |
 | 8.5 | 域名健康检查 ✅ | 后台域名页用 DoH 检查 MX 是否指向 Cloudflare Email Routing。已实现：`GET /api/admin/domains/:id/health`（`worker/lib/dns-health.ts`，Cloudflare DoH JSON），每个域名旁显示“MX 正常 / 部分正确 / 未指向 Cloudflare / 没有 MX / 检查失败”，点击重查；Catch-all 规则需要 API Token 才能查，不做 |
 
+### Phase 9 · 发信（默认关闭，详见 [SENDING_PLAN.md](SENDING_PLAN.md)）
+
+| # | 内容 |
+|---|---|
+| 9.1 | 数据库与配置：迁移、设置项、变量与密钥 |
+| 9.2 | 服务商抽象：`resend` 与测试用 `log` |
+| 9.3 | 发信接口：新邮件 / 回复 / 已发送；额度、审计、幂等 |
+| 9.4 | 管理后台：发信设置、测试发信、域名“可发信”、用户“允许发信” |
+| 9.5 | 用户界面：写信、回复、已发送 |
+| 9.6 | 文档 |
+| 9.7 | Cloudflare 服务商（升级付费版后） |
+
 ### 待你决定
 
 - **Q16 主页面图片策略**：维持现状，还是以后由 Worker 单独提供邮件页面。
@@ -218,7 +230,6 @@
 
 ## 本期不做
 
-- 发信和回复（PRD 未要求）
 - 实时推送（WebSocket / Durable Objects），先用轮询
 - 全文检索（D1 FTS5）：邮件量增长后再加，归入 P2
 - 日语等其他语言：保留扩展点，本期不翻译

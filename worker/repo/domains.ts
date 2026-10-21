@@ -22,6 +22,12 @@ export async function findEnabledDomain(db: D1Database, id: string): Promise<Pub
   return db.prepare('SELECT id, domain FROM domains WHERE id = ? AND enabled = 1').bind(id).first<PublicDomain>()
 }
 
+export async function findDomainName(db: D1Database, id: string): Promise<string> {
+  const row = await db.prepare('SELECT domain FROM domains WHERE id = ?').bind(id).first<{ domain: string }>()
+  if (!row) throw new ApiError(404, 'not_found')
+  return row.domain
+}
+
 export async function listAllDomains(db: D1Database): Promise<AdminDomain[]> {
   const { results } = await db
     .prepare(

@@ -48,7 +48,7 @@ What sets it apart from other Cloudflare mail projects is that **isolation betwe
 **Users and administration**
 - Open sign-up with admin approval (sign-up can be closed); approve, reject, ban, unban — bans take effect immediately
 - Per-user address quota, total cap and daily creation cap
-- Admin panel: users, receiving domains, settings, usage statistics, audit log
+- Admin panel: users, receiving domains (with an automatic check that MX points at Cloudflare Email Routing), settings, usage statistics, audit log
 - Mail retention (30 days by default) with a daily cleanup job; all bulk deletions share a daily budget so they can't exhaust the Free plan's writes
 
 **Interface**

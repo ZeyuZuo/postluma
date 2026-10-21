@@ -3,7 +3,7 @@ import { NButton, NCollapse, NCollapseItem, NInput, NSpin, useDialog, useMessage
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import { DOMAIN_PATTERN, type AdminDomain } from '../../../shared/api'
+import { DOMAIN_PATTERN, type AdminDomain, type DomainHealth } from '../../../shared/api'
 import { errorCodeOf } from '@/api/client'
 import { adminDomainApi } from '@/api/mailboxes'
 import DomainRow from './DomainRow.vue'
@@ -22,10 +22,24 @@ const invalid = computed(() => draft.value.trim() !== '' && !DOMAIN_PATTERN.test
 const enabledDomains = computed(() => domains.value.filter((d) => d.enabled))
 const disabledDomains = computed(() => domains.value.filter((d) => !d.enabled))
 
+/** MX check per domain id; 'checking' while a lookup runs. */
+const health = ref<Record<string, DomainHealth | 'checking'>>({})
+
+async function check(domain: AdminDomain): Promise<void> {
+  if (health.value[domain.id] === 'checking') return
+  health.value[domain.id] = 'checking'
+  try {
+    health.value[domain.id] = (await adminDomainApi.health(domain.id)).health
+  } catch {
+    health.value[domain.id] = { status: 'error', mx: [], checkedAt: Date.now() }
+  }
+}
+
 async function reload(): Promise<void> {
   loading.value = true
   try {
     domains.value = (await adminDomainApi.list()).items
+    for (const d of domains.value) if (!health.value[d.id]) void check(d)
   } catch (err) {
     message.error(t(`errors.${errorCodeOf(err)}`))
   } finally {
@@ -98,7 +112,7 @@ function confirmDelete(domain: AdminDomain): void {
 
     <NSpin :show="loading" :delay="150">
       <ul v-if="enabledDomains.length" class="list">
-        <DomainRow v-for="domain in enabledDomains" :key="domain.id" :domain="domain" @toggle="(v) => toggle(domain, v)" @remove="confirmDelete(domain)" />
+        <DomainRow v-for="domain in enabledDomains" :key="domain.id" :domain="domain" :health="health[domain.id]" @check="check(domain)" @toggle="(v) => toggle(domain, v)" @remove="confirmDelete(domain)" />
       </ul>
       <p v-else-if="!loading" class="empty">{{ t('admin.domains.empty') }}</p>
       <p class="note">{{ t('admin.domains.routingNote') }}</p>
@@ -107,7 +121,7 @@ function confirmDelete(domain: AdminDomain): void {
         <NCollapseItem :title="t('admin.domains.disabledSection', { n: disabledDomains.length })" name="disabled">
           <p class="disabled-hint">{{ t('admin.domains.disabledHint') }}</p>
           <ul class="list">
-            <DomainRow v-for="domain in disabledDomains" :key="domain.id" :domain="domain" @toggle="(v) => toggle(domain, v)" @remove="confirmDelete(domain)" />
+            <DomainRow v-for="domain in disabledDomains" :key="domain.id" :domain="domain" :health="health[domain.id]" @check="check(domain)" @toggle="(v) => toggle(domain, v)" @remove="confirmDelete(domain)" />
           </ul>
         </NCollapseItem>
       </NCollapse>

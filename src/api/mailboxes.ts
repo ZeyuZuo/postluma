@@ -1,4 +1,4 @@
-import type { AdminDomain, MailboxListResponse, MailboxStatus, PublicDomain, PublicMailbox } from '../../shared/api'
+import type { AdminDomain, DomainHealth, MailboxListResponse, MailboxStatus, PublicDomain, PublicMailbox } from '../../shared/api'
 import { http } from './client'
 
 export const mailboxApi = {
@@ -21,4 +21,5 @@ export const adminDomainApi = {
   setEnabled: (id: string, enabled: boolean) =>
     http.patch<void>(`/api/admin/domains/${encodeURIComponent(id)}`, { enabled }),
   remove: (id: string) => http.delete<void>(`/api/admin/domains/${encodeURIComponent(id)}`),
+  health: (id: string) => http.get<{ health: DomainHealth }>(`/api/admin/domains/${encodeURIComponent(id)}/health`),
 }

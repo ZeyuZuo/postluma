@@ -204,7 +204,7 @@
 | 8.2 | 发件人认证提示 ✅（默认关闭） | 只信任 Cloudflare 加在最上面的那一行认证结果（temp_email 的做法会被伪造的 `dkim=pass` 骗过）；需先用真实来信确认头名称和 authserv-id。已实现：只读最上面一条 `ARC-Authentication-Results` 且 authserv-id 为 `mx.cloudflare.net`，详情页显示“已验证 / 发件人可疑”。**开启前**：从站点下载一封真实来信的 .eml，确认这条头是第一条 ARC 头后，把 `wrangler.jsonc` 的 `SENDER_AUTH_HINTS` 改为 `"true"` 再部署 |
 | 8.3 | 个人通知 | 每个用户自己配置 Telegram / Webhook（HMAC 签名），只推自己的邮件；在 `ctx.waitUntil` 中发送 |
 | 8.4 | 个人 API Token | 只读、可撤销、库里只存哈希；`/api/v1/*` 只认 Bearer、不认 Cookie；提供“取最新验证码”；附 Agent 用的 SKILL.md |
-| 8.5 | 域名健康检查 | 后台域名页用 DoH 检查 MX 是否指向 Cloudflare Email Routing |
+| 8.5 | 域名健康检查 ✅ | 后台域名页用 DoH 检查 MX 是否指向 Cloudflare Email Routing。已实现：`GET /api/admin/domains/:id/health`（`worker/lib/dns-health.ts`，Cloudflare DoH JSON），每个域名旁显示“MX 正常 / 部分正确 / 未指向 Cloudflare / 没有 MX / 检查失败”，点击重查；Catch-all 规则需要 API Token 才能查，不做 |
 
 ### 待你决定
 

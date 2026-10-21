@@ -103,6 +103,19 @@ export interface AdminDomain extends PublicDomain {
   createdAt: number
 }
 
+/**
+ * MX check for a receiving domain: `ok` = every MX is Cloudflare Email Routing; `partial` = some
+ * mail may go elsewhere; `other` = MX points elsewhere; `none` = no MX (or no such domain);
+ * `error` = the DNS lookup failed.
+ */
+export type MxStatus = 'ok' | 'partial' | 'other' | 'none' | 'error'
+
+export interface DomainHealth {
+  status: MxStatus
+  mx: { priority: number; host: string }[]
+  checkedAt: number
+}
+
 export interface PublicMailbox {
   id: string
   address: string

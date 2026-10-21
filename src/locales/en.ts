@@ -262,6 +262,16 @@ const en: Messages = {
     domains: {
       intro: 'Users can create addresses only on enabled domains.',
       routingNote: 'Each domain also needs an Email Routing catch-all: Send to a Worker → postluma.',
+      mxChecking: 'Checking MX…',
+      mx: { ok: 'MX OK', partial: 'MX partly wrong', other: 'MX not on Cloudflare', none: 'No MX records', error: 'MX check failed' },
+      mxHint: {
+        ok: 'Every MX record points to Cloudflare Email Routing, so mail reaches this service.',
+        partial: 'Some MX records point to other servers, so some mail may never arrive. Remove the other MX records in Cloudflare Email Routing.',
+        other: 'The MX records point to another mail service, so mail never arrives here. Enable Email Routing for this domain in the Cloudflare dashboard.',
+        none: 'This domain has no MX records (or does not exist), so it cannot receive mail. Enable Email Routing for it in the Cloudflare dashboard.',
+        error: 'DNS could not be queried right now. Try again later.',
+      },
+      mxRecheck: 'Click to check again.',
       add: 'Add domain',
       placeholder: 'e.g. mail.example.com',
       invalid: 'Enter a valid domain, e.g. mail.example.com',

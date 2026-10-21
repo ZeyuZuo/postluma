@@ -1,15 +1,22 @@
 import { Hono } from 'hono'
 
 import { createDomainSchema, updateDomainSchema } from '../../../shared/api'
+import { checkDomainMx } from '../../lib/dns-health'
 import { clientIp, parseJson } from '../../lib/request'
 import { writeAudit } from '../../repo/audit'
-import { createDomain, deleteUnusedDomain, listAllDomains, setDomainEnabled } from '../../repo/domains'
+import { createDomain, deleteUnusedDomain, findDomainName, listAllDomains, setDomainEnabled } from '../../repo/domains'
 import type { AppEnv } from '../../types'
 
 /** Mounted under /api/admin, so `requireAdmin` has already run. */
 export const adminDomainRoutes = new Hono<AppEnv>()
 
 adminDomainRoutes.get('/', async (c) => c.json({ items: await listAllDomains(c.env.DB) }))
+
+/** Read-only DNS lookup (no audit row): is the MX pointing at Cloudflare Email Routing? */
+adminDomainRoutes.get('/:id/health', async (c) => {
+  const domain = await findDomainName(c.env.DB, c.req.param('id'))
+  return c.json({ health: await checkDomainMx(domain) })
+})
 
 adminDomainRoutes.post('/', async (c) => {
   const { domain } = await parseJson(c, createDomainSchema)

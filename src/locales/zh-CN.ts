@@ -256,6 +256,16 @@ const zhCN = {
     domains: {
       intro: '用户只能在已启用的域名下创建地址。',
       routingNote: '每个域名还需在 Cloudflare Email Routing 中设置 Catch-all → 发送到 Worker → postluma。',
+      mxChecking: '检查 MX…',
+      mx: { ok: 'MX 正常', partial: 'MX 部分正确', other: 'MX 未指向 Cloudflare', none: '没有 MX 记录', error: 'MX 检查失败' },
+      mxHint: {
+        ok: '所有 MX 记录都指向 Cloudflare Email Routing，邮件能送到这里。',
+        partial: '有些 MX 记录指向别的服务器，部分邮件可能收不到。在 Cloudflare 控制台的 Email Routing 里删掉其他 MX 记录。',
+        other: 'MX 记录指向别的邮件服务，邮件不会送到这里。在 Cloudflare 控制台为这个域名启用 Email Routing。',
+        none: '这个域名没有 MX 记录（或域名不存在），收不到邮件。在 Cloudflare 控制台为这个域名启用 Email Routing。',
+        error: '暂时查询不到 DNS，稍后再试。',
+      },
+      mxRecheck: '点击重新检查。',
       add: '添加域名',
       placeholder: '例如 mail.example.com',
       invalid: '请输入有效的域名，例如 mail.example.com',

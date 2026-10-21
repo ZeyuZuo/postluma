@@ -116,6 +116,7 @@ export async function handleEmail(
     from: message.from,
     rawSize: message.rawSize,
     windowTruncated: raw.truncated,
+    senderAuth: config.senderAuthHints,
   })
   const id = newId()
   const stored = bucket && rawStream ? await putRaw(bucket, rawStream, target, id, message.rawSize) : null

@@ -1,7 +1,7 @@
 import { createExecutionContext, env } from 'cloudflare:test'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import type { MailboxListResponse, MessageListResponse } from '../shared/api'
+import type { MailboxListResponse, MessageDetail, MessageListResponse } from '../shared/api'
 import {
   REJECT_FLOODED,
   REJECT_MALFORMED,
@@ -101,6 +101,20 @@ describe('accepting mail', () => {
     const res = await api('/api/messages?code=1', { cookie: await login('alice') })
     const { items } = await json<MessageListResponse>(res)
     expect(items.map((m) => m.verificationLink)).toEqual(['https://app.example.com/verify?token=abc&u=1'])
+  })
+
+  it('records Cloudflare sender authentication only when SENDER_AUTH_HINTS is on', async () => {
+    await addMailbox(aliceId, 'alice-box@mail.test')
+    const headers = 'ARC-Authentication-Results: i=1; mx.cloudflare.net; dkim=pass header.d=example.org; dmarc=pass header.from=example.org; spf=pass smtp.mailfrom=example.org'
+    await deliver(mime({ subject: 'off', headers }), 'alice-box@mail.test')
+    await deliver(mime({ subject: 'on', headers }), 'alice-box@mail.test', {}, { SENDER_AUTH_HINTS: 'true' })
+    const rows = await messageRows()
+    expect(rows.map((r) => [r.subject, r.auth_results])).toEqual([
+      ['off', null],
+      ['on', 'spf=pass;dkim=pass;dmarc=pass'],
+    ])
+    const res = await api(`/api/messages/${rows[1]!.id}`, { cookie: await login('alice') })
+    expect((await json<{ message: MessageDetail }>(res)).message.senderAuth).toEqual({ spf: 'pass', dkim: 'pass', dmarc: 'pass' })
   })
 
   it('derives text and the code from HTML-only mail without flagging it truncated', async () => {

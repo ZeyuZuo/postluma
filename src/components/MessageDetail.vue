@@ -5,7 +5,9 @@ import {
   DownloadOutline,
   InformationCircleOutline,
   MailUnreadOutline,
+  ShieldCheckmarkOutline,
   TrashOutline,
+  WarningOutline,
 } from '@vicons/ionicons5'
 import { NAlert, NButton, NIcon, NSpin, NTooltip, useDialog, useMessage } from 'naive-ui'
 import { computed, ref, watch } from 'vue'
@@ -66,6 +68,24 @@ const previews = computed(() =>
 
 const initial = computed(() => (message.value?.fromName || message.value?.fromAddress || '?').trim().slice(0, 1).toUpperCase())
 /** "box+shop@example.com" → box / +shop / @example.com, so the alias part can be highlighted. */
+/**
+ * Cloudflare's SPF/DKIM/DMARC verdict, shown only when it says something: DMARC pass means the
+ * From domain is genuine; DMARC fail (or failing SPF without a passing DKIM) means it may be forged.
+ */
+const authVerdict = computed<'ok' | 'bad' | null>(() => {
+  const auth = message.value?.senderAuth
+  if (!auth) return null
+  if (auth.dmarc === 'pass') return 'ok'
+  if (auth.dmarc === 'fail') return 'bad'
+  if ((auth.spf === 'fail' || auth.spf === 'softfail') && auth.dkim !== 'pass') return 'bad'
+  return null
+})
+const authDetail = computed(() => {
+  const auth = message.value?.senderAuth
+  const show = (v: string | null) => v ?? '—'
+  return auth ? `SPF ${show(auth.spf)} · DKIM ${show(auth.dkim)} · DMARC ${show(auth.dmarc)}` : ''
+})
+
 const toParts = computed(() => {
   const address = message.value?.toAddress ?? ''
   const at = address.lastIndexOf('@')
@@ -233,6 +253,17 @@ function formatSize(bytes: number): string {
           <p class="from">
             <span v-if="message.fromName" class="name">{{ message.fromName }}</span>
             <span class="pl-mono addr">{{ message.fromAddress }}</span>
+            <NTooltip v-if="authVerdict">
+              <template #trigger>
+                <span class="auth" :class="authVerdict" tabindex="0">
+                  <NIcon><ShieldCheckmarkOutline v-if="authVerdict === 'ok'" /><WarningOutline v-else /></NIcon>
+                  {{ authVerdict === 'ok' ? t('inbox.authOk') : t('inbox.authBad') }}
+                </span>
+              </template>
+              {{ authVerdict === 'ok' ? t('inbox.authOkHint') : t('inbox.authBadHint') }}
+              <br />
+              <span class="pl-mono">{{ authDetail }}</span>
+            </NTooltip>
           </p>
           <p class="to">
             {{ t('inbox.sentTo') }}
@@ -383,6 +414,36 @@ function formatSize(bytes: number): string {
 .to,
 .via {
   color: var(--pl-muted);
+}
+.auth {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 650;
+  line-height: 20px;
+  white-space: nowrap;
+  cursor: help;
+}
+.auth.ok {
+  background: color-mix(in srgb, #2f9e62 14%, transparent);
+  color: #23794a;
+}
+.auth.bad {
+  background: color-mix(in srgb, #d03050 14%, transparent);
+  color: #b4243f;
+}
+:root[data-theme='dark'] .auth.ok {
+  color: #5fd08f;
+}
+:root[data-theme='dark'] .auth.bad {
+  color: #ff7d93;
+}
+.auth:focus-visible {
+  outline: 2px solid var(--pl-blue);
+  outline-offset: 2px;
 }
 .to .addr {
   color: var(--pl-ink);

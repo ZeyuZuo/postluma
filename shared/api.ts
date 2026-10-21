@@ -234,6 +234,16 @@ export interface MessageAttachment {
   inline: boolean
 }
 
+/**
+ * SPF / DKIM / DMARC results recorded by Cloudflare Email Routing (`pass`, `fail`, `softfail`, …).
+ * Only DMARC `pass` means the From domain is genuine; the rest is detail.
+ */
+export interface SenderAuth {
+  spf: string | null
+  dkim: string | null
+  dmarc: string | null
+}
+
 export interface MessageDetail extends MessageSummary {
   toAddress: string
   /** SMTP envelope sender: who actually delivered it (often a mailing service, not the From domain). */
@@ -250,6 +260,8 @@ export interface MessageDetail extends MessageSummary {
   attachments: MessageAttachment[]
   /** The original message is kept in R2 and can be downloaded. */
   hasRaw: boolean
+  /** Null when the deployment doesn't record it (SENDER_AUTH_HINTS) or nothing trustworthy was found. */
+  senderAuth: SenderAuth | null
 }
 
 export interface MessageListResponse {

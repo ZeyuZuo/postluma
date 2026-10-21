@@ -46,6 +46,9 @@
 		"MESSAGE_RETENTION_DAYS": "30", // * delete mail older than this; must satisfy MB/day × days ≤ 400 MB
 		// ---- Original messages in R2 (attachments, inline images, .eml download). 0 = don't keep them.
 		"RAW_MAIL_MAX_MB_PER_DAY": "250", // whole service; × retention days must fit R2's free 10 GB (≤ 9 GB)
+		// Show SPF/DKIM/DMARC from Cloudflare's topmost ARC-Authentication-Results (mx.cloudflare.net).
+		// Turn on only after a real delivered .eml shows that header as the first one (docs/DEV_PLAN.md 8.2).
+		"SENDER_AUTH_HINTS": "false",
 		// ---- Deleting mail (~6 D1 row writes per message; shared 100k writes/day on the Free plan)
 		"MAX_DELETES_PER_DAY": "5000" // retention cleanup + admin purges/cleanups together, per UTC day
 	},

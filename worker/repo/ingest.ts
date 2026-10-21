@@ -38,7 +38,7 @@ const HOUR_MS = 60 * 60 * 1000
 // ?1 mailbox id, ?2 user id, ?3 hour window start, ?4 UTC day key, ?5 bytes this message adds,
 // ?21 per-mailbox/hour, ?22 per-user/hour, ?23 messages/day, ?24 bytes/day.
 // storeMessage also uses ?25 (1 = delivered via subaddress), ?26 (the recipient as received),
-// ?27 (R2 key of the original, or null) and ?28 (the verification link, or null).
+// ?27 (R2 key of the original, or null), ?28 (the verification link, or null) and ?29 (auth results).
 const WITHIN_RATE = `(
   (SELECT COUNT(*) FROM messages WHERE mailbox_id = ?1 AND received_at > ?3) < ?21
   AND (SELECT COUNT(*) FROM messages WHERE user_id = ?2 AND received_at > ?3) < ?22)`
@@ -152,8 +152,8 @@ export async function storeMessage(
       .prepare(
         `INSERT INTO messages (id, mailbox_id, user_id, message_id_header, envelope_from, from_address, from_name,
            to_address, subject, snippet, text_body, html_body, verification_code, size, has_attachments,
-           attachments_json, is_truncated, received_at, raw_r2_key, verification_link)
-         SELECT ?6, m.id, m.user_id, ?7, ?8, ?9, ?10, ?26, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?27, ?28
+           attachments_json, is_truncated, received_at, raw_r2_key, verification_link, auth_results)
+         SELECT ?6, m.id, m.user_id, ?7, ?8, ?9, ?10, ?26, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?27, ?28, ?29
          FROM mailboxes m JOIN users u ON u.id = m.user_id
          WHERE m.id = ?1 AND m.user_id = ?2 AND m.status = 'active' AND u.status = 'active'
            AND (?25 = 0 OR m.accept_subaddress = 1)
@@ -186,6 +186,7 @@ export async function storeMessage(
         target.recipient,
         raw?.key ?? null,
         message.verificationLink,
+        message.authResults,
       ),
     db
       .prepare(

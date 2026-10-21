@@ -57,6 +57,8 @@ export interface AppConfig {
    * Admin overrides beyond this (or 0 = forever) are refused.
    */
   maxRetentionDays: number
+  /** Record Cloudflare's SPF/DKIM/DMARC results with each message (see worker/lib/sender-auth.ts). */
+  senderAuthHints: boolean
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -83,7 +85,7 @@ function readInt(env: Env, name: IntVar): number {
   return spec.fallback
 }
 
-function readBool(env: Env, name: 'REGISTRATION_OPEN', fallback: boolean): boolean {
+function readBool(env: Env, name: 'REGISTRATION_OPEN' | 'SENDER_AUTH_HINTS', fallback: boolean): boolean {
   const raw = (env as unknown as Record<string, unknown>)[name]
   if (raw === undefined || raw === '') return fallback
   if (raw === 'true' || raw === true) return true
@@ -122,5 +124,6 @@ export function getConfig(env: Env): AppConfig {
     retentionDays: readInt(env, 'MESSAGE_RETENTION_DAYS'),
     maxDeletesPerDay: readInt(env, 'MAX_DELETES_PER_DAY'),
     maxRetentionDays: Math.max(1, maxRetentionDays),
+    senderAuthHints: readBool(env, 'SENDER_AUTH_HINTS', false),
   }
 }

@@ -3,6 +3,7 @@ import type { Email } from 'postal-mime'
 import { stripUnsafeText } from '../../shared/api'
 import { extractVerificationLink } from './magic-link'
 import { extractVerificationCode } from './otp'
+import { encodeSenderAuth, parseSenderAuth } from './sender-auth'
 import { collapseWhitespace, htmlToText, sliceChars, truncateUtf8 } from './text'
 
 // Sized for the D1 free tier (500 MB total): verification mail is a few KB, newsletters rarely
@@ -38,6 +39,8 @@ export interface PreparedMessage {
   verificationCode: string | null
   /** An https link the mail asks the reader to open (verify / confirm / sign in). */
   verificationLink: string | null
+  /** Compact SPF/DKIM/DMARC results (sender-auth.ts), or null. */
+  authResults: string | null
   /** Size of the original message as delivered (not what we store). */
   size: number
   /** Bytes this message adds to D1, for the daily ingest budget. */
@@ -69,7 +72,7 @@ function displayText(value: string | undefined | null, max: number): string | nu
  */
 export function prepareMessage(
   email: Email,
-  envelope: { from: string; rawSize: number; windowTruncated: boolean },
+  envelope: { from: string; rawSize: number; windowTruncated: boolean; senderAuth?: boolean },
 ): PreparedMessage {
   const html = email.html ? truncateUtf8(email.html, MAX_HTML_BYTES) : null
   const text = email.text !== undefined ? truncateUtf8(email.text, MAX_TEXT_BYTES) : null
@@ -99,6 +102,7 @@ export function prepareMessage(
     htmlBody: html?.value ?? null,
     verificationCode: extractVerificationCode(subject, scanText),
     verificationLink: extractVerificationLink(subject, html?.value ?? null, text?.value ?? null),
+    authResults: envelope.senderAuth ? encodeSenderAuth(parseSenderAuth(email.headers)) : null,
     size: envelope.rawSize,
     truncated:
       envelope.windowTruncated ||

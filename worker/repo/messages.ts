@@ -14,6 +14,7 @@ import {
   type MessageSummary,
 } from '../../shared/api'
 import { ApiError } from '../lib/errors'
+import { decodeSenderAuth } from '../lib/sender-auth'
 
 /*
  * D1 read budget (Free plan: 5M rows/day) shapes these queries:
@@ -51,6 +52,7 @@ interface DetailRow extends SummaryRow {
   size: number
   attachments_json: string | null
   has_raw: number
+  auth_results: string | null
 }
 
 const SUMMARY_COLUMNS = `g.id, g.mailbox_id, m.address AS mailbox_address, m.note AS mailbox_note, m.status AS mailbox_status,
@@ -183,7 +185,7 @@ export async function getMessage(db: D1Database, userId: string, id: string): Pr
   const row = await db
     .prepare(
       `SELECT ${SUMMARY_COLUMNS}, g.to_address, g.envelope_from, g.text_body, g.html_body, g.is_truncated, g.size,
-              g.attachments_json, g.raw_r2_key IS NOT NULL AS has_raw
+              g.attachments_json, g.raw_r2_key IS NOT NULL AS has_raw, g.auth_results
        ${FROM_MESSAGES}
        WHERE g.id = ? AND g.user_id = ?`,
     )
@@ -200,6 +202,7 @@ export async function getMessage(db: D1Database, userId: string, id: string): Pr
     size: row.size,
     attachments: parseAttachments(row.attachments_json),
     hasRaw: row.has_raw === 1,
+    senderAuth: decodeSenderAuth(row.auth_results),
   }
 }
 

@@ -36,6 +36,7 @@ What sets it apart from other Cloudflare mail projects is that **isolation betwe
 - For 10 minutes after creating an address the app checks for mail every 10 s (otherwise every 30 s); new mail shows up without a reload
 - Verification codes are detected (Chinese, English and Japanese keywords; years, amounts, phone and order numbers excluded) and copied in one click; copying marks the message read, so amber only highlights codes not copied yet
 - Verification links (“Verify email”, “Confirm”, sign-in links; https only) are detected and open in a new tab with one click, which also marks the message read
+- Sender authentication hint (optional): Cloudflare's SPF / DKIM / DMARC results on arrival mark a message “Verified” or “Suspicious sender”; off by default, see `SENDER_AUTH_HINTS`
 - Per-address opt-in `+alias`: mail to `name+shop@domain` also reaches `name@domain`, without using quota
 - Multiple receiving domains, managed by admins
 
@@ -142,6 +143,7 @@ Tunables live in `wrangler.jsonc#vars`, each with a comment and an allowed range
 | `RAW_MAIL_MAX_MB_PER_DAY` | `250` | Daily R2 budget for originals; `0` keeps none |
 | `MESSAGE_RETENTION_DAYS` | `30` | Mail retention (admins can override within storage limits) |
 | `MAX_DELETES_PER_DAY` | `5000` | Daily budget shared by cleanup and bulk deletions |
+| `SENDER_AUTH_HINTS` | `false` | Show sender authentication; enable after a real message shows the topmost ARC header is from `mx.cloudflare.net` |
 | `PASSWORD_PBKDF2_ITERATIONS` | `20000` | A Free-plan CPU trade-off; raise it on a paid plan |
 
 ## Local development

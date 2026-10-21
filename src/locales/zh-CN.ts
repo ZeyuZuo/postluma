@@ -296,7 +296,6 @@ const zhCN = {
     back: '返回列表',
     deliveredBy: '投递来源',
     deliveredByHint: '实际投递这封邮件的服务器地址。经邮件服务商代发的邮件，这里通常和发件人的域名不同，这是正常的。',
-    code: '验证码',
     sentTo: '发给',
     clickToCopy: '点击复制',
     copyCode: '复制验证码',

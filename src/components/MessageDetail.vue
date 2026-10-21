@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import {
   ArrowBackOutline,
-  CopyOutline,
   DocumentOutline,
   DownloadOutline,
   InformationCircleOutline,
@@ -17,7 +16,6 @@ import { errorCodeOf } from '@/api/client'
 import { messageApi } from '@/api/messages'
 import MailFrame from '@/components/MailFrame.vue'
 import TextBody from '@/components/TextBody.vue'
-import { copyText } from '@/composables/useClipboard'
 import { formatDateTime } from '@/lib/format'
 import { prepareMailHtml } from '@/lib/mail-html'
 import { forgetOriginal, loadOriginal, saveFile, toDataUri, type OriginalMail } from '@/lib/original-mail'
@@ -79,11 +77,6 @@ const toParts = computed(() => {
     domain: at === -1 ? '' : address.slice(at),
   }
 })
-
-async function copyCode(code: string): Promise<void> {
-  if (await copyText(code)) toast.success(t('inbox.codeCopied', { code }))
-  else toast.warning(t('common.copyFailed'))
-}
 
 async function ensureOriginal(): Promise<OriginalMail | null> {
   const current = message.value
@@ -258,18 +251,6 @@ function formatSize(bytes: number): string {
         <time class="when" :datetime="new Date(message.receivedAt).toISOString()">{{ formatDateTime(message.receivedAt) }}</time>
       </div>
 
-      <button
-        v-if="message.verificationCode"
-        type="button"
-        class="code-card"
-        :aria-label="t('home.copyCodeLabel', { code: message.verificationCode })"
-        @click="copyCode(message.verificationCode)"
-      >
-        <span class="code-label">{{ t('inbox.code') }}</span>
-        <span class="code-digits">{{ message.verificationCode }}</span>
-        <span class="code-action"><NIcon><CopyOutline /></NIcon>{{ t('inbox.clickToCopy') }}</span>
-      </button>
-
       <NAlert v-if="bodyIncomplete && !originalLoading" type="warning" :show-icon="false" class="notice">
         <div class="notice-row">
           <span>{{ message.hasRaw ? t('inbox.truncatedWithOriginal', { size: formatSize(message.size) }) : t('inbox.truncated') }}</span>
@@ -438,53 +419,6 @@ function formatSize(bytes: number): string {
   color: var(--pl-muted);
   font-size: 0.8125rem;
 }
-.code-card {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px 18px;
-  width: 100%;
-  padding: 14px 18px;
-  border: 1px solid var(--pl-code-line);
-  border-radius: 14px;
-  background: var(--pl-code-bg);
-  color: var(--pl-ink);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition: box-shadow 0.15s;
-}
-.code-card:hover {
-  box-shadow: 0 0 0 1px var(--pl-code-line);
-}
-.code-card:focus-visible {
-  outline: 2px solid var(--pl-blue);
-  outline-offset: 2px;
-}
-.code-label {
-  color: var(--pl-muted);
-  font-size: 0.8125rem;
-  font-weight: 600;
-}
-.code-digits {
-  font-family: var(--pl-mono);
-  font-size: 2.125rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  line-height: 1.1;
-  overflow-wrap: anywhere;
-}
-:root[data-theme='dark'] .code-digits {
-  color: var(--pl-signal);
-}
-.code-action {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: auto;
-  color: var(--pl-muted);
-  font-size: 0.8125rem;
-}
 .notice-row {
   display: flex;
   flex-wrap: wrap;
@@ -569,9 +503,6 @@ function formatSize(bytes: number): string {
   .when {
     width: 100%;
     padding-left: 52px;
-  }
-  .code-digits {
-    font-size: 1.75rem;
   }
 }
 </style>

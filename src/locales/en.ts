@@ -302,7 +302,6 @@ const en: Messages = {
     back: 'Back to list',
     deliveredBy: 'Delivered by',
     deliveredByHint: 'The server that actually delivered this message. Mail sent through a mailing service usually shows that service’s domain here, which is normal.',
-    code: 'Code',
     sentTo: 'To',
     clickToCopy: 'Click to copy',
     copyCode: 'Copy code',

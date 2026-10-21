@@ -45,6 +45,11 @@ What sets it apart from other Cloudflare mail projects is that **isolation betwe
 - Original messages are kept in R2 (optional): download attachments, see inline images, read bodies beyond the parse window, download the `.eml`
 - Inbox filters (All / Unread / Codes), per-address filter, search and keyboard navigation (`j` / `k`, `/` to search, `Esc` to close)
 
+**Sending (optional, off by default)**
+- Once an admin switches it on and allows domains and users one by one, those users can reply or write new mail from their own addresses
+- Plain text only, up to 5 recipients per message, 20 per user and 100 service-wide per day (all tunable); replies carry threading headers so the recipient sees one conversation
+- Sent through Resend (100/day on its free plan); while off, no sending feature appears anywhere
+
 **Users and administration**
 - Open sign-up with admin approval (sign-up can be closed); approve, reject, ban, unban — bans take effect immediately
 - Per-user address quota, total cap and daily creation cap
@@ -66,7 +71,7 @@ What sets it apart from other Cloudflare mail projects is that **isolation betwe
 
 ## Non-goals
 
-- **No sending.** Receive-only, which avoids abuse and domain-reputation problems.
+- **No open sending.** Sending is off by default and only users an admin allows can send, within daily quotas — a spammed domain would hurt receiving too.
 - **No address deletion.** Disabled addresses keep their history and can be re-enabled; old mail is removed by the retention job.
 - **Admins can't view users' mail.** A product decision, not a to-do.
 
@@ -129,6 +134,8 @@ What sets it apart from other Cloudflare mail projects is that **isolation betwe
 
 7. **First sign-in**: username `admin`, password `ADMIN_INITIAL_PASSWORD`. Change the password right away, then delete that secret (the admin account is created only once). Add the domains from step 6 under "Receiving domains" in the admin panel, and start approving sign-ups.
 
+8. **(Optional) Turn on sending**: add and verify your sending domain at [Resend](https://resend.com) (it asks for DKIM / SPF records in Cloudflare DNS, usually on a `send.` subdomain, which leaves the receiving MX alone), create an API key and run `npx wrangler secret put RESEND_API_KEY`. Then in the admin panel: Settings → Sending, switch it on and send a test message; Mail domains → “Can send”; Users → allow individual users.
+
 ## Configuration
 
 Tunables live in `wrangler.jsonc#vars`, each with a comment and an allowed range; out-of-range values fall back to the default with a warning in the logs. Edit the file and redeploy — values changed in the dashboard are overwritten by the next deploy.
@@ -145,6 +152,10 @@ Tunables live in `wrangler.jsonc#vars`, each with a comment and an allowed range
 | `MAX_DELETES_PER_DAY` | `5000` | Daily budget shared by cleanup and bulk deletions |
 | `SENDER_AUTH_HINTS` | `false` | Show sender authentication; enable after a real message shows the topmost ARC header is from `mx.cloudflare.net` |
 | `PASSWORD_PBKDF2_ITERATIONS` | `20000` | A Free-plan CPU trade-off; raise it on a paid plan |
+| `SENDING_ENABLED` | `false` | Default of the service-wide sending switch (admins can override) |
+| `MAIL_PROVIDER` | `resend` | Sending provider; `log` records without sending, for local development |
+| `SEND_MAX_PER_USER_PER_DAY` / `SEND_MAX_PER_DAY` | `20` / `100` | Sends per user / service-wide per rolling 24 h |
+| `SEND_MAX_RECIPIENTS` | `5` | Recipients per message |
 
 ## Local development
 

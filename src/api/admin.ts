@@ -1,10 +1,12 @@
 import type {
+  AdminSendingStatus,
   AdminSettings,
   AdminStats,
   AdminUserAction,
   AdminUserListResponse,
   AuditListResponse,
   BatchDeleteResponse,
+  SendErrorCode,
   UserStatus,
 } from '../../shared/api'
 import { http } from './client'
@@ -30,4 +32,10 @@ export const adminApi = {
   stats: () => http.get<AdminStats>('/api/admin/stats'),
   audit: (cursor?: string | null) => http.get<AuditListResponse>(`/api/admin/audit${cursor ? `?cursor=${enc(cursor)}` : ''}`),
   cleanup: (olderThanDays: number) => http.post<BatchDeleteResponse>('/api/admin/cleanup', { olderThanDays }),
+  sending: () => http.get<AdminSendingStatus>('/api/admin/sending'),
+  setSending: (enabled: boolean | null) => http.patch<AdminSendingStatus>('/api/admin/sending', { enabled }),
+  sendTest: (domainId: string, to: string) =>
+    http.post<{ ok: boolean; error?: SendErrorCode }>('/api/admin/sending/test', { domainId, to }),
+  setUserSending: (id: string, canSend: boolean, sendQuota: number | null) =>
+    http.patch<void>(`/api/admin/users/${enc(id)}/sending`, { canSend, sendQuota }),
 }

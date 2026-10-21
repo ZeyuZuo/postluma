@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 
-import { adminUserActionSchema, adminUserQuotaSchema, adminUsersQuerySchema } from '../../../shared/api'
+import { adminUserActionSchema, adminUserQuotaSchema, adminUserSendingSchema, adminUsersQuerySchema } from '../../../shared/api'
 import { getConfig, mailBucket } from '../../lib/config'
 import { clientIp, parseJson, parseQuery } from '../../lib/request'
 import {
@@ -10,6 +10,7 @@ import {
   listUsers,
   purgeUserMessages,
   setUserQuota,
+  setUserSending,
 } from '../../repo/admin-users'
 import { auditStatement, writeAudit } from '../../repo/audit'
 import type { AppEnv } from '../../types'
@@ -31,6 +32,14 @@ adminUserRoutes.patch('/:id/quota', async (c) => {
   const id = c.req.param('id')
   const audit = auditStatement(c.env.DB, { actorId: c.get('user').id, action: 'admin.user_quota', targetId: id, detail: { mailboxQuota }, ip: clientIp(c) })
   await setUserQuota(c.env.DB, id, mailboxQuota, audit)
+  return c.body(null, 204)
+})
+
+adminUserRoutes.patch('/:id/sending', async (c) => {
+  const sending = await parseJson(c, adminUserSendingSchema)
+  const id = c.req.param('id')
+  const audit = auditStatement(c.env.DB, { actorId: c.get('user').id, action: 'admin.user_sending', targetId: id, detail: sending, ip: clientIp(c) })
+  await setUserSending(c.env.DB, id, sending, audit)
   return c.body(null, 204)
 })
 

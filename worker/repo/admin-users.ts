@@ -25,6 +25,8 @@ interface AdminUserRow {
   role: AdminUser['role']
   status: UserStatus
   mailbox_quota: number | null
+  can_send: number
+  send_quota: number | null
   active_mailboxes: number
   total_mailboxes: number
   created_at: number
@@ -38,6 +40,8 @@ function toAdminUser(r: AdminUserRow): AdminUser {
     role: r.role,
     status: r.status,
     mailboxQuota: r.mailbox_quota,
+    canSend: r.can_send === 1,
+    sendQuota: r.send_quota,
     activeMailboxes: r.active_mailboxes,
     totalMailboxes: r.total_mailboxes,
     createdAt: r.created_at,
@@ -76,7 +80,7 @@ export async function listUsers(
   }
   const { results } = await db
     .prepare(
-      `SELECT u.id, u.username, u.role, u.status, u.mailbox_quota, u.created_at, u.last_login_at,
+      `SELECT u.id, u.username, u.role, u.status, u.mailbox_quota, u.can_send, u.send_quota, u.created_at, u.last_login_at,
               (SELECT COUNT(*) FROM mailboxes WHERE user_id = u.id AND status = 'active') AS active_mailboxes,
               (SELECT COUNT(*) FROM mailboxes WHERE user_id = u.id) AS total_mailboxes
        FROM users u ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
@@ -135,6 +139,20 @@ export async function setUserQuota(db: D1Database, targetId: string, quota: numb
   await getTarget(db, targetId)
   await db.batch([
     db.prepare('UPDATE users SET mailbox_quota = ?, updated_at = ? WHERE id = ?').bind(quota, Date.now(), targetId),
+    audit,
+  ])
+}
+
+export async function setUserSending(
+  db: D1Database,
+  targetId: string,
+  sending: { canSend: boolean; sendQuota: number | null },
+  audit: D1PreparedStatement,
+): Promise<void> {
+  await getTarget(db, targetId)
+  await db.batch([
+    db.prepare('UPDATE users SET can_send = ?, send_quota = ?, updated_at = ? WHERE id = ?')
+      .bind(sending.canSend ? 1 : 0, sending.sendQuota, Date.now(), targetId),
     audit,
   ])
 }

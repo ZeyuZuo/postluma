@@ -26,14 +26,14 @@ export function uid(prefix: string): string {
 
 let domainReady = false
 
-/** A fresh, approved user, signed in on `context` (so pages opened from it are logged in). */
-export async function signIn(context: BrowserContext): Promise<string> {
+/** A fresh, approved user (or admin), signed in on `context` (so pages opened from it are logged in). */
+export async function signIn(context: BrowserContext, opts: { admin?: boolean } = {}): Promise<string> {
   const username = uid('u')
   const headers = { origin: BASE }
   const register = await context.request.post('/api/auth/register', { headers, data: { username, password: PASSWORD } })
   expect(register.status(), await register.text()).toBe(201)
   sql(
-    `UPDATE users SET status = 'active' WHERE username = '${username}';` +
+    `UPDATE users SET status = 'active'${opts.admin ? ", role = 'admin'" : ''} WHERE username = '${username}';` +
       (domainReady ? '' : ` INSERT OR IGNORE INTO domains (id, domain, enabled, created_at) VALUES ('${DOMAIN_ID}', '${DOMAIN}', 1, 0);`),
   )
   domainReady = true
@@ -49,6 +49,8 @@ export async function signIn(context: BrowserContext): Promise<string> {
   }, DOMAIN_ID)
   return username
 }
+
+export const E2E_DOMAIN_ID = DOMAIN_ID
 
 export interface Mailbox {
   id: string

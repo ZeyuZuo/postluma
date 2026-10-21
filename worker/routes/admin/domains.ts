@@ -1,10 +1,13 @@
 import { Hono } from 'hono'
 
 import { createDomainSchema, updateDomainSchema } from '../../../shared/api'
+import { getConfig } from '../../lib/config'
 import { checkDomainMx } from '../../lib/dns-health'
+import { ApiError } from '../../lib/errors'
+import { getMailer } from '../../lib/mailer'
 import { clientIp, parseJson } from '../../lib/request'
 import { writeAudit } from '../../repo/audit'
-import { createDomain, deleteUnusedDomain, findDomainName, listAllDomains, setDomainEnabled } from '../../repo/domains'
+import { createDomain, deleteUnusedDomain, findDomainName, listAllDomains, setDomainCanSend, setDomainEnabled } from '../../repo/domains'
 import type { AppEnv } from '../../types'
 
 /** Mounted under /api/admin, so `requireAdmin` has already run. */
@@ -32,16 +35,34 @@ adminDomainRoutes.post('/', async (c) => {
 })
 
 adminDomainRoutes.patch('/:id', async (c) => {
-  const { enabled } = await parseJson(c, updateDomainSchema)
+  const { enabled, canSend } = await parseJson(c, updateDomainSchema)
   const id = c.req.param('id')
-  const domain = await setDomainEnabled(c.env.DB, id, enabled)
-  await writeAudit(c.env.DB, {
-    actorId: c.get('user').id,
-    action: 'admin.domain_update',
-    targetId: id,
-    detail: { domain, enabled },
-    ip: clientIp(c),
-  })
+  if (enabled !== undefined) {
+    const domain = await setDomainEnabled(c.env.DB, id, enabled)
+    await writeAudit(c.env.DB, {
+      actorId: c.get('user').id,
+      action: 'admin.domain_update',
+      targetId: id,
+      detail: { domain, enabled },
+      ip: clientIp(c),
+    })
+  }
+  if (canSend !== undefined) {
+    // Switching on asks the provider first: an unverified domain would only produce failed sends.
+    if (canSend) {
+      const verdict = await getMailer(c.env, getConfig(c.env)).domainStatus(await findDomainName(c.env.DB, id))
+      if (verdict === 'unverified') throw new ApiError(409, 'send_domain_unverified')
+      if (verdict === 'unknown') throw new ApiError(503, 'send_provider_unavailable')
+    }
+    const domain = await setDomainCanSend(c.env.DB, id, canSend)
+    await writeAudit(c.env.DB, {
+      actorId: c.get('user').id,
+      action: 'admin.domain_sending',
+      targetId: id,
+      detail: { domain, canSend },
+      ip: clientIp(c),
+    })
+  }
   return c.body(null, 204)
 })
 

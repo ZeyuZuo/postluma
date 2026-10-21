@@ -20,6 +20,8 @@ import { SETTING_RANGES, type AdminUser, type AdminUserAction, type UserStatus }
 import { adminApi } from '@/api/admin'
 import { errorCodeOf } from '@/api/client'
 import { formatDateTime, formatRelative } from '@/lib/format'
+import { useAdminSending } from '@/composables/useAdminSending'
+import UserSendingDialog from './UserSendingDialog.vue'
 
 const emit = defineEmits<{ pendingChanged: [count: number] }>()
 const { t } = useI18n()
@@ -144,6 +146,11 @@ function confirmThen(user: AdminUser, action: AdminUserAction): void {
   }
 }
 
+// ---- sending (only while the service-wide switch is on)
+const { status: sending, load: loadSending } = useAdminSending()
+const sendingUser = ref<AdminUser | null>(null)
+void loadSending(true)
+
 // ---- quota
 const quotaUser = ref<AdminUser | null>(null)
 const quotaValue = ref<number | null>(null)
@@ -243,6 +250,7 @@ async function deleteUser(user: AdminUser): Promise<void> {
               <span class="name">{{ user.username }}</span>
               <NTag size="small" :bordered="false" :type="STATUS_TYPE[user.status]">{{ t(`admin.status.${user.status}`) }}</NTag>
               <NTag v-if="user.role === 'admin'" size="small" :bordered="false" type="info">{{ t('admin.users.adminTag') }}</NTag>
+              <NTag v-if="sending?.enabled && user.canSend" size="small" :bordered="false" type="success">{{ t('admin.users.canSendTag') }}</NTag>
             </div>
             <p class="meta">
               <span :title="formatDateTime(user.createdAt)">{{ t('admin.users.registered', { time: formatRelative(user.createdAt) }) }}</span>
@@ -266,6 +274,7 @@ async function deleteUser(user: AdminUser): Promise<void> {
               {{ t(`admin.users.${action}`) }}
             </NButton>
             <NButton size="small" quaternary @click="openQuota(user)">{{ t('admin.users.quota') }}</NButton>
+            <NButton v-if="sending?.enabled" size="small" quaternary @click="sendingUser = user">{{ t('admin.users.sending') }}</NButton>
             <NButton v-if="user.role !== 'admin'" size="small" quaternary type="error" :disabled="busyId === user.id" @click="confirmDelete(user)">
               {{ t('admin.users.delete') }}
             </NButton>
@@ -294,6 +303,7 @@ async function deleteUser(user: AdminUser): Promise<void> {
         :placeholder="String(defaultQuota)"
       />
     </NModal>
+    <UserSendingDialog :user="sendingUser" :default-quota="sending?.perUserPerDay ?? 0" @close="sendingUser = null" />
   </section>
 </template>
 

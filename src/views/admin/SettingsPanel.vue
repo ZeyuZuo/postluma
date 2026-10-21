@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 
 import { SETTING_RANGES, type AdminSettings } from '../../../shared/api'
 import { adminApi } from '@/api/admin'
+import SendingCard from './SendingCard.vue'
 import { errorCodeOf } from '@/api/client'
 
 const { t } = useI18n()
@@ -156,6 +157,8 @@ async function runCleanup(days: number): Promise<void> {
           <NButton type="primary" attr-type="submit" :loading="saving">{{ t('admin.settings.save') }}</NButton>
         </NForm>
       </NCard>
+
+      <SendingCard />
 
       <NCard :title="t('admin.settings.maintenance')" class="danger">
         <p class="hint">{{ t('admin.settings.maintenanceHint') }}</p>

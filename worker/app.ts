@@ -11,6 +11,7 @@ import { isRegistrationOpen } from './repo/settings'
 import { adminDomainRoutes } from './routes/admin/domains'
 import { adminSystemRoutes } from './routes/admin/system'
 import { adminUserRoutes } from './routes/admin/users'
+import { adminSendingRoutes } from './routes/admin/sending'
 import { authRoutes } from './routes/auth'
 import { domainRoutes } from './routes/domains'
 import { mailboxRoutes } from './routes/mailboxes'
@@ -67,6 +68,7 @@ app.route('/messages', messageRoutes)
 app.route('/outbox', outboxRoutes)
 app.route('/admin/domains', adminDomainRoutes)
 app.route('/admin/users', adminUserRoutes)
+app.route('/admin/sending', adminSendingRoutes)
 app.route('/admin', adminSystemRoutes)
 
 app.notFound((c) => c.json({ error: 'not_found' }, 404))

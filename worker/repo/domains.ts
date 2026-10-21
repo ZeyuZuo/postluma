@@ -7,6 +7,7 @@ interface DomainRow {
   id: string
   domain: string
   enabled: number
+  can_send: number
   created_at: number
   mailbox_count: number
 }
@@ -31,7 +32,7 @@ export async function findDomainName(db: D1Database, id: string): Promise<string
 export async function listAllDomains(db: D1Database): Promise<AdminDomain[]> {
   const { results } = await db
     .prepare(
-      `SELECT d.id, d.domain, d.enabled, d.created_at,
+      `SELECT d.id, d.domain, d.enabled, d.can_send, d.created_at,
               (SELECT COUNT(*) FROM mailboxes m WHERE m.domain_id = d.id) AS mailbox_count
        FROM domains d ORDER BY d.domain`,
     )
@@ -40,6 +41,7 @@ export async function listAllDomains(db: D1Database): Promise<AdminDomain[]> {
     id: r.id,
     domain: r.domain,
     enabled: r.enabled === 1,
+    canSend: r.can_send === 1,
     mailboxCount: r.mailbox_count,
     createdAt: r.created_at,
   }))
@@ -64,6 +66,16 @@ export async function setDomainEnabled(db: D1Database, id: string, enabled: bool
   const row = await db
     .prepare('UPDATE domains SET enabled = ? WHERE id = ? RETURNING domain')
     .bind(enabled ? 1 : 0, id)
+    .first<{ domain: string }>()
+  if (!row) throw new ApiError(404, 'not_found')
+  return row.domain
+}
+
+/** Returns the domain name (for the audit log). */
+export async function setDomainCanSend(db: D1Database, id: string, canSend: boolean): Promise<string> {
+  const row = await db
+    .prepare('UPDATE domains SET can_send = ? WHERE id = ? RETURNING domain')
+    .bind(canSend ? 1 : 0, id)
     .first<{ domain: string }>()
   if (!row) throw new ApiError(404, 'not_found')
   return row.domain

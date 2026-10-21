@@ -6,8 +6,8 @@ import { useI18n } from 'vue-i18n'
 
 import type { AdminDomain, DomainHealth } from '../../../shared/api'
 
-const props = defineProps<{ domain: AdminDomain; health?: DomainHealth | 'checking' }>()
-const emit = defineEmits<{ toggle: [enabled: boolean]; remove: []; check: [] }>()
+const props = defineProps<{ domain: AdminDomain; health?: DomainHealth | 'checking'; sending?: boolean }>()
+const emit = defineEmits<{ toggle: [enabled: boolean]; remove: []; check: []; canSend: [value: boolean] }>()
 const { t } = useI18n()
 
 /** ok → green; partial/other/none → red (mail won't arrive, or not all of it); error → grey. */
@@ -37,6 +37,10 @@ const tone = computed(() => {
         </template>
       </NTooltip>
     </div>
+    <label v-if="sending" class="switch">
+      <NSwitch :value="domain.canSend" size="small" @update:value="(v: boolean) => emit('canSend', v)" />
+      {{ t('admin.domains.canSend') }}
+    </label>
     <label class="switch">
       <NSwitch :value="domain.enabled" size="small" @update:value="(v: boolean) => emit('toggle', v)" />
       {{ t('admin.domains.enabled') }}

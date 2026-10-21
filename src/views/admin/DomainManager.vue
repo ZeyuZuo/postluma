@@ -6,12 +6,14 @@ import { useI18n } from 'vue-i18n'
 import { DOMAIN_PATTERN, type AdminDomain, type DomainHealth } from '../../../shared/api'
 import { errorCodeOf } from '@/api/client'
 import { adminDomainApi } from '@/api/mailboxes'
+import { useAdminSending } from '@/composables/useAdminSending'
 import DomainRow from './DomainRow.vue'
 
 const { t } = useI18n()
 const message = useMessage()
 const dialog = useDialog()
 
+const { status: sending, load: loadSending } = useAdminSending()
 const domains = ref<AdminDomain[]>([])
 const loading = ref(true)
 const draft = ref('')
@@ -47,7 +49,21 @@ async function reload(): Promise<void> {
   }
 }
 
-onMounted(reload)
+onMounted(() => {
+  void reload()
+  void loadSending(true)
+})
+
+/** Switching on is checked against the provider (the domain must be verified there). */
+async function setCanSend(domain: AdminDomain, canSend: boolean): Promise<void> {
+  try {
+    await adminDomainApi.setCanSend(domain.id, canSend)
+    domain.canSend = canSend
+    message.success(t(canSend ? 'admin.domains.canSendOn' : 'admin.domains.canSendOff', { domain: domain.domain }))
+  } catch (err) {
+    message.error(t(`errors.${errorCodeOf(err)}`))
+  }
+}
 
 async function add(): Promise<void> {
   if (!normalized.value || invalid.value) return
@@ -112,7 +128,7 @@ function confirmDelete(domain: AdminDomain): void {
 
     <NSpin :show="loading" :delay="150">
       <ul v-if="enabledDomains.length" class="list">
-        <DomainRow v-for="domain in enabledDomains" :key="domain.id" :domain="domain" :health="health[domain.id]" @check="check(domain)" @toggle="(v) => toggle(domain, v)" @remove="confirmDelete(domain)" />
+        <DomainRow v-for="domain in enabledDomains" :key="domain.id" :domain="domain" :health="health[domain.id]" :sending="sending?.enabled" @check="check(domain)" @can-send="(v) => setCanSend(domain, v)" @toggle="(v) => toggle(domain, v)" @remove="confirmDelete(domain)" />
       </ul>
       <p v-else-if="!loading" class="empty">{{ t('admin.domains.empty') }}</p>
       <p class="note">{{ t('admin.domains.routingNote') }}</p>
@@ -121,7 +137,7 @@ function confirmDelete(domain: AdminDomain): void {
         <NCollapseItem :title="t('admin.domains.disabledSection', { n: disabledDomains.length })" name="disabled">
           <p class="disabled-hint">{{ t('admin.domains.disabledHint') }}</p>
           <ul class="list">
-            <DomainRow v-for="domain in disabledDomains" :key="domain.id" :domain="domain" :health="health[domain.id]" @check="check(domain)" @toggle="(v) => toggle(domain, v)" @remove="confirmDelete(domain)" />
+            <DomainRow v-for="domain in disabledDomains" :key="domain.id" :domain="domain" :health="health[domain.id]" :sending="sending?.enabled" @check="check(domain)" @can-send="(v) => setCanSend(domain, v)" @toggle="(v) => toggle(domain, v)" @remove="confirmDelete(domain)" />
           </ul>
         </NCollapseItem>
       </NCollapse>

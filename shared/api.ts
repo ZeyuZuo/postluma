@@ -39,6 +39,8 @@ export const ERROR_CODES = [
   'too_many_recipients',
   'send_quota_exceeded',
   'send_daily_limit_reached',
+  'send_domain_unverified',
+  'send_provider_unavailable',
 ] as const
 export type ErrorCode = (typeof ERROR_CODES)[number]
 
@@ -104,6 +106,8 @@ export interface PublicDomain {
 
 export interface AdminDomain extends PublicDomain {
   enabled: boolean
+  /** Phase 9: mail may be sent from this domain (verified at the provider when switched on). */
+  canSend: boolean
   mailboxCount: number
   createdAt: number
 }
@@ -222,7 +226,9 @@ export const createDomainSchema = z.object({
     .regex(DOMAIN_PATTERN),
 })
 
-export const updateDomainSchema = z.object({ enabled: z.boolean() })
+export const updateDomainSchema = z
+  .object({ enabled: z.boolean().optional(), canSend: z.boolean().optional() })
+  .refine((v) => v.enabled !== undefined || v.canSend !== undefined)
 
 // ---- Messages ------------------------------------------------------------------------------
 
@@ -344,6 +350,9 @@ export interface AdminUser {
   status: UserStatus
   /** Per-user override; null = the effective default. */
   mailboxQuota: number | null
+  /** Phase 9: allowed to send, and the per-user daily override (null = deploy default). */
+  canSend: boolean
+  sendQuota: number | null
   activeMailboxes: number
   totalMailboxes: number
   createdAt: number
@@ -517,3 +526,33 @@ export interface OutboxStatus {
   /** The user's active addresses on domains allowed to send. */
   mailboxIds: string[]
 }
+
+// ---- Sending, admin side --------------------------------------------------------------------
+
+export interface AdminSendingStatus {
+  enabled: boolean
+  /** True when `enabled` is the admin's override rather than the SENDING_ENABLED default. */
+  overridden: boolean
+  defaultEnabled: boolean
+  provider: string
+  /** The provider's secret is set (RESEND_API_KEY). */
+  configured: boolean
+  perDay: number
+  perUserPerDay: number
+  maxRecipients: number
+  /** Sends counted in the last 24 h, service-wide. */
+  usedToday: number
+}
+
+/** `null` removes the override (back to the deploy default). */
+export const adminSendingSchema = z.object({ enabled: z.boolean().nullable() })
+
+export const adminSendTestSchema = z.object({
+  domainId: idSchema,
+  to: z.string().trim().toLowerCase().max(254).regex(RECIPIENT_PATTERN),
+})
+
+export const adminUserSendingSchema = z.object({
+  canSend: z.boolean(),
+  sendQuota: z.number().int().min(0).max(10_000).nullable(),
+})

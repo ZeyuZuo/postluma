@@ -45,7 +45,7 @@ const detailText = (d: unknown) => (d === null || d === undefined ? '' : typeof 
           <time class="time">{{ formatDateTime(e.createdAt) }}</time>
           <span class="action" :title="e.action">{{ actionLabel(e.action) }}</span>
           <span v-if="e.actorUsername || !e.targetId" class="who">{{ t('admin.audit.actor') }}: {{ e.actorUsername ?? t('admin.audit.unknownActor') }}</span>
-          <span v-if="e.targetId && !e.action.startsWith('admin.domain_')" class="who">
+          <span v-if="e.targetId && !e.action.startsWith('admin.domain_') && !e.action.startsWith('mail.')" class="who">
             {{ t('admin.audit.target') }}: {{ e.targetUsername ?? t('admin.audit.deletedTarget') }}
           </span>
           <span v-if="e.ip" class="ip">{{ t('admin.audit.ip') }}: <span class="pl-mono">{{ e.ip }}</span></span>

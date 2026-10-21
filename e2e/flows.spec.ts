@@ -68,10 +68,28 @@ test('inbox: filters, j/k navigation and Esc', async ({ page, context }) => {
   await page.locator('body').press('Escape')
   await expect(page.locator('.drawer')).toHaveCount(0)
 
-  await page.getByRole('button', { name: '验证码', exact: true }).click()
+  await page.getByRole('button', { name: '验证码/链接', exact: true }).click()
   await expect(page).toHaveURL(/filter=code/)
   await expect(page.locator('.row')).toHaveCount(1)
   await expect(page.locator('.row')).toContainText('482913')
+})
+
+test('verification links: one click opens the link in a new tab and marks the mail read', async ({ page, context }) => {
+  await signIn(context)
+  const box = await createMailbox(context.request)
+  const html = '<p>Thanks for signing up.</p><a href="https://app.example.com/verify?token=abc">Verify email</a>'
+  await deliver(context.request, box.address, mime({ to: box.address, subject: 'Confirm your account', html }))
+  // Nothing behind the link in tests: answer it locally.
+  await context.route('https://app.example.com/**', (route) => route.fulfill({ body: 'verified' }))
+
+  await page.goto('/inbox')
+  const chip = page.locator('.row a.chip')
+  await expect(chip).toHaveAttribute('href', 'https://app.example.com/verify?token=abc')
+  const [tab] = await Promise.all([context.waitForEvent('page'), chip.click()])
+  await expect(tab).toHaveURL('https://app.example.com/verify?token=abc')
+  await expect(page.locator('.row')).not.toHaveClass(/unread/)
+  const res = await context.request.get('/api/messages')
+  expect(((await res.json()) as { items: { isRead: boolean }[] }).items[0]?.isRead).toBe(true)
 })
 
 test('addresses: disabling is immediate and can be undone', async ({ page, context }) => {

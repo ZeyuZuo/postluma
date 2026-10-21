@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 
 import type { MessageSummary } from '../../shared/api'
 import CodeChip from '@/components/CodeChip.vue'
+import LinkChip from '@/components/LinkChip.vue'
 import { formatDateTime, formatListTime } from '@/lib/format'
 
 /**
@@ -36,6 +37,7 @@ const { t } = useI18n()
     </span>
     <span class="code">
       <CodeChip v-if="message.verificationCode" :code="message.verificationCode" :message="message" />
+      <LinkChip v-else-if="message.verificationLink" :link="message.verificationLink" :message="message" />
     </span>
     <span v-if="showMailbox" class="mailbox" :class="{ 'pl-mono': !message.mailboxNote }" :title="message.mailboxAddress">
       {{ message.mailboxNote || message.mailboxAddress.split('@')[0] }}

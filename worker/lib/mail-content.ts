@@ -1,6 +1,7 @@
 import type { Email } from 'postal-mime'
 
 import { stripUnsafeText } from '../../shared/api'
+import { extractVerificationLink } from './magic-link'
 import { extractVerificationCode } from './otp'
 import { collapseWhitespace, htmlToText, sliceChars, truncateUtf8 } from './text'
 
@@ -35,6 +36,8 @@ export interface PreparedMessage {
   textBody: string | null
   htmlBody: string | null
   verificationCode: string | null
+  /** An https link the mail asks the reader to open (verify / confirm / sign in). */
+  verificationLink: string | null
   /** Size of the original message as delivered (not what we store). */
   size: number
   /** Bytes this message adds to D1, for the daily ingest budget. */
@@ -95,6 +98,7 @@ export function prepareMessage(
     textBody: text?.value ?? null,
     htmlBody: html?.value ?? null,
     verificationCode: extractVerificationCode(subject, scanText),
+    verificationLink: extractVerificationLink(subject, html?.value ?? null, text?.value ?? null),
     size: envelope.rawSize,
     truncated:
       envelope.windowTruncated ||
@@ -110,6 +114,7 @@ export function prepareMessage(
     byteLength(prepared.subject) +
     byteLength(prepared.snippet) +
     byteLength(attachmentsJson) +
+    byteLength(prepared.verificationLink) +
     512 // ids, addresses, headers, row overhead
   return { ...prepared, storedBytes }
 }

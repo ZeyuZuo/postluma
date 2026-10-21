@@ -35,6 +35,7 @@ What sets it apart from other Cloudflare mail projects is that **isolation betwe
 - Mail opens in a dialog right on the home page, no trip to the inbox
 - For 10 minutes after creating an address the app checks for mail every 10 s (otherwise every 30 s); new mail shows up without a reload
 - Verification codes are detected (Chinese, English and Japanese keywords; years, amounts, phone and order numbers excluded) and copied in one click; copying marks the message read, so amber only highlights codes not copied yet
+- Verification links (“Verify email”, “Confirm”, sign-in links; https only) are detected and open in a new tab with one click, which also marks the message read
 - Per-address opt-in `+alias`: mail to `name+shop@domain` also reaches `name@domain`, without using quota
 - Multiple receiving domains, managed by admins
 

@@ -46,6 +46,7 @@ describe('message listing query plans (after ANALYZE)', () => {
     'next page': { cursor: btoa('1000500:m500') },
     'since poll': { since: 1_000_900 },
     'unread only': { unreadOnly: true },
+    'codes and links': { withCodeOnly: true },
   }
   for (const [name, extra] of Object.entries(variants)) {
     it(`${name}: messages first, through an index, no full scans`, async () => {
@@ -56,4 +57,9 @@ describe('message listing query plans (after ANALYZE)', () => {
       expect(detail, detail).not.toMatch(/SCAN m\b|SCAN g\b|MULTI-INDEX OR/)
     })
   }
+
+  it('codes and links: uses the partial index for mail to act on', async () => {
+    const { sql, params } = buildListQuery(aliceId, { limit: 50, withCodeOnly: true })
+    expect(await plan(sql, params)).toMatch(/idx_messages_user_verify/)
+  })
 })

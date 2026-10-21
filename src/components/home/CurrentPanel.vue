@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AddOutline, CloseOutline, CopyOutline } from '@vicons/ionicons5'
+import { AddOutline, CloseOutline, CopyOutline, OpenOutline } from '@vicons/ionicons5'
 import { NIcon, NModal, useMessage } from 'naive-ui'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -10,9 +10,10 @@ import { messageApi } from '@/api/messages'
 import MessageDetail from '@/components/MessageDetail.vue'
 import NewAddressForm from '@/components/NewAddressForm.vue'
 import { copyText } from '@/composables/useClipboard'
-import { useCopyCode } from '@/composables/useCopyCode'
+import { markHandled, useCopyCode } from '@/composables/useCopyCode'
 import { useCreateMailbox } from '@/composables/useCreateMailbox'
 import { formatRelative } from '@/lib/format'
+import { safeLink } from '@/lib/links'
 import { inbox, isBoosted } from '@/stores/inbox'
 
 /**
@@ -42,9 +43,11 @@ onBeforeUnmount(() => clearInterval(ticker))
 const local = computed(() => props.mailbox.address.split('@')[0])
 const domain = computed(() => props.mailbox.address.split('@')[1])
 const listening = computed(() => isBoosted(now.value))
+/** The newest mail asking for action: its code, or else its verification link. */
 const latestCode = computed(() =>
-  mail.value.find((m) => m.verificationCode && now.value - m.receivedAt < CODE_FRESH_MS) ?? null,
+  mail.value.find((m) => (m.verificationCode || safeLink(m.verificationLink)) && now.value - m.receivedAt < CODE_FRESH_MS) ?? null,
 )
+const latestLink = computed(() => (latestCode.value && !latestCode.value.verificationCode ? safeLink(latestCode.value.verificationLink) : null))
 
 let request = 0
 async function load(): Promise<void> {
@@ -124,8 +127,26 @@ function onCreated(): void {
     </div>
     <NewAddressForm v-if="customOpen" :quota="quota" autofocus class="custom" @created="onCreated" />
 
+    <a
+      v-if="latestCode && latestLink"
+      class="code-block"
+      :class="{ fresh: !latestCode.isRead }"
+      :href="latestLink.href"
+      target="_blank"
+      rel="noopener noreferrer nofollow"
+      referrerpolicy="no-referrer"
+      :aria-label="t('home.openLinkLabel', { host: latestLink.hostname })"
+      @click="markHandled(latestCode)"
+    >
+      <span class="code-main">
+        <span class="code-label">{{ latestCode.isRead ? t('home.latestLinkOpened') : t('home.latestLink') }}</span>
+        <span class="code-host">{{ latestLink.hostname }}</span>
+      </span>
+      <span class="code-meta">{{ latestCode.fromName || latestCode.fromAddress }} · {{ formatRelative(latestCode.receivedAt, now) }}</span>
+      <span class="code-action"><NIcon><OpenOutline /></NIcon>{{ t('inbox.openLink') }}</span>
+    </a>
     <button
-      v-if="latestCode"
+      v-else-if="latestCode && latestCode.verificationCode"
       type="button"
       class="code-block"
       :class="{ fresh: !latestCode.isRead }"
@@ -252,6 +273,7 @@ h3 {
   gap: 8px;
 }
 .code-block {
+  box-sizing: border-box;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -292,6 +314,21 @@ h3 {
   letter-spacing: 0.1em;
   line-height: 1.15;
   color: var(--pl-muted);
+}
+.code-host {
+  max-width: 100%;
+  font-family: var(--pl-mono);
+  font-size: 1.375rem;
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  color: var(--pl-muted);
+}
+.code-block.fresh .code-host {
+  color: var(--pl-ink);
+}
+a.code-block {
+  text-decoration: none;
 }
 .code-block.fresh .code-digits {
   color: var(--pl-ink);

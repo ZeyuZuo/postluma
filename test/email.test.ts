@@ -1,7 +1,7 @@
 import { createExecutionContext, env } from 'cloudflare:test'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import type { MailboxListResponse } from '../shared/api'
+import type { MailboxListResponse, MessageListResponse } from '../shared/api'
 import {
   REJECT_FLOODED,
   REJECT_MALFORMED,
@@ -90,6 +90,17 @@ describe('accepting mail', () => {
     await addMailbox(aliceId, 'alice-box@mail.test')
     await env.DB.prepare('UPDATE domains SET enabled = 0 WHERE id = ?').bind(domainId).run()
     expect((await deliver(mime({}), 'alice-box@mail.test')).rejected).toBeNull()
+  })
+
+  it('stores a detected verification link and lists it under the codes filter', async () => {
+    await addMailbox(aliceId, 'alice-box@mail.test')
+    const html = '<p>Welcome!</p><a href="https://app.example.com/verify?token=abc&amp;u=1">Verify email</a>'
+    await deliver(mime({ subject: 'Confirm your account', html }), 'alice-box@mail.test')
+    const [row] = await messageRows()
+    expect(row).toMatchObject({ verification_code: null, verification_link: 'https://app.example.com/verify?token=abc&u=1' })
+    const res = await api('/api/messages?code=1', { cookie: await login('alice') })
+    const { items } = await json<MessageListResponse>(res)
+    expect(items.map((m) => m.verificationLink)).toEqual(['https://app.example.com/verify?token=abc&u=1'])
   })
 
   it('derives text and the code from HTML-only mail without flagging it truncated', async () => {

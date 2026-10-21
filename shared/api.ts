@@ -220,6 +220,8 @@ export interface MessageSummary {
   subject: string
   snippet: string
   verificationCode: string | null
+  /** https link to verify / confirm / sign in, detected at delivery. Attacker-controlled. */
+  verificationLink: string | null
   isRead: boolean
   hasAttachments: boolean
   receivedAt: number

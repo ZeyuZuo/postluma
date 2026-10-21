@@ -36,6 +36,7 @@ interface SummaryRow {
   subject: string | null
   snippet: string | null
   verification_code: string | null
+  verification_link: string | null
   is_read: number
   has_attachments: number
   received_at: number
@@ -53,7 +54,7 @@ interface DetailRow extends SummaryRow {
 }
 
 const SUMMARY_COLUMNS = `g.id, g.mailbox_id, m.address AS mailbox_address, m.note AS mailbox_note, m.status AS mailbox_status,
-  g.from_address, g.from_name, g.subject, g.snippet, g.verification_code, g.is_read, g.has_attachments, g.received_at`
+  g.from_address, g.from_name, g.subject, g.snippet, g.verification_code, g.verification_link, g.is_read, g.has_attachments, g.received_at`
 
 function toSummary(row: SummaryRow): MessageSummary {
   return {
@@ -67,6 +68,7 @@ function toSummary(row: SummaryRow): MessageSummary {
     subject: row.subject ?? '',
     snippet: row.snippet ?? '',
     verificationCode: row.verification_code,
+    verificationLink: row.verification_link,
     isRead: row.is_read === 1,
     hasAttachments: row.has_attachments === 1,
     receivedAt: row.received_at,
@@ -145,7 +147,8 @@ export function buildListQuery(userId: string, opts: ListMessagesOptions): { sql
     params.push(userId)
   }
   if (opts.unreadOnly) where.push('g.is_read = 0')
-  if (opts.withCodeOnly) where.push('g.verification_code IS NOT NULL')
+  // Must match idx_messages_user_verify's condition for the partial index to apply.
+  if (opts.withCodeOnly) where.push('(g.verification_code IS NOT NULL OR g.verification_link IS NOT NULL)')
   if (opts.since !== undefined) {
     where.push('g.received_at > ?')
     params.push(opts.since)

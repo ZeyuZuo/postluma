@@ -137,8 +137,8 @@ async function setSubaddress(acceptSubaddress: boolean): Promise<void> {
       </p>
     </div>
 
-    <div class="alias">
-      <template v-if="mailbox.status === 'active'">
+    <div class="actions">
+      <div v-if="mailbox.status === 'active'" class="alias">
         <NSwitch size="small" :value="mailbox.acceptSubaddress" :loading="savingSubaddress" @update:value="setSubaddress" />
         <span>{{ t('mailboxes.subaddress') }}</span>
         <NTooltip>
@@ -148,10 +148,8 @@ async function setSubaddress(acceptSubaddress: boolean): Promise<void> {
           {{ t('mailboxes.subaddressHelp') }}
           <span class="pl-mono">{{ subaddressExample }}</span>
         </NTooltip>
-      </template>
-    </div>
+      </div>
 
-    <div class="actions">
       <NTooltip>
         <template #trigger>
           <button type="button" class="icon-btn" :aria-label="t('home.copyAddressLabel', { address: mailbox.address })" @click="copy()">
@@ -181,7 +179,7 @@ async function setSubaddress(acceptSubaddress: boolean): Promise<void> {
 <style scoped>
 .item {
   display: grid;
-  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 0.9fr) auto;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) auto;
   align-items: center;
   gap: 16px;
   min-height: 64px;
@@ -281,6 +279,9 @@ p {
   align-items: center;
   gap: 6px;
   min-width: 0;
+  margin-right: 10px;
+  padding-right: 12px;
+  border-right: 1px solid var(--pl-line);
   color: var(--pl-muted);
   font-size: 0.8125rem;
   white-space: nowrap;
@@ -315,12 +316,13 @@ p {
   outline: 2px solid var(--pl-blue);
   outline-offset: -2px;
 }
-@media (max-width: 899px) {
+@media (max-width: 719px) {
   .item {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
-      'who actions'
-      'stats alias';
+      'who'
+      'stats'
+      'actions';
     gap: 6px 12px;
     padding: 12px 10px 12px 16px;
   }
@@ -335,12 +337,12 @@ p {
   .stats .muted {
     margin-top: 0;
   }
-  .alias {
-    grid-area: alias;
-    justify-content: flex-end;
-  }
   .actions {
     grid-area: actions;
+  }
+  .alias {
+    margin-right: auto;
+    border-right: 0;
   }
   .note-icon {
     opacity: 1;

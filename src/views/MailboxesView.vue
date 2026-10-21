@@ -112,6 +112,8 @@ function offerUndo(mailbox: PublicMailbox): void {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 22px;
+  max-width: 960px;
+  margin: 0 auto;
 }
 .tabs {
   display: flex;

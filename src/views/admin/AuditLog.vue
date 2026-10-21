@@ -37,7 +37,7 @@ const detailText = (d: unknown) => (d === null || d === undefined ? '' : typeof 
 </script>
 
 <template>
-  <section>
+  <section class="audit">
     <p class="keep">{{ t('admin.audit.keep') }}</p>
     <NSpin :show="loading && !items.length" :delay="150">
       <ol v-if="items.length" class="log">
@@ -59,6 +59,10 @@ const detailText = (d: unknown) => (d === null || d === undefined ? '' : typeof 
 </template>
 
 <style scoped>
+.audit {
+  max-width: 960px;
+  margin: 0 auto;
+}
 .keep {
   margin: 0 0 12px;
   color: var(--pl-muted);

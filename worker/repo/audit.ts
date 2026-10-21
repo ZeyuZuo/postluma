@@ -20,6 +20,7 @@ export type AuditAction =
   | 'admin.user_delete'
   | 'admin.settings_update'
   | 'admin.cleanup'
+  | 'mail.send'
 
 export interface AuditInput {
   actorId: string | null

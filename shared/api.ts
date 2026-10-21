@@ -34,6 +34,11 @@ export const ERROR_CODES = [
   'cannot_modify_admin',
   'user_has_messages',
   'retention_too_long',
+  'sending_not_allowed',
+  'sending_domain_not_allowed',
+  'too_many_recipients',
+  'send_quota_exceeded',
+  'send_daily_limit_reached',
 ] as const
 export type ErrorCode = (typeof ERROR_CODES)[number]
 
@@ -436,3 +441,79 @@ export const adminSettingsSchema = z
 export const adminCleanupSchema = z.object({ olderThanDays: z.number().int().min(1).max(3_650) })
 
 export const auditQuerySchema = z.object({ cursor: z.string().max(200).optional() })
+
+// ---- Sending (Phase 9; off unless an admin switches it on) ---------------------------------
+
+/** Why a sent message failed at the provider (the message row says `failed`). */
+export const SEND_ERROR_CODES = ['provider_not_configured', 'provider_rejected', 'provider_rate_limited', 'provider_unavailable'] as const
+export type SendErrorCode = (typeof SEND_ERROR_CODES)[number]
+
+export const SEND_SUBJECT_MAX = 998
+export const SEND_TEXT_MAX_BYTES = 64_000
+/** Hard ceiling; the deployment's SEND_MAX_RECIPIENTS (default 5) is checked on top. */
+export const SEND_RECIPIENTS_CEILING = 50
+export const OUTBOX_PAGE_SIZE = 50
+
+/** A plain mailbox address: no display name, no comments, no route syntax. */
+export const RECIPIENT_PATTERN = /^[^\s@<>()[\]",;:\\]{1,64}@(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/
+
+const recipientSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .max(254)
+  .regex(RECIPIENT_PATTERN)
+
+export const sendMailSchema = z.object({
+  mailboxId: idSchema,
+  to: z
+    .array(recipientSchema)
+    .min(1)
+    .max(SEND_RECIPIENTS_CEILING)
+    .transform((list) => [...new Set(list)]),
+  // One line: CR/LF here would be header injection.
+  subject: z.string().trim().min(1).max(SEND_SUBJECT_MAX).refine((s) => !/[\r\n]/.test(s)),
+  text: z.string().refine((s) => new TextEncoder().encode(s).byteLength <= SEND_TEXT_MAX_BYTES).refine((s) => s.trim() !== ''),
+  /** The received message being answered (threading headers come from it). */
+  replyToId: idSchema.optional(),
+  /** Client-generated per compose; the same key never sends twice. */
+  idempotencyKey: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/),
+})
+export type SendMailInput = z.infer<typeof sendMailSchema>
+
+export const listOutboxQuerySchema = z.object({ cursor: z.string().max(200).optional() })
+
+export type SentStatus = 'sending' | 'sent' | 'failed'
+
+export interface SentMessageSummary {
+  id: string
+  mailboxId: string
+  fromAddress: string
+  to: string[]
+  subject: string
+  snippet: string
+  status: SentStatus
+  error: SendErrorCode | null
+  replyToId: string | null
+  createdAt: number
+}
+
+export interface SentMessageDetail extends SentMessageSummary {
+  text: string
+}
+
+export interface OutboxListResponse {
+  items: SentMessageSummary[]
+  nextCursor: string | null
+}
+
+/** What the compose UI may offer. `canSend: false` hides every sending control. */
+export interface OutboxStatus {
+  canSend: boolean
+  /** Sends left in the user's rolling 24 h. */
+  remaining: number
+  limit: number
+  maxRecipients: number
+  /** The user's active addresses on domains allowed to send. */
+  mailboxIds: string[]
+}

@@ -10,7 +10,7 @@ import { clearSessionCookie, readSessionToken, writeSessionCookie } from '../lib
 import { requireTurnstile } from '../lib/turnstile'
 import { writeAudit } from '../repo/audit'
 import { deleteSessionByToken, deleteUserSessionsStatement, prepareSession } from '../repo/sessions'
-import { isRegistrationOpen } from '../repo/settings'
+import { isRegistrationOpen, isSendingEnabled } from '../repo/settings'
 import {
   findUserByUsername,
   insertUser,
@@ -107,7 +107,12 @@ authRoutes.post('/logout', async (c) => {
   return c.body(null, 204)
 })
 
-authRoutes.get('/me', (c) => c.json({ user: toPublicUser(c.get('user')) }))
+/** `canSend` decides whether the client shows any sending control (the server enforces it anyway). */
+authRoutes.get('/me', async (c) => {
+  const user = c.get('user')
+  const canSend = user.can_send === 1 && (await isSendingEnabled(c.env.DB, getConfig(c.env)))
+  return c.json({ user: toPublicUser(user), canSend })
+})
 
 authRoutes.patch('/me', async (c) => {
   const input = await parseJson(c, updateProfileSchema)

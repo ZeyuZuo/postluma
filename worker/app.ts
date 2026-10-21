@@ -15,6 +15,7 @@ import { authRoutes } from './routes/auth'
 import { domainRoutes } from './routes/domains'
 import { mailboxRoutes } from './routes/mailboxes'
 import { messageRoutes } from './routes/messages'
+import { outboxRoutes } from './routes/outbox'
 import type { AppEnv } from './types'
 
 export type { AppEnv } from './types'
@@ -63,6 +64,7 @@ app.route('/auth', authRoutes)
 app.route('/domains', domainRoutes)
 app.route('/mailboxes', mailboxRoutes)
 app.route('/messages', messageRoutes)
+app.route('/outbox', outboxRoutes)
 app.route('/admin/domains', adminDomainRoutes)
 app.route('/admin/users', adminUserRoutes)
 app.route('/admin', adminSystemRoutes)

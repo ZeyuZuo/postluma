@@ -8,10 +8,13 @@ const DAY_MS = 24 * 60 * 60 * 1000
 const MAX_BATCHES = 40
 const COUNTER_KEEP_DAYS = 7
 const AUDIT_KEEP_DAYS = 90
+/** Sent mail is capped at SEND_MAX_PER_DAY (100 by default), so one bounded delete per run keeps up. */
+const SENT_BATCH = 2_000
 
 export interface CleanupResult {
   retentionDays: number
   messagesDeleted: number
+  sentDeleted: number
   sessionsDeleted: number
 }
 
@@ -28,10 +31,19 @@ export async function runCleanup(env: Env, now = Date.now()): Promise<CleanupRes
       if (batch.done || batch.budgetExhausted) break
     }
   }
+  // Sent mail follows the same retention (Phase 9); it has no R2 objects and few rows.
+  const sent =
+    retentionDays > 0
+      ? await env.DB.prepare(
+          'DELETE FROM sent_messages WHERE id IN (SELECT id FROM sent_messages WHERE created_at < ? LIMIT ?)',
+        )
+          .bind(now - retentionDays * DAY_MS, SENT_BATCH)
+          .run()
+      : null
   const sessions = await env.DB.prepare('DELETE FROM sessions WHERE expires_at <= ?').bind(now).run()
   await env.DB.prepare('DELETE FROM ingest_counters WHERE day < ?').bind(utcDay(now - COUNTER_KEEP_DAYS * DAY_MS)).run()
   await env.DB.prepare('DELETE FROM audit_logs WHERE created_at < ?').bind(now - AUDIT_KEEP_DAYS * DAY_MS).run()
-  const result = { retentionDays, messagesDeleted, sessionsDeleted: sessions.meta.changes }
+  const result = { retentionDays, messagesDeleted, sentDeleted: sent?.meta.changes ?? 0, sessionsDeleted: sessions.meta.changes }
   console.info('cleanup', result)
   return result
 }

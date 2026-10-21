@@ -12,6 +12,10 @@ export interface UserRow {
   role: UserRole
   status: UserStatus
   mailbox_quota: number | null
+  /** Phase 9: allowed to send (on top of the service-wide switch). */
+  can_send: number
+  /** Sends per rolling 24 h; null = SEND_MAX_PER_USER_PER_DAY. */
+  send_quota: number | null
   locale: Locale | null
   created_at: number
   updated_at: number

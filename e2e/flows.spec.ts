@@ -28,8 +28,10 @@ test('home: creating copies the address and makes it current; its code is copied
   await block.click()
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('615204')
   await expect(block).not.toHaveClass(/fresh/)
-  const mail = await context.request.get('/api/messages?code=1')
-  expect(((await mail.json()) as { items: { isRead: boolean }[] }).items[0]?.isRead).toBe(true)
+  // The read state is saved in the background after the highlight goes away.
+  await expect
+    .poll(async () => ((await (await context.request.get('/api/messages?code=1')).json()) as { items: { isRead: boolean }[] }).items[0]?.isRead)
+    .toBe(true)
 
   // Mail opens in a dialog on the home page.
   await page.locator('section.current .mail-link').first().click()

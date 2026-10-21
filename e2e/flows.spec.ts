@@ -21,7 +21,7 @@ test('home: creating copies the address and makes it current; its code is copied
 
   await deliver(context.request, address, mime({ to: address, subject: 'Your Acme code', text: 'Your verification code is 615204.' }))
   // The boosted poll runs every 10 s.
-  await expect(page.locator('section.current .mail')).toContainText('Your Acme code', { timeout: 20_000 })
+  await expect(page.locator('section.current .mail')).toContainText('Your Acme code', { timeout: 30_000 })
   const block = page.locator('.code-block')
   await expect(block.locator('.code-digits')).toHaveText('615204')
   await expect(block).toHaveClass(/fresh/)

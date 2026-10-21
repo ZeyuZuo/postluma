@@ -1,19 +1,21 @@
 <script setup lang="ts">
-import { CloseOutline, SearchOutline } from '@vicons/ionicons5'
+import { CloseOutline, CreateOutline, SearchOutline } from '@vicons/ionicons5'
 import { NButton, NIcon, NInput, NSelect, NSkeleton, NSpin, useMessage } from 'naive-ui'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute, useRouter } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 
 import { MARK_READ_BATCH, SEARCH_MIN_CHARS, type MessageSummary, type PublicMailbox } from '../../shared/api'
 import { errorCodeOf } from '@/api/client'
 import { mailboxApi } from '@/api/mailboxes'
 import { messageApi } from '@/api/messages'
+import ComposePanel from '@/components/ComposePanel.vue'
 import MessageDetail from '@/components/MessageDetail.vue'
 import MessageRow from '@/components/MessageRow.vue'
 import { useIsMobile } from '@/composables/useIsMobile'
 import { dayGroup, type DayGroup } from '@/lib/format'
 import { inbox, refreshInbox } from '@/stores/inbox'
+import { canSend, loadOutboxStatus } from '@/stores/outbox'
 
 const SEARCH_DEBOUNCE_MS = 400
 /** Safety stop for "mark all read" on a huge backlog (each batch is MARK_READ_BATCH rows). */
@@ -237,7 +239,18 @@ const emptyText = computed(() => {
   return t('inbox.empty')
 })
 /** Phones show either the list or one message; wider screens slide the message over the list. */
-const showList = computed(() => !isMobile.value || !selectedId.value)
+/** New mail in the drawer (sending only); opening a message replaces it. */
+const composing = ref(false)
+void loadOutboxStatus(true)
+watch(selectedId, (id) => {
+  if (id) composing.value = false
+})
+function compose(): void {
+  if (selectedId.value) closeDetail()
+  composing.value = true
+}
+
+const showList = computed(() => !isMobile.value || (!selectedId.value && !composing.value))
 </script>
 
 <template>
@@ -265,6 +278,7 @@ const showList = computed(() => !isMobile.value || !selectedId.value)
           >
             {{ f.label }}
           </button>
+          <RouterLink v-if="canSend()" :to="{ name: 'sent' }" class="seg-link">{{ t('compose.sentTab') }}</RouterLink>
         </div>
         <NSelect
           class="mailbox-filter"
@@ -275,6 +289,9 @@ const showList = computed(() => !isMobile.value || !selectedId.value)
           @update:value="setMailbox"
         />
         <NButton class="mark-all" quaternary @click="markAllRead">{{ t('inbox.markAllRead') }}</NButton>
+        <button v-if="canSend()" type="button" class="pl-btn primary" @click="compose">
+          <NIcon><CreateOutline /></NIcon>{{ t('compose.newButton') }}
+        </button>
       </div>
 
       <NSpin :show="loading && items.length > 0" :delay="150" class="list-spin">
@@ -308,6 +325,14 @@ const showList = computed(() => !isMobile.value || !selectedId.value)
       <p v-if="!isMobile && items.length" class="keys">{{ t('inbox.shortcuts') }}</p>
     </section>
 
+    <Transition name="drawer">
+      <aside v-if="composing && !selectedId" class="drawer" :aria-label="t('compose.newTitle')">
+        <NButton v-if="!isMobile" class="close" quaternary circle :aria-label="t('inbox.close')" @click="composing = false">
+          <template #icon><NIcon><CloseOutline /></NIcon></template>
+        </NButton>
+        <ComposePanel @sent="composing = false" @cancel="composing = false" />
+      </aside>
+    </Transition>
     <Transition name="drawer">
       <aside v-if="selectedId" class="drawer" :aria-label="t('inbox.detailLabel')">
         <NButton v-if="!isMobile" class="close" quaternary circle :aria-label="t('inbox.close')" @click="closeDetail">
@@ -374,6 +399,21 @@ const showList = computed(() => !isMobile.value || !selectedId.value)
   font-weight: 650;
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
 }
+.segmented .seg-link {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 14px;
+  border-radius: 7px;
+  color: var(--pl-muted);
+  font-size: 0.8125rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.segmented .seg-link:hover {
+  color: var(--pl-ink);
+}
+.segmented .seg-link:focus-visible,
 .segmented button:focus-visible {
   outline: 2px solid var(--pl-blue);
   outline-offset: -2px;
@@ -459,6 +499,11 @@ const showList = computed(() => !isMobile.value || !selectedId.value)
   top: 18px;
   left: 16px;
   z-index: 1;
+}
+/* Room for the close button beside the compose title. */
+.inbox:not(.mobile) .drawer :deep(.compose > .title) {
+  padding-left: 28px;
+  line-height: 34px;
 }
 .drawer-enter-active,
 .drawer-leave-active {

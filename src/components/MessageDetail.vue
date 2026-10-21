@@ -5,6 +5,7 @@ import {
   DownloadOutline,
   InformationCircleOutline,
   MailUnreadOutline,
+  ReturnUpBackOutline,
   ShieldCheckmarkOutline,
   TrashOutline,
   WarningOutline,
@@ -16,12 +17,14 @@ import { useI18n } from 'vue-i18n'
 import type { MessageDetail } from '../../shared/api'
 import { errorCodeOf } from '@/api/client'
 import { messageApi } from '@/api/messages'
+import ComposePanel from '@/components/ComposePanel.vue'
 import MailFrame from '@/components/MailFrame.vue'
 import TextBody from '@/components/TextBody.vue'
 import { formatDateTime } from '@/lib/format'
 import { prepareMailHtml } from '@/lib/mail-html'
 import { forgetOriginal, loadOriginal, saveFile, toDataUri, type OriginalMail } from '@/lib/original-mail'
 import { adjustUnread } from '@/stores/inbox'
+import { canSend, loadOutboxStatus } from '@/stores/outbox'
 
 const props = defineProps<{ id: string; showBack?: boolean }>()
 const emit = defineEmits<{ back: []; deleted: [id: string]; readChanged: [id: string, isRead: boolean] }>()
@@ -167,7 +170,14 @@ async function load(id: string): Promise<void> {
   }
 }
 
-watch(() => props.id, (id) => void load(id), { immediate: true })
+/** Reply inline, in the same panel (inbox drawer or home dialog); only when sending is allowed. */
+const replying = ref(false)
+void loadOutboxStatus()
+
+watch(() => props.id, (id) => {
+  replying.value = false
+  void load(id)
+}, { immediate: true })
 
 async function markUnread(): Promise<void> {
   if (!message.value) return
@@ -219,6 +229,14 @@ function formatSize(bytes: number): string {
           {{ t('inbox.back') }}
         </NButton>
         <span class="spacer" />
+        <NTooltip v-if="canSend() && message.mailboxStatus === 'active'">
+          <template #trigger>
+            <button type="button" class="icon-btn" :aria-label="t('compose.reply')" :aria-pressed="replying" @click="replying = !replying">
+              <NIcon><ReturnUpBackOutline /></NIcon>
+            </button>
+          </template>
+          {{ t('compose.reply') }}
+        </NTooltip>
         <NTooltip v-if="message.hasRaw">
           <template #trigger>
             <a class="icon-btn" :href="messageApi.rawUrl(message.id)" download="message.eml" :aria-label="t('inbox.downloadOriginal')">
@@ -244,6 +262,8 @@ function formatSize(bytes: number): string {
           {{ t('inbox.delete') }}
         </NTooltip>
       </div>
+
+      <ComposePanel v-if="replying" :reply-to="message" class="reply" @sent="replying = false" @cancel="replying = false" />
 
       <h2 class="subject">{{ message.subject || t('inbox.noSubject') }}</h2>
 
@@ -474,6 +494,12 @@ function formatSize(bytes: number): string {
   margin-left: 2px;
   vertical-align: -2px;
   cursor: help;
+}
+.reply {
+  padding: 16px;
+  border: 1px solid var(--pl-line);
+  border-radius: 14px;
+  background: var(--pl-paper);
 }
 .when {
   flex: none;

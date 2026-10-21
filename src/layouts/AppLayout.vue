@@ -39,7 +39,7 @@ const isAdmin = computed(() => session.user?.role === 'admin')
 /** Top bar on desktop, bottom tab bar on phones. Disabled addresses are a tab of "Addresses". */
 const navItems = computed<NavItem[]>(() => [
   { name: 'home', labelKey: 'nav.home', icon: HomeOutline },
-  { name: 'inbox', labelKey: 'nav.inbox', icon: FileTrayFullOutline },
+  { name: 'inbox', labelKey: 'nav.inbox', icon: FileTrayFullOutline, also: ['sent'] },
   { name: 'mailboxes', labelKey: 'nav.mailboxes', icon: AtOutline, also: ['mailboxes-disabled'] },
   ...(isAdmin.value ? [{ name: 'admin', labelKey: 'nav.admin', icon: ShieldCheckmarkOutline }] : []),
 ])

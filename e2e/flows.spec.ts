@@ -144,7 +144,7 @@ test('no horizontal scrolling at phone width', async ({ page, context }) => {
   const box = await createMailbox(context.request)
   await deliver(context.request, box.address, mime({ to: box.address, subject: 'x'.repeat(200), text: 'y '.repeat(400) }))
   await page.setViewportSize({ width: 390, height: 844 })
-  for (const path of ['/', '/inbox', '/mailboxes', '/mailboxes/disabled', '/account']) {
+  for (const path of ['/', '/inbox', '/sent', '/mailboxes', '/mailboxes/disabled', '/account']) {
     await page.goto(path)
     await page.waitForTimeout(800)
     const result = await page.evaluate(() => {

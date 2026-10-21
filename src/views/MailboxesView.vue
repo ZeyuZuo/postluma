@@ -10,6 +10,7 @@ import { mailboxApi } from '@/api/mailboxes'
 import NewAddressForm from '@/components/NewAddressForm.vue'
 import MailboxListPanel from '@/components/MailboxListPanel.vue'
 import { useMailboxList } from '@/composables/useMailboxList'
+import { loadOutboxStatus } from '@/stores/outbox'
 
 /** Addresses in use (with the command bar) and disabled ones, as two tabs of one page. */
 const props = defineProps<{ status: MailboxStatus }>()
@@ -21,7 +22,10 @@ const freshId = ref<string | null>(null)
 const toast = useMessage()
 const UNDO_MS = 8000
 
-onMounted(() => void list.reload())
+onMounted(() => {
+  void list.reload()
+  void loadOutboxStatus(true)
+})
 
 function onCreated(mailbox: PublicMailbox): void {
   freshId.value = mailbox.id

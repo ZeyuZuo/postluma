@@ -11,8 +11,11 @@ import { mailboxApi } from '@/api/mailboxes'
 import { copyText } from '@/composables/useClipboard'
 import { formatCount, formatDateTime, formatRelative } from '@/lib/format'
 import { setCurrentMailbox } from '@/stores/current'
+import { canSend, outbox } from '@/stores/outbox'
 
 const props = defineProps<{ mailbox: PublicMailbox; fresh?: boolean }>()
+/** Phase 9: this address may send (only shown while sending is allowed for the user). */
+const sendable = computed(() => canSend() && (outbox.status?.mailboxIds.includes(props.mailbox.id) ?? false))
 const emit = defineEmits<{ changed: [mailbox: PublicMailbox] }>()
 
 const { t } = useI18n()
@@ -104,7 +107,7 @@ async function setSubaddress(acceptSubaddress: boolean): Promise<void> {
 <template>
   <li class="item" :class="{ fresh, disabled: mailbox.status === 'disabled' }">
     <div class="who">
-      <p class="address pl-mono"><span class="local">{{ local }}</span><span class="domain">@{{ domain }}</span></p>
+      <p class="address pl-mono"><span class="local">{{ local }}</span><span class="domain">@{{ domain }}</span><span v-if="sendable" class="send-tag">{{ t('compose.canSendTag') }}</span></p>
       <form v-if="editing" class="note-edit" @submit.prevent="saveNote">
         <NInput
           ref="noteInput"
@@ -211,6 +214,17 @@ p {
 }
 .local {
   font-weight: 700;
+}
+.send-tag {
+  margin-left: 8px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--pl-blue-soft);
+  color: var(--pl-blue);
+  font-family: var(--pl-font);
+  font-size: 0.6875rem;
+  font-weight: 650;
+  vertical-align: 2px;
 }
 .domain {
   color: var(--pl-faint);

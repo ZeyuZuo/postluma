@@ -36,6 +36,7 @@ const router = createRouter({
       children: [
         { path: '', name: 'home', component: () => import('@/views/HomeView.vue'), meta: { titleKey: 'nav.home' } },
         { path: 'inbox/:id?', name: 'inbox', component: () => import('@/views/InboxView.vue'), meta: { titleKey: 'nav.inbox' } },
+        { path: 'sent/:id?', name: 'sent', component: () => import('@/views/SentView.vue'), meta: { titleKey: 'compose.sentTab' } },
         // One view, two tabs: addresses in use and disabled ones (history still readable).
         {
           path: 'mailboxes',

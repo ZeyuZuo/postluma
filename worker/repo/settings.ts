@@ -5,7 +5,7 @@
 import type { AdminSettings } from '../../shared/api'
 import type { AppConfig } from '../lib/config'
 
-export type SettingKey = 'default_mailbox_quota' | 'retention_days' | 'registration_open' | 'admin_bootstrapped'
+export type SettingKey = 'default_mailbox_quota' | 'retention_days' | 'registration_open' | 'sending_enabled' | 'admin_bootstrapped'
 
 export async function getSetting(db: D1Database, key: SettingKey): Promise<string | null> {
   const row = await db.prepare('SELECT value FROM settings WHERE key = ?').bind(key).first<{ value: string }>()
@@ -15,6 +15,12 @@ export async function getSetting(db: D1Database, key: SettingKey): Promise<strin
 export async function isRegistrationOpen(db: D1Database, config: AppConfig): Promise<boolean> {
   const value = await getSetting(db, 'registration_open')
   return value === null ? config.registrationOpen : value === 'true'
+}
+
+/** The service-wide sending switch: admin override, else the SENDING_ENABLED var (default off). */
+export async function isSendingEnabled(db: D1Database, config: AppConfig): Promise<boolean> {
+  const value = await getSetting(db, 'sending_enabled')
+  return value === null ? config.sending.enabled : value === 'true'
 }
 
 export async function getRetentionDays(db: D1Database, config: AppConfig): Promise<number> {
@@ -36,7 +42,7 @@ export function effectiveQuotaSql(userExpr: string, defaultParam: string): strin
 /** An admin override write, or its removal (`null`) so the deploy-time default applies again. */
 export function overrideStatement(
   db: D1Database,
-  key: 'default_mailbox_quota' | 'retention_days' | 'registration_open',
+  key: 'default_mailbox_quota' | 'retention_days' | 'registration_open' | 'sending_enabled',
   value: string | null,
 ): D1PreparedStatement {
   if (value === null) return db.prepare('DELETE FROM settings WHERE key = ?').bind(key)

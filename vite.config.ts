@@ -36,7 +36,7 @@ export default defineConfig(({ mode }) => {
     plugins: [
       vue(),
       cloudflare(
-        E2E ? { persistState: { path: E2E_STATE }, config: { vars: { TURNSTILE_DISABLED: 'true' } } } : {},
+        E2E ? { persistState: { path: E2E_STATE }, config: { vars: { TURNSTILE_DISABLED: 'true', MAIL_PROVIDER: 'log' } } } : {},
       ),
     ],
     resolve: {

@@ -12,6 +12,9 @@ export default defineConfig({
           // Override any local .dev.vars so tests never call the real Turnstile API.
           TURNSTILE_SECRET_KEY: '',
           TURNSTILE_DISABLED: 'true',
+          // Never reach a real mail provider from tests; Resend tests mock fetch explicitly.
+          MAIL_PROVIDER: 'log',
+          RESEND_API_KEY: '',
         },
       },
     })),

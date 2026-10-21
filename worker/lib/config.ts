@@ -27,6 +27,9 @@ const INT_VARS = {
   MESSAGE_RETENTION_DAYS: { fallback: 30, min: 0, max: 3_650 },
   MAX_DELETES_PER_DAY: { fallback: 5_000, min: 100, max: 1_000_000 },
   RAW_MAIL_MAX_MB_PER_DAY: { fallback: 250, min: 0, max: 1_000_000 },
+  SEND_MAX_PER_USER_PER_DAY: { fallback: 20, min: 0, max: 10_000 },
+  SEND_MAX_PER_DAY: { fallback: 100, min: 0, max: 1_000_000 },
+  SEND_MAX_RECIPIENTS: { fallback: 5, min: 1, max: 50 },
 } satisfies Record<string, IntSpec>
 
 type IntVar = keyof typeof INT_VARS
@@ -59,7 +62,18 @@ export interface AppConfig {
   maxRetentionDays: number
   /** Record Cloudflare's SPF/DKIM/DMARC results with each message (see worker/lib/sender-auth.ts). */
   senderAuthHints: boolean
+  sending: {
+    /** Deploy-time default of the service-wide switch; admins override it (settings.sending_enabled). */
+    enabled: boolean
+    provider: MailProviderName
+    perUserPerDay: number
+    perDay: number
+    maxRecipients: number
+  }
 }
+
+export const MAIL_PROVIDERS = ['resend', 'log'] as const
+export type MailProviderName = (typeof MAIL_PROVIDERS)[number]
 
 const DAY_MS = 24 * 60 * 60 * 1000
 /** 80 % of the Free plan's 500 MB D1 limit, leaving room for indexes and other tables. */
@@ -85,13 +99,22 @@ function readInt(env: Env, name: IntVar): number {
   return spec.fallback
 }
 
-function readBool(env: Env, name: 'REGISTRATION_OPEN' | 'SENDER_AUTH_HINTS', fallback: boolean): boolean {
+function readBool(env: Env, name: 'REGISTRATION_OPEN' | 'SENDER_AUTH_HINTS' | 'SENDING_ENABLED', fallback: boolean): boolean {
   const raw = (env as unknown as Record<string, unknown>)[name]
   if (raw === undefined || raw === '') return fallback
   if (raw === 'true' || raw === true) return true
   if (raw === 'false' || raw === false) return false
   warnOnce(name, raw, fallback)
   return fallback
+}
+
+/** `log` records instead of sending: local development and e2e only. */
+function readProvider(env: Env): MailProviderName {
+  const raw = (env as unknown as Record<string, unknown>).MAIL_PROVIDER
+  if (raw === undefined || raw === '') return 'resend'
+  if (MAIL_PROVIDERS.includes(raw as MailProviderName)) return raw as MailProviderName
+  warnOnce('MAIL_PROVIDER', raw, 'resend')
+  return 'resend'
 }
 
 /** The R2 binding, if this deployment has one (it is optional; see wrangler.jsonc). */
@@ -125,5 +148,12 @@ export function getConfig(env: Env): AppConfig {
     maxDeletesPerDay: readInt(env, 'MAX_DELETES_PER_DAY'),
     maxRetentionDays: Math.max(1, maxRetentionDays),
     senderAuthHints: readBool(env, 'SENDER_AUTH_HINTS', false),
+    sending: {
+      enabled: readBool(env, 'SENDING_ENABLED', false),
+      provider: readProvider(env),
+      perUserPerDay: readInt(env, 'SEND_MAX_PER_USER_PER_DAY'),
+      perDay: readInt(env, 'SEND_MAX_PER_DAY'),
+      maxRecipients: readInt(env, 'SEND_MAX_RECIPIENTS'),
+    },
   }
 }

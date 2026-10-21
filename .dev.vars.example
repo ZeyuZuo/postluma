@@ -4,3 +4,7 @@ ADMIN_INITIAL_PASSWORD=change-me-locally
 TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
 # Local dev only: "true" skips Turnstile. Never set this in production — with no secret, auth fails closed.
 TURNSTILE_DISABLED=true
+# Sending through Resend (only needed once sending is switched on). Locally, MAIL_PROVIDER=log records
+# messages instead of sending them.
+RESEND_API_KEY=
+MAIL_PROVIDER=log

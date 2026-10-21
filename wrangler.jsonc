@@ -49,6 +49,13 @@
 		// Show SPF/DKIM/DMARC from Cloudflare's topmost ARC-Authentication-Results (mx.cloudflare.net).
 		// Turn on only after a real delivered .eml shows that header as the first one (docs/DEV_PLAN.md 8.2).
 		"SENDER_AUTH_HINTS": "true",
+		// ---- Sending (off by default; docs/SENDING_PLAN.md). Admins switch it on in the admin panel,
+		// then allow domains and users one by one. Resend needs the RESEND_API_KEY secret.
+		"SENDING_ENABLED": "false", // * default of the service-wide switch
+		"MAIL_PROVIDER": "resend", // resend | log (log = record only, for local dev)
+		"SEND_MAX_PER_USER_PER_DAY": "20", // per rolling 24 h (admin can set per user)
+		"SEND_MAX_PER_DAY": "100", // whole service per rolling 24 h; Resend's free plan allows 100/day
+		"SEND_MAX_RECIPIENTS": "5", // per message; no BCC
 		// ---- Deleting mail (~6 D1 row writes per message; shared 100k writes/day on the Free plan)
 		"MAX_DELETES_PER_DAY": "5000" // retention cleanup + admin purges/cleanups together, per UTC day
 	},

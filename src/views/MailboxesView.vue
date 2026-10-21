@@ -17,7 +17,7 @@ const props = defineProps<{ status: MailboxStatus }>()
 
 const { t } = useI18n()
 const list = useMailboxList(() => props.status)
-const { items, quota, query, nextCursor, loading, loadingMore } = list
+const { items, quota, query, domain, nextCursor, loading, loadingMore } = list
 const freshId = ref<string | null>(null)
 const toast = useMessage()
 const UNDO_MS = 8000
@@ -108,6 +108,7 @@ function offerUndo(mailbox: PublicMailbox): void {
 
     <MailboxListPanel
       v-model:query="query"
+      v-model:domain="domain"
       :items="items"
       :loading="loading"
       :loading-more="loadingMore"

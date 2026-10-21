@@ -7,7 +7,7 @@ import { RouterLink } from 'vue-router'
 
 import type { MailboxQuota, MessageSummary, PublicMailbox } from '../../../shared/api'
 import { messageApi } from '@/api/messages'
-import ComposePanel from '@/components/ComposePanel.vue'
+import ComposeDialog from '@/components/ComposeDialog.vue'
 import MessageDetail from '@/components/MessageDetail.vue'
 import NewAddressForm from '@/components/NewAddressForm.vue'
 import { copyText } from '@/composables/useClipboard'
@@ -185,14 +185,7 @@ function onCreated(): void {
       <p v-else-if="loaded" class="waiting">{{ t('home.waiting') }}</p>
     </div>
 
-    <NModal :show="composing" :auto-focus="false" transform-origin="center" @update:show="(v: boolean) => { if (!v) composing = false }">
-      <div class="mail-dialog compose-dialog" role="dialog" :aria-label="t('compose.newTitle')">
-        <button type="button" class="dialog-close" :aria-label="t('inbox.close')" @click="composing = false">
-          <NIcon><CloseOutline /></NIcon>
-        </button>
-        <ComposePanel v-if="composing" @sent="composing = false" @cancel="composing = false" />
-      </div>
-    </NModal>
+    <ComposeDialog :show="composing" :from-id="mailbox.id" @close="composing = false" />
 
     <NModal :show="openId !== null" :auto-focus="false" transform-origin="center" @update:show="(v: boolean) => { if (!v) openId = null }">
       <div class="mail-dialog" role="dialog" :aria-label="t('inbox.detailLabel')">
@@ -471,14 +464,6 @@ a.code-block {
   border-radius: 16px;
   background: var(--pl-surface);
   box-shadow: 0 24px 60px rgb(0 0 0 / 0.22);
-}
-.compose-dialog {
-  width: min(680px, calc(100vw - 32px));
-  height: auto;
-}
-.compose-dialog :deep(.compose > .title) {
-  padding-left: 32px;
-  line-height: 34px;
 }
 .dialog-close {
   position: absolute;

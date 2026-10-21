@@ -105,7 +105,7 @@ export async function getQuota(db: D1Database, userId: string, defaultQuota: num
 export async function listMailboxes(
   db: D1Database,
   userId: string,
-  opts: { status: MailboxStatus; q?: string; cursor?: string },
+  opts: { status: MailboxStatus; q?: string; domain?: string; cursor?: string },
 ): Promise<{ items: PublicMailbox[]; nextCursor: string | null }> {
   const where = ['m.user_id = ?', 'm.status = ?']
   const params: unknown[] = [userId, opts.status]
@@ -113,6 +113,10 @@ export async function listMailboxes(
     const pattern = `%${escapeLike(opts.q)}%`
     where.push("(m.address LIKE ? ESCAPE '\\' OR m.note LIKE ? ESCAPE '\\')")
     params.push(pattern, pattern)
+  }
+  if (opts.domain) {
+    where.push('m.domain_id = ?')
+    params.push(opts.domain)
   }
   if (opts.cursor) {
     const c = decodeCursor(opts.cursor)

@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { SearchOutline } from '@vicons/ionicons5'
-import { NButton, NIcon, NInput, NSkeleton, NSpin } from 'naive-ui'
+import { NButton, NIcon, NInput, NSelect, NSkeleton, NSpin } from 'naive-ui'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type { PublicMailbox } from '../../shared/api'
 import MailboxItem from '@/components/MailboxItem.vue'
+import { useDomains } from '@/composables/useDomains'
 
 const props = defineProps<{
   items: PublicMailbox[]
@@ -16,17 +17,34 @@ const props = defineProps<{
   freshId?: string | null
 }>()
 const query = defineModel<string>('query', { required: true })
+/** Domain id filter (null = all); options are the enabled domains. */
+const domain = defineModel<string | null>('domain', { default: null })
 const emit = defineEmits<{ changed: [mailbox: PublicMailbox]; more: [] }>()
 
 const { t } = useI18n()
-const emptyMessage = computed(() => (query.value.trim() ? t('mailboxes.emptySearch') : props.emptyText))
+const emptyMessage = computed(() => (query.value.trim() || domain.value ? t('mailboxes.emptySearch') : props.emptyText))
+const { domains } = useDomains()
+const domainOptions = computed(() => [
+  { value: '', label: t('mailboxes.allDomains') },
+  ...domains.value.map((d) => ({ value: d.id, label: d.domain })),
+])
 </script>
 
 <template>
   <section class="panel">
-    <NInput v-model:value="query" class="search" clearable :placeholder="t('mailboxes.searchPlaceholder')">
-      <template #prefix><NIcon><SearchOutline /></NIcon></template>
-    </NInput>
+    <div class="filters">
+      <NInput v-model:value="query" class="search" clearable :placeholder="t('mailboxes.searchPlaceholder')">
+        <template #prefix><NIcon><SearchOutline /></NIcon></template>
+      </NInput>
+      <NSelect
+        class="domain"
+        :value="domain ?? ''"
+        :options="domainOptions"
+        :aria-label="t('mailboxes.domainFilter')"
+        :consistent-menu-width="false"
+        @update:value="(v: string) => (domain = v || null)"
+      />
+    </div>
     <NSpin :show="loading && items.length > 0" :delay="150">
       <ul v-if="items.length" class="list">
         <MailboxItem
@@ -52,9 +70,19 @@ const emptyMessage = computed(() => (query.value.trim() ? t('mailboxes.emptySear
 </template>
 
 <style scoped>
-.search {
-  max-width: 360px;
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-bottom: 12px;
+}
+.search {
+  flex: 1 1 240px;
+  max-width: 360px;
+}
+.domain {
+  flex: 0 1 200px;
+  min-width: 150px;
 }
 .list {
   list-style: none;

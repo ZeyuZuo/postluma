@@ -215,6 +215,8 @@ export const updateMailboxSchema = z
 export const listMailboxesQuerySchema = z.object({
   status: z.enum(['active', 'disabled']).default('active'),
   q: z.string().trim().max(100).optional(),
+  /** Only addresses on this domain (id). */
+  domain: idSchema.optional(),
   cursor: z.string().max(200).optional(),
 })
 

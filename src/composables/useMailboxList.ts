@@ -10,6 +10,8 @@ export function useMailboxList(statusSource: MaybeRefOrGetter<MailboxStatus>) {
   const items = ref<PublicMailbox[]>([])
   const quota = ref<MailboxQuota | null>(null)
   const query = ref('')
+  /** Domain id filter; null = all domains. */
+  const domain = ref<string | null>(null)
   const nextCursor = ref<string | null>(null)
   const loading = ref(false)
   const loadingMore = ref(false)
@@ -19,7 +21,7 @@ export function useMailboxList(statusSource: MaybeRefOrGetter<MailboxStatus>) {
     const id = ++requestId
     loading.value = true
     try {
-      const res = await mailboxApi.list({ status: toValue(statusSource), q: query.value.trim() || undefined })
+      const res = await mailboxApi.list({ status: toValue(statusSource), q: query.value.trim() || undefined, domain: domain.value })
       if (id !== requestId) return
       items.value = res.items
       quota.value = res.quota
@@ -34,7 +36,7 @@ export function useMailboxList(statusSource: MaybeRefOrGetter<MailboxStatus>) {
     const id = requestId
     loadingMore.value = true
     try {
-      const res = await mailboxApi.list({ status: toValue(statusSource), q: query.value.trim() || undefined, cursor: nextCursor.value })
+      const res = await mailboxApi.list({ status: toValue(statusSource), q: query.value.trim() || undefined, domain: domain.value, cursor: nextCursor.value })
       if (id !== requestId) return // the search changed meanwhile; drop this stale page
       items.value = [...items.value, ...res.items]
       quota.value = res.quota
@@ -63,5 +65,7 @@ export function useMailboxList(statusSource: MaybeRefOrGetter<MailboxStatus>) {
     timer = setTimeout(() => void reload(), SEARCH_DEBOUNCE_MS)
   })
 
-  return { items, quota, query, nextCursor, loading, loadingMore, reload, loadMore, apply, prepend }
+  watch(domain, () => void reload())
+
+  return { items, quota, query, domain, nextCursor, loading, loadingMore, reload, loadMore, apply, prepend }
 }

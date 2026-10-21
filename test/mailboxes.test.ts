@@ -124,6 +124,16 @@ describe('listing, notes and status', () => {
     expect((await list('?q=_')).items).toHaveLength(0)
   })
 
+  it('filters by domain, combined with search', async () => {
+    const otherId = await addDomain('other.test')
+    await create({ localPart: 'shop', note: 'Orders' })
+    await create({ localPart: 'shop', domainId: otherId, note: 'Orders too' })
+    await create({ localPart: 'news', domainId: otherId })
+    expect((await list(`?domain=${otherId}`)).items.map((m) => m.address)).toEqual(['news@other.test', 'shop@other.test'])
+    expect((await list(`?domain=${domainId}&q=orders`)).items.map((m) => m.address)).toEqual(['shop@mail.test'])
+    expect((await list('?domain=nope')).items).toEqual([])
+  })
+
   it('caps per-mailbox message and unread counts (bounded D1 reads)', async () => {
     const box = (await json<{ mailbox: PublicMailbox }>(await create({ localPart: 'busy' }))).mailbox
     const insert = Array.from({ length: MAILBOX_COUNT_CAP + 20 }, (_, i) =>

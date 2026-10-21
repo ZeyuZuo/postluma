@@ -2,9 +2,10 @@ import type { AdminDomain, DomainHealth, MailboxListResponse, MailboxStatus, Pub
 import { http } from './client'
 
 export const mailboxApi = {
-  list: (params: { status: MailboxStatus; q?: string; cursor?: string | null }) => {
+  list: (params: { status: MailboxStatus; q?: string; domain?: string | null; cursor?: string | null }) => {
     const query = new URLSearchParams({ status: params.status })
     if (params.q) query.set('q', params.q)
+    if (params.domain) query.set('domain', params.domain)
     if (params.cursor) query.set('cursor', params.cursor)
     return http.get<MailboxListResponse>(`/api/mailboxes?${query}`)
   },

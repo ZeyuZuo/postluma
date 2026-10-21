@@ -114,6 +114,8 @@ const zhCN = {
     noDomainsAdmin: '还没有可用的收信域名。',
     addDomainLink: '去添加域名',
     searchPlaceholder: '搜索地址、域名或备注',
+    allDomains: '全部域名',
+    domainFilter: '按域名筛选',
     emptyActive: '还没有地址。用上面的按钮生成第一个。',
     emptyDisabled: '没有已停用的地址。',
     emptySearch: '没有匹配的地址。',
@@ -377,6 +379,7 @@ const zhCN = {
   },
   compose: {
     newButton: '写邮件',
+    fromAddressLabel: '用 {address} 写邮件',
     newTitle: '写邮件',
     replyTitle: '回复',
     reply: '回复',

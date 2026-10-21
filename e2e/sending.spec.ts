@@ -81,4 +81,10 @@ test('user: reply to a message, compose a new one, find both under Sent', async 
   await page.goto('/')
   await page.locator('section.current').getByRole('button', { name: '写邮件' }).click()
   await expect(page.locator('.compose-dialog form.compose')).toContainText(box.address)
+  await page.keyboard.press('Escape')
+
+  // Addresses: a row that can send opens compose with itself as the sender.
+  await page.goto('/mailboxes')
+  await page.getByRole('button', { name: `用 ${box.address} 写邮件` }).click()
+  await expect(page.locator('.compose-dialog form.compose')).toContainText(box.address)
 })

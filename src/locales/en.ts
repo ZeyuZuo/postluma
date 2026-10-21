@@ -120,6 +120,8 @@ const en: Messages = {
     noDomainsAdmin: 'No mail domains are available yet.',
     addDomainLink: 'Add a domain',
     searchPlaceholder: 'Search addresses, domains or notes',
+    allDomains: 'All domains',
+    domainFilter: 'Filter by domain',
     emptyActive: 'No addresses yet. Generate your first one above.',
     emptyDisabled: 'No disabled addresses.',
     emptySearch: 'No addresses match.',
@@ -383,6 +385,7 @@ const en: Messages = {
   },
   compose: {
     newButton: 'Compose',
+    fromAddressLabel: 'Write from {address}',
     newTitle: 'New message',
     replyTitle: 'Reply',
     reply: 'Reply',

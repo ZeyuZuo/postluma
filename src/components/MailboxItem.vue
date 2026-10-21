@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CopyOutline, CreateOutline, HelpCircleOutline, MailOutline } from '@vicons/ionicons5'
+import { CopyOutline, CreateOutline, HelpCircleOutline, MailOutline, PaperPlaneOutline } from '@vicons/ionicons5'
 import { NButton, NIcon, NInput, NSwitch, NTooltip, useMessage } from 'naive-ui'
 import { computed, nextTick, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -10,12 +10,14 @@ import { errorCodeOf } from '@/api/client'
 import { mailboxApi } from '@/api/mailboxes'
 import { copyText } from '@/composables/useClipboard'
 import { formatCount, formatDateTime, formatRelative } from '@/lib/format'
+import ComposeDialog from '@/components/ComposeDialog.vue'
 import { setCurrentMailbox } from '@/stores/current'
 import { canSend, outbox } from '@/stores/outbox'
 
 const props = defineProps<{ mailbox: PublicMailbox; fresh?: boolean }>()
 /** Phase 9: this address may send (only shown while sending is allowed for the user). */
 const sendable = computed(() => canSend() && (outbox.status?.mailboxIds.includes(props.mailbox.id) ?? false))
+const composing = ref(false)
 const emit = defineEmits<{ changed: [mailbox: PublicMailbox] }>()
 
 const { t } = useI18n()
@@ -158,6 +160,15 @@ async function setSubaddress(acceptSubaddress: boolean): Promise<void> {
         </template>
         {{ t('mailboxes.viewMail') }}
       </NTooltip>
+      <NTooltip v-if="sendable && mailbox.status === 'active'">
+        <template #trigger>
+          <button type="button" class="icon-btn" :aria-label="t('compose.fromAddressLabel', { address: mailbox.address })" @click="composing = true">
+            <NIcon><PaperPlaneOutline /></NIcon>
+          </button>
+        </template>
+        {{ t('compose.newButton') }}
+      </NTooltip>
+      <ComposeDialog :show="composing" :from-id="mailbox.id" @close="composing = false" />
       <NButton v-if="mailbox.status === 'active'" size="small" secondary class="status-btn" @click="setStatus('disabled')">
         {{ t('mailboxes.disable') }}
       </NButton>

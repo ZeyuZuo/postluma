@@ -14,7 +14,7 @@ import { loadOutboxStatus, outbox } from '@/stores/outbox'
  * Plain-text compose, new or reply. Only the user's own addresses on sending domains are offered;
  * a reply starts from the address it was sent to, quotes the original and threads with it.
  */
-const props = defineProps<{ replyTo?: MessageDetail | null }>()
+const props = defineProps<{ replyTo?: MessageDetail | null; fromId?: string }>()
 const emit = defineEmits<{ sent: [message: SentMessageDetail]; cancel: [] }>()
 
 const QUOTE_CHARS = 4_000
@@ -71,8 +71,8 @@ onMounted(async () => {
   } catch {
     mailboxes.value = []
   }
-  // A reply goes out from the address it was sent to; otherwise the current address.
-  const preferred = props.replyTo?.mailboxId ?? currentMailboxId().value
+  // A reply goes out from the address it was sent to; else the chosen one; else the current address.
+  const preferred = props.replyTo?.mailboxId ?? props.fromId ?? currentMailboxId().value
   from.value = mailboxes.value.find((m) => m.id === preferred)?.id ?? mailboxes.value[0]?.id ?? null
   loaded.value = true
 })

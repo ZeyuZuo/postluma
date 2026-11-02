@@ -1,15 +1,13 @@
-/** Phase 9 sending: invisible while off; an admin switches it on for a domain and a user. */
+/** Sending (personal mode only): invisible while off; the administrator switches it on for a domain. */
 import { expect, test } from '@playwright/test'
 
 import { createMailbox, deliver, E2E_DOMAIN_ID, mime, signIn, sql } from './helpers'
 
-test('admin: sending stays hidden until switched on, then a domain and a user are allowed', async ({ page, context, browser }) => {
-  const userContext = await browser.newContext({ baseURL: 'http://localhost:5188' })
-  const username = await signIn(userContext)
-  const status = async () => (await (await userContext.request.get('/api/outbox/status')).json()) as { canSend: boolean }
+test('admin: sending stays hidden until switched on, then a domain is allowed', async ({ page, context }) => {
+  await signIn(context, { admin: true })
+  const status = async () => (await (await context.request.get('/api/outbox/status')).json()) as { canSend: boolean }
   expect(await status()).toMatchObject({ canSend: false })
 
-  await signIn(context, { admin: true })
   await page.goto('/admin')
   await page.locator('.n-tabs-tab[data-name="domains"]').click()
   const domainRow = page.locator('li.item', { hasText: 'e2e.test' })
@@ -20,34 +18,24 @@ test('admin: sending stays hidden until switched on, then a domain and a user ar
   const card = page.locator('.n-card', { hasText: '允许发信（总开关）' })
   await card.locator('.n-switch').first().click()
   await expect(card.getByText('发送测试信')).toBeVisible()
+  await expect(card.getByText('用户')).toHaveCount(0)
 
   await page.locator('.n-tabs-tab[data-name="domains"]').click()
   await domainRow.locator('label', { hasText: '可发信' }).locator('.n-switch').click()
   await expect(page.getByText('e2e.test 已允许发信')).toBeVisible()
 
-  await page.locator('.n-tabs-tab[data-name="users"]').click()
-  // Search across every status (the tab opens on "pending" when someone is waiting).
-  await page.getByPlaceholder('搜索用户名').fill(username)
-  const userRow = page.locator('li.item', { hasText: username })
-  await userRow.getByRole('button', { name: '发信' }).click()
-  const dialog = page.getByRole('dialog')
-  await dialog.locator('label', { hasText: '允许发信' }).locator('.n-switch').click()
-  await dialog.getByRole('button', { name: '保存设置' }).click()
-  await expect(userRow.getByText('可发信')).toBeVisible()
-
-  // The user now needs only an address on the domain to send.
-  await userContext.request.post('/api/mailboxes', { headers: { origin: 'http://localhost:5188' }, data: { domainId: 'e2e-domain', localPart: `s${Date.now()}` } })
+  // The administrator always may send; an address on the domain is all that is missing.
+  await createMailbox(context.request)
   expect(await status()).toMatchObject({ canSend: true })
-  await userContext.close()
 })
 
-test('user: reply to a message, compose a new one, find both under Sent', async ({ page, context }) => {
-  const username = await signIn(context)
+test('admin: reply to a message, compose a new one, find both under Sent', async ({ page, context }) => {
+  await signIn(context, { admin: true })
   const box = await createMailbox(context.request)
-  // All three switches on for this user (the admin flow is covered above).
+  // Both switches on (the admin flow is covered above).
   sql(
     "INSERT INTO settings (key, value, updated_at) VALUES ('sending_enabled', 'true', 0) ON CONFLICT (key) DO UPDATE SET value = 'true';" +
-      ` UPDATE domains SET can_send = 1 WHERE id = '${E2E_DOMAIN_ID}'; UPDATE users SET can_send = 1 WHERE username = '${username}';`,
+      ` UPDATE domains SET can_send = 1 WHERE id = '${E2E_DOMAIN_ID}';`,
   )
   await deliver(context.request, box.address, mime({ to: box.address, subject: 'Question about your order', text: 'Can you confirm the size?' }))
 

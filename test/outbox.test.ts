@@ -6,6 +6,8 @@ import { runCleanup } from '../worker/jobs/cleanup'
 import { RESEND_API } from '../worker/lib/mailer/resend'
 import { addDomain, addMailboxRow, addMessageRow, api, createUser, json, login, setSetting } from './helpers'
 
+const personal = { SERVICE_MODE: 'personal' }
+
 let aliceId: string
 let domainId: string
 let box: string
@@ -22,7 +24,7 @@ const mail = (extra: Record<string, unknown> = {}) => ({
   ...extra,
 })
 const send = (body: unknown, opts: { cookie?: string; env?: Record<string, string> } = {}) =>
-  api('/api/outbox', { cookie: opts.cookie ?? cookie, body, env: opts.env })
+  api('/api/outbox', { cookie: opts.cookie ?? cookie, body, env: { ...personal, ...opts.env } })
 
 /** All three switches on: service, domain, user. */
 async function allowSending(userId = aliceId): Promise<void> {
@@ -33,7 +35,7 @@ async function allowSending(userId = aliceId): Promise<void> {
 
 beforeEach(async () => {
   domainId = await addDomain('mail.test')
-  aliceId = await createUser('alice')
+  aliceId = await createUser('alice', { role: 'admin' })
   box = await addMailboxRow(aliceId, domainId, 'alice@mail.test')
   cookie = await login('alice')
 })
@@ -42,19 +44,18 @@ afterEach(() => vi.restoreAllMocks())
 describe('sending switched off (the default)', () => {
   it('hides every endpoint except status, and /me says no', async () => {
     expect((await send(mail())).status).toBe(404)
-    expect((await api('/api/outbox', { cookie })).status).toBe(404)
-    expect(await json<OutboxStatus>(await api('/api/outbox/status', { cookie }))).toMatchObject({ canSend: false, mailboxIds: [] })
-    expect(await json<{ canSend: boolean }>(await api('/api/auth/me', { cookie }))).toMatchObject({ canSend: false })
+    expect((await api('/api/outbox', { cookie, env: personal })).status).toBe(404)
+    expect(await json<OutboxStatus>(await api('/api/outbox/status', { cookie, env: personal }))).toMatchObject({ canSend: false, mailboxIds: [] })
+    expect(await json<{ canSend: boolean }>(await api('/api/auth/me', { cookie, env: personal }))).toMatchObject({ canSend: false })
     expect(await env.DB.prepare('SELECT COUNT(*) AS n FROM sent_messages').first('n')).toBe(0)
   })
 
-  it('needs the user and the domain switched on too', async () => {
+  it('needs a domain switched on too', async () => {
     await setSetting('sending_enabled', 'true')
-    expect(await json(await send(mail()))).toEqual({ error: 'sending_not_allowed' })
     await env.DB.prepare('UPDATE users SET can_send = 1 WHERE id = ?').bind(aliceId).run()
     expect(await json(await send(mail()))).toEqual({ error: 'sending_domain_not_allowed' })
     // Allowed but no address can send yet: the UI shows up and explains, sending stays refused.
-    expect(await json<OutboxStatus>(await api('/api/outbox/status', { cookie }))).toMatchObject({ canSend: true, mailboxIds: [] })
+    expect(await json<OutboxStatus>(await api('/api/outbox/status', { cookie, env: personal }))).toMatchObject({ canSend: true, mailboxIds: [] })
   })
 })
 
@@ -67,11 +68,11 @@ describe('sending switched on', () => {
     const { message } = await json<{ message: SentMessageDetail }>(res)
     expect(message).toMatchObject({ fromAddress: 'alice@mail.test', to: ['friend@example.org', 'other@example.net'], status: 'sent', error: null, text: 'Hi there.' })
 
-    const list = await json<OutboxListResponse>(await api('/api/outbox', { cookie }))
+    const list = await json<OutboxListResponse>(await api('/api/outbox', { cookie, env: personal }))
     expect(list.items.map((m) => m.id)).toEqual([message.id])
     expect(list.items[0]).not.toHaveProperty('text')
-    expect(await json<{ canSend: boolean }>(await api('/api/auth/me', { cookie }))).toMatchObject({ canSend: true })
-    expect(await json<OutboxStatus>(await api('/api/outbox/status', { cookie }))).toEqual({
+    expect(await json<{ canSend: boolean }>(await api('/api/auth/me', { cookie, env: personal }))).toMatchObject({ canSend: true })
+    expect(await json<OutboxStatus>(await api('/api/outbox/status', { cookie, env: personal }))).toEqual({
       canSend: true, remaining: 19, limit: 20, maxRecipients: 5, mailboxIds: [box],
     })
 
@@ -107,7 +108,7 @@ describe('sending switched on', () => {
   })
 
   it('enforces the service-wide daily limit across users', async () => {
-    const bobId = await createUser('bob')
+    const bobId = await createUser('bob', { role: 'admin' })
     const bobBox = await addMailboxRow(bobId, domainId, 'bob@mail.test')
     await allowSending(bobId)
     const limit = { SEND_MAX_PER_DAY: '1' }
@@ -150,7 +151,7 @@ describe('sending switched on', () => {
     const adminId = await createUser('boss', { role: 'admin' })
     const adminBox = await addMailboxRow(adminId, domainId, 'boss@mail.test')
     const adminCookie = await login('boss')
-    expect(await json<{ canSend: boolean }>(await api('/api/auth/me', { cookie: adminCookie }))).toMatchObject({ canSend: true })
+    expect(await json<{ canSend: boolean }>(await api('/api/auth/me', { cookie: adminCookie, env: personal }))).toMatchObject({ canSend: true })
     expect((await send(mail({ mailboxId: adminBox }), { cookie: adminCookie })).status).toBe(201)
     await env.DB.prepare('UPDATE users SET send_quota = 1 WHERE id = ?').bind(adminId).run()
     expect(await json(await send(mail({ mailboxId: adminBox }), { cookie: adminCookie }))).toEqual({ error: 'send_quota_exceeded' })

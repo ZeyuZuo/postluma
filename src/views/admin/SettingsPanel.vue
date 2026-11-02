@@ -160,7 +160,8 @@ async function runCleanup(days: number): Promise<void> {
         </NForm>
       </NCard>
 
-      <SendingCard />
+      <!-- Temporary mode has no sending at all. -->
+      <SendingCard v-if="isPersonal()" />
 
       <NCard :title="t('admin.settings.maintenance')" class="danger">
         <p class="hint">{{ t('admin.settings.maintenanceHint') }}</p>

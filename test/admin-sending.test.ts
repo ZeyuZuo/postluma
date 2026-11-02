@@ -5,6 +5,8 @@ import type { AdminDomain, AdminSendingStatus, AdminUserListResponse } from '../
 import { RESEND_API } from '../worker/lib/mailer/resend'
 import { addDomain, api, createUser, json, login } from './helpers'
 
+const personal = { SERVICE_MODE: 'personal' }
+
 let admin: string
 let domainId: string
 const resendEnv = { MAIL_PROVIDER: 'resend', RESEND_API_KEY: 're_test' }
@@ -37,25 +39,25 @@ describe('admin sending controls', () => {
   })
 
   it('switches sending on and back to the deploy default, with audit rows', async () => {
-    const initial = await json<AdminSendingStatus>(await api('/api/admin/sending', { cookie: admin }))
+    const initial = await json<AdminSendingStatus>(await api('/api/admin/sending', { cookie: admin, env: personal }))
     expect(initial).toMatchObject({ enabled: false, overridden: false, provider: 'log', configured: true, perDay: 100, usedToday: 0, sendingDomains: 0, sendingUsers: 1 }) // the admin
-    const on = await api('/api/admin/sending', { cookie: admin, method: 'PATCH', body: { enabled: true } })
+    const on = await api('/api/admin/sending', { cookie: admin, env: personal, method: 'PATCH', body: { enabled: true } })
     expect(await json<AdminSendingStatus>(on)).toMatchObject({ enabled: true, overridden: true })
-    const reset = await api('/api/admin/sending', { cookie: admin, method: 'PATCH', body: { enabled: null } })
+    const reset = await api('/api/admin/sending', { cookie: admin, env: personal, method: 'PATCH', body: { enabled: null } })
     expect(await json<AdminSendingStatus>(reset)).toMatchObject({ enabled: false, overridden: false })
     expect(await audits('admin.sending_update')).toEqual([{ enabled: true }, { enabled: null }])
   })
 
   it('reports an unconfigured Resend key', async () => {
-    const res = await api('/api/admin/sending', { cookie: admin, env: { MAIL_PROVIDER: 'resend', RESEND_API_KEY: '' } })
+    const res = await api('/api/admin/sending', { cookie: admin, env: { ...personal, MAIL_PROVIDER: 'resend', RESEND_API_KEY: '' } })
     expect(await json<AdminSendingStatus>(res)).toMatchObject({ provider: 'resend', configured: false })
   })
 })
 
 describe('domain "can send"', () => {
   const patch = (canSend: boolean, extra: { env?: Record<string, string> } = {}) =>
-    api(`/api/admin/domains/${domainId}`, { cookie: admin, method: 'PATCH', body: { canSend }, env: extra.env })
-  const canSend = async () => (await json<{ items: AdminDomain[] }>(await api('/api/admin/domains', { cookie: admin }))).items[0]!.canSend
+    api(`/api/admin/domains/${domainId}`, { cookie: admin, method: 'PATCH', body: { canSend }, env: { ...personal, ...extra.env } })
+  const canSend = async () => (await json<{ items: AdminDomain[] }>(await api('/api/admin/domains', { cookie: admin, env: personal }))).items[0]!.canSend
 
   it('switches on only when the provider has verified the domain', async () => {
     resendDomains([{ name: 'mail.test', status: 'pending' }])
@@ -78,11 +80,11 @@ describe('domain "can send"', () => {
 describe('user "can send"', () => {
   it('stores the permission and the quota override', async () => {
     const aliceId = await createUser('alice')
-    const res = await api(`/api/admin/users/${aliceId}/sending`, { cookie: admin, method: 'PATCH', body: { canSend: true, sendQuota: 5 } })
+    const res = await api(`/api/admin/users/${aliceId}/sending`, { cookie: admin, env: personal, method: 'PATCH', body: { canSend: true, sendQuota: 5 } })
     expect(res.status).toBe(204)
-    const { items } = await json<AdminUserListResponse>(await api('/api/admin/users?status=active', { cookie: admin }))
+    const { items } = await json<AdminUserListResponse>(await api('/api/admin/users?status=active', { cookie: admin, env: personal }))
     expect(items.find((u) => u.id === aliceId)).toMatchObject({ canSend: true, sendQuota: 5 })
-    expect((await api('/api/admin/users/missing/sending', { cookie: admin, method: 'PATCH', body: { canSend: true, sendQuota: null } })).status).toBe(404)
+    expect((await api('/api/admin/users/missing/sending', { cookie: admin, env: personal, method: 'PATCH', body: { canSend: true, sendQuota: null } })).status).toBe(404)
     expect(await audits('admin.user_sending')).toEqual([{ canSend: true, sendQuota: 5 }])
   })
 })
@@ -90,12 +92,12 @@ describe('user "can send"', () => {
 describe('test send', () => {
   it('needs a sending domain and reports the provider result', async () => {
     const body = { domainId, to: 'me@example.org' }
-    expect((await api('/api/admin/sending/test', { cookie: admin, body })).status).toBe(404)
+    expect((await api('/api/admin/sending/test', { cookie: admin, env: personal, body })).status).toBe(404)
     await env.DB.prepare('UPDATE domains SET can_send = 1 WHERE id = ?').bind(domainId).run()
-    expect(await json(await api('/api/admin/sending/test', { cookie: admin, body }))).toEqual({ ok: true })
+    expect(await json(await api('/api/admin/sending/test', { cookie: admin, env: personal, body }))).toEqual({ ok: true })
 
     vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response('{}', { status: 422 }))
-    const failed = await api('/api/admin/sending/test', { cookie: admin, body, env: resendEnv })
+    const failed = await api('/api/admin/sending/test', { cookie: admin, body, env: { ...personal, ...resendEnv } })
     expect(await json(failed)).toEqual({ ok: false, error: 'provider_rejected' })
     expect(await audits('admin.sending_test')).toEqual([
       { domain: 'mail.test', ok: true, error: null },

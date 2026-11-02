@@ -36,6 +36,4 @@ export const adminApi = {
   setSending: (enabled: boolean | null) => http.patch<AdminSendingStatus>('/api/admin/sending', { enabled }),
   sendTest: (domainId: string, to: string) =>
     http.post<{ ok: boolean; error?: SendErrorCode }>('/api/admin/sending/test', { domainId, to }),
-  setUserSending: (id: string, canSend: boolean, sendQuota: number | null) =>
-    http.patch<void>(`/api/admin/users/${enc(id)}/sending`, { canSend, sendQuota }),
 }

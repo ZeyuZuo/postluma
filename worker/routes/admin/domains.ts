@@ -36,6 +36,8 @@ adminDomainRoutes.post('/', async (c) => {
 
 adminDomainRoutes.patch('/:id', async (c) => {
   const { enabled, canSend } = await parseJson(c, updateDomainSchema)
+  // Temporary mode has no sending; refuse before changing anything else in the same request.
+  if (canSend !== undefined && getConfig(c.env).mode === 'temporary') throw new ApiError(404, 'not_found')
   const id = c.req.param('id')
   if (enabled !== undefined) {
     const domain = await setDomainEnabled(c.env.DB, id, enabled)

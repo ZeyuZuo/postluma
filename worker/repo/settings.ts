@@ -19,8 +19,12 @@ export async function isRegistrationOpen(db: D1Database, config: AppConfig): Pro
   return value === null ? config.registrationOpen : value === 'true'
 }
 
-/** The service-wide sending switch: admin override, else the SENDING_ENABLED var (default off). */
+/**
+ * The service-wide sending switch: admin override, else the SENDING_ENABLED var (default off).
+ * Temporary mode has no sending at all, whatever the switch says.
+ */
 export async function isSendingEnabled(db: D1Database, config: AppConfig): Promise<boolean> {
+  if (config.mode === 'temporary') return false
   const value = await getSetting(db, 'sending_enabled')
   return value === null ? config.sending.enabled : value === 'true'
 }

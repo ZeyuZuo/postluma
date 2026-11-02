@@ -42,6 +42,12 @@ async function status(env: Env): Promise<AdminSendingStatus> {
   }
 }
 
+// Temporary mode has no sending: its admin controls don't exist either.
+adminSendingRoutes.use('*', async (c, next) => {
+  if (getConfig(c.env).mode === 'temporary') throw new ApiError(404, 'not_found')
+  await next()
+})
+
 adminSendingRoutes.get('/', async (c) => c.json(await status(c.env)))
 
 adminSendingRoutes.patch('/', async (c) => {

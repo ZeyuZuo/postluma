@@ -7,7 +7,15 @@ import { ApiError } from '../../lib/errors'
 import { getMailer } from '../../lib/mailer'
 import { clientIp, parseJson } from '../../lib/request'
 import { writeAudit } from '../../repo/audit'
-import { createDomain, deleteUnusedDomain, findDomainName, listAllDomains, setDomainCanSend, setDomainEnabled } from '../../repo/domains'
+import {
+  createDomain,
+  deleteUnusedDomain,
+  findDomainName,
+  listAllDomains,
+  setDomainCanSend,
+  setDomainCatchAll,
+  setDomainEnabled,
+} from '../../repo/domains'
 import type { AppEnv } from '../../types'
 
 /** Mounted under /api/admin, so `requireAdmin` has already run. */
@@ -35,9 +43,11 @@ adminDomainRoutes.post('/', async (c) => {
 })
 
 adminDomainRoutes.patch('/:id', async (c) => {
-  const { enabled, canSend } = await parseJson(c, updateDomainSchema)
-  // Temporary mode has no sending; refuse before changing anything else in the same request.
-  if (canSend !== undefined && getConfig(c.env).mode === 'temporary') throw new ApiError(404, 'not_found')
+  const { enabled, canSend, catchAll } = await parseJson(c, updateDomainSchema)
+  // Temporary mode has neither sending nor catch-all; refuse before changing anything else.
+  if ((canSend !== undefined || catchAll !== undefined) && getConfig(c.env).mode === 'temporary') {
+    throw new ApiError(404, 'not_found')
+  }
   const id = c.req.param('id')
   if (enabled !== undefined) {
     const domain = await setDomainEnabled(c.env.DB, id, enabled)
@@ -62,6 +72,17 @@ adminDomainRoutes.patch('/:id', async (c) => {
       action: 'admin.domain_sending',
       targetId: id,
       detail: { domain, canSend },
+      ip: clientIp(c),
+    })
+  }
+  if (catchAll !== undefined) {
+    // The administrator who switches catch-all on owns every address it creates on this domain.
+    const domain = await setDomainCatchAll(c.env.DB, id, catchAll ? c.get('user').id : null)
+    await writeAudit(c.env.DB, {
+      actorId: c.get('user').id,
+      action: 'admin.domain_catch_all',
+      targetId: id,
+      detail: { domain, catchAll },
       ip: clientIp(c),
     })
   }

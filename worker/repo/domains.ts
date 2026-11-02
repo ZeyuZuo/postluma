@@ -8,6 +8,7 @@ interface DomainRow {
   domain: string
   enabled: number
   can_send: number
+  catch_all: number
   created_at: number
   mailbox_count: number
 }
@@ -32,7 +33,7 @@ export async function findDomainName(db: D1Database, id: string): Promise<string
 export async function listAllDomains(db: D1Database): Promise<AdminDomain[]> {
   const { results } = await db
     .prepare(
-      `SELECT d.id, d.domain, d.enabled, d.can_send, d.created_at,
+      `SELECT d.id, d.domain, d.enabled, d.can_send, d.catch_all_user_id IS NOT NULL AS catch_all, d.created_at,
               (SELECT COUNT(*) FROM mailboxes m WHERE m.domain_id = d.id) AS mailbox_count
        FROM domains d ORDER BY d.domain`,
     )
@@ -42,6 +43,7 @@ export async function listAllDomains(db: D1Database): Promise<AdminDomain[]> {
     domain: r.domain,
     enabled: r.enabled === 1,
     canSend: r.can_send === 1,
+    catchAll: r.catch_all === 1,
     mailboxCount: r.mailbox_count,
     createdAt: r.created_at,
   }))
@@ -76,6 +78,19 @@ export async function setDomainCanSend(db: D1Database, id: string, canSend: bool
   const row = await db
     .prepare('UPDATE domains SET can_send = ? WHERE id = ? RETURNING domain')
     .bind(canSend ? 1 : 0, id)
+    .first<{ domain: string }>()
+  if (!row) throw new ApiError(404, 'not_found')
+  return row.domain
+}
+
+/**
+ * Switches catch-all on for `ownerId` (the administrator whose addresses it creates) or off (`null`).
+ * Returns the domain name (for the audit log).
+ */
+export async function setDomainCatchAll(db: D1Database, id: string, ownerId: string | null): Promise<string> {
+  const row = await db
+    .prepare('UPDATE domains SET catch_all_user_id = ? WHERE id = ? RETURNING domain')
+    .bind(ownerId, id)
     .first<{ domain: string }>()
   if (!row) throw new ApiError(404, 'not_found')
   return row.domain

@@ -5,6 +5,7 @@
 import { env } from 'cloudflare:test'
 import { beforeEach, describe, expect, it } from 'vitest'
 
+import { CATCH_ALL_TARGET_SQL } from '../worker/repo/ingest'
 import { buildListQuery } from '../worker/repo/messages'
 import { addDomain, addMailboxRow, createUser } from './helpers'
 
@@ -67,5 +68,16 @@ describe('message listing query plans (after ANALYZE)', () => {
   it('starred only: uses the partial index for starred mail', async () => {
     const { sql, params } = buildListQuery(aliceId, { limit: 50, starredOnly: true })
     expect(await plan(sql, params)).toMatch(/idx_messages_user_starred/)
+  })
+})
+
+describe('catch-all lookup query plan', () => {
+  // domains and users are a handful of admin-managed rows (the planner may scan them); the address
+  // checks run against tables that grow with every user and must stay index lookups.
+  it('checks the address and the retired list through indexes', async () => {
+    const detail = await plan(CATCH_ALL_TARGET_SQL, ['mail.test', 'new@mail.test'])
+    expect(detail, detail).toMatch(/SEARCH mailboxes USING (COVERING )?INDEX/)
+    expect(detail, detail).toMatch(/SEARCH retired_addresses USING (COVERING )?INDEX/)
+    expect(detail, detail).not.toMatch(/SCAN (mailboxes|retired_addresses)\b/)
   })
 })

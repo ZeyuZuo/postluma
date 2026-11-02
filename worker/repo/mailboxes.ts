@@ -15,6 +15,7 @@ interface MailboxRow {
   note: string | null
   status: MailboxStatus
   accept_subaddress: number
+  auto_created: number
   message_count: number
   unread_count: number
   created_at: number
@@ -24,7 +25,7 @@ interface MailboxRow {
 // Counts stop at MAILBOX_COUNT_CAP: an uncapped COUNT(*) reads every message of every listed
 // mailbox (D1 bills rows read), so one list page could cost the user's whole history.
 const SELECT_MAILBOX = `
-  SELECT m.id, m.address, d.domain, m.note, m.status, m.accept_subaddress, m.created_at,
+  SELECT m.id, m.address, d.domain, m.note, m.status, m.accept_subaddress, m.auto_created, m.created_at,
          (SELECT MAX(g.received_at) FROM messages g WHERE g.mailbox_id = m.id) AS last_received_at,
          (SELECT COUNT(*) FROM (SELECT 1 FROM messages g WHERE g.mailbox_id = m.id LIMIT ${MAILBOX_COUNT_CAP})) AS message_count,
          (SELECT COUNT(*) FROM (
@@ -51,11 +52,12 @@ const underQuota = (defaultQuotaParam: string) => `
 
 /**
  * SQL conditions for creating a new row: unless ?11 is 0 (no quota), active mailboxes stay under the
- * quota (default ?10) and the total (any status) under ?8; creations since ?7 stay under ?9.
+ * quota (default ?10) and the total (any status) under ?8; creations by hand since ?7 stay under ?9
+ * (catch-all has its own daily cap).
  */
 const UNDER_CREATION_LIMITS = `
   (?11 = 0 OR (${underQuota('?10')} AND (SELECT COUNT(*) FROM mailboxes WHERE user_id = ?1) < ?8))
-  AND (SELECT COUNT(*) FROM mailboxes WHERE user_id = ?1 AND created_at > ?7) < ?9`
+  AND (SELECT COUNT(*) FROM mailboxes WHERE user_id = ?1 AND created_at > ?7 AND auto_created = 0) < ?9`
 
 const CREATION_WINDOW_MS = 24 * 60 * 60 * 1000
 
@@ -69,6 +71,7 @@ function toPublic(row: MailboxRow): PublicMailbox {
     note: row.note,
     status: row.status,
     acceptSubaddress: row.accept_subaddress === 1,
+    autoCreated: row.auto_created === 1,
     messageCount: row.message_count,
     unreadCount: row.unread_count,
     createdAt: row.created_at,
@@ -168,7 +171,7 @@ async function creationFailure(
          EXISTS (SELECT 1 FROM retired_addresses WHERE address = ?2) AS retired,
          EXISTS (SELECT 1 FROM domains WHERE id = ?3 AND enabled = 1) AS domain_ok,
          (SELECT COUNT(*) FROM mailboxes WHERE user_id = ?1) AS total,
-         (SELECT COUNT(*) FROM mailboxes WHERE user_id = ?1 AND created_at > ?4) AS recent`,
+         (SELECT COUNT(*) FROM mailboxes WHERE user_id = ?1 AND created_at > ?4 AND auto_created = 0) AS recent`,
     )
     .bind(userId, address, domainId, since)
     .first<{ retired: number; domain_ok: number; total: number; recent: number }>()

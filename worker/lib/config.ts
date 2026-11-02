@@ -32,6 +32,8 @@ const INT_VARS = {
   SEND_MAX_PER_DAY: { fallback: 100, min: 0, max: 1_000_000 },
   SEND_MAX_RECIPIENTS: { fallback: 5, min: 1, max: 50 },
   MAX_STARRED_MESSAGES: { fallback: 500, min: 0, max: 100_000 },
+  CATCH_ALL_MAX_PER_DAY: { fallback: 10, min: 0, max: 10_000 },
+  CATCH_ALL_MAX_PER_ADDRESS_PER_HOUR: { fallback: 10, min: 1, max: 100_000 },
 } satisfies Record<string, IntSpec>
 
 type IntVar = keyof typeof INT_VARS
@@ -55,6 +57,9 @@ export interface AppConfig {
     parseWindowBytes: number
     /** R2 bytes of original messages per UTC day; 0 = originals are not kept. */
     rawBytesPerDay: number
+    /** Catch-all defaults (personal mode); an admin may override both in the settings. */
+    catchAllPerDay: number
+    catchAllPerAddressPerHour: number
   }
   /** 0 = keep forever. */
   retentionDays: number
@@ -163,6 +168,8 @@ export function getConfig(env: Env): AppConfig {
       bytesPerDay: ingestMb * MB,
       parseWindowBytes: readInt(env, 'INGEST_PARSE_WINDOW_KB') * 1024,
       rawBytesPerDay: rawMb * MB,
+      catchAllPerDay: readInt(env, 'CATCH_ALL_MAX_PER_DAY'),
+      catchAllPerAddressPerHour: readInt(env, 'CATCH_ALL_MAX_PER_ADDRESS_PER_HOUR'),
     },
     retentionDays: readInt(env, 'MESSAGE_RETENTION_DAYS'),
     maxDeletesPerDay: readInt(env, 'MAX_DELETES_PER_DAY'),

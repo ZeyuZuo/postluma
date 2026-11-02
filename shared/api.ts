@@ -118,6 +118,8 @@ export interface AdminDomain extends PublicDomain {
   enabled: boolean
   /** Phase 9: mail may be sent from this domain (verified at the provider when switched on). */
   canSend: boolean
+  /** Personal mode: the first mail to an unknown address on this domain creates it. */
+  catchAll: boolean
   mailboxCount: number
   createdAt: number
 }
@@ -143,6 +145,8 @@ export interface PublicMailbox {
   status: MailboxStatus
   /** Also receive mail sent to `local+anything@domain`. Off by default. */
   acceptSubaddress: boolean
+  /** Created by catch-all on its first mail rather than by hand. */
+  autoCreated: boolean
   /** Both counts stop at MAILBOX_COUNT_CAP (shown as "99+"). */
   messageCount: number
   unreadCount: number
@@ -245,8 +249,8 @@ export const createDomainSchema = z.object({
 })
 
 export const updateDomainSchema = z
-  .object({ enabled: z.boolean().optional(), canSend: z.boolean().optional() })
-  .refine((v) => v.enabled !== undefined || v.canSend !== undefined)
+  .object({ enabled: z.boolean().optional(), canSend: z.boolean().optional(), catchAll: z.boolean().optional() })
+  .refine((v) => v.enabled !== undefined || v.canSend !== undefined || v.catchAll !== undefined)
 
 // ---- Messages ------------------------------------------------------------------------------
 
@@ -397,6 +401,8 @@ export const SETTING_RANGES = {
   defaultMailboxQuota: { min: 0, max: 10_000 },
   retentionDays: { min: 1, max: 3_650 },
   mailboxQuota: { min: 0, max: 10_000 },
+  catchAllMaxPerDay: { min: 0, max: 10_000 },
+  catchAllMaxPerAddressPerHour: { min: 1, max: 100_000 },
 } as const
 
 export interface AdminSettings {
@@ -405,9 +411,24 @@ export interface AdminSettings {
   registrationOpen: boolean
   defaultMailboxQuota: number
   retentionDays: number
+  /** Catch-all (personal mode): new addresses per day, messages per auto-created address per hour. */
+  catchAllMaxPerDay: number
+  catchAllMaxPerAddressPerHour: number
   /** Which values are admin overrides (vs. the deploy-time defaults in `defaults`). */
-  overridden: { registrationOpen: boolean; defaultMailboxQuota: boolean; retentionDays: boolean }
-  defaults: { registrationOpen: boolean; defaultMailboxQuota: number; retentionDays: number }
+  overridden: {
+    registrationOpen: boolean
+    defaultMailboxQuota: boolean
+    retentionDays: boolean
+    catchAllMaxPerDay: boolean
+    catchAllMaxPerAddressPerHour: boolean
+  }
+  defaults: {
+    registrationOpen: boolean
+    defaultMailboxQuota: number
+    retentionDays: number
+    catchAllMaxPerDay: number
+    catchAllMaxPerAddressPerHour: number
+  }
 }
 
 export interface AdminStats {
@@ -468,6 +489,20 @@ export const adminSettingsSchema = z
       .nullable()
       .optional(),
     retentionDays: z.number().int().min(SETTING_RANGES.retentionDays.min).max(SETTING_RANGES.retentionDays.max).nullable().optional(),
+    catchAllMaxPerDay: z
+      .number()
+      .int()
+      .min(SETTING_RANGES.catchAllMaxPerDay.min)
+      .max(SETTING_RANGES.catchAllMaxPerDay.max)
+      .nullable()
+      .optional(),
+    catchAllMaxPerAddressPerHour: z
+      .number()
+      .int()
+      .min(SETTING_RANGES.catchAllMaxPerAddressPerHour.min)
+      .max(SETTING_RANGES.catchAllMaxPerAddressPerHour.max)
+      .nullable()
+      .optional(),
   })
   .refine((v) => Object.keys(v).length > 0)
 

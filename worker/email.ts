@@ -1,10 +1,11 @@
 import PostalMime, { type Email } from 'postal-mime'
 
-import { getConfig, mailBucket } from './lib/config'
+import { getConfig, mailBucket, type AppConfig } from './lib/config'
 import { newId } from './lib/crypto'
 import { prepareMessage } from './lib/mail-content'
 import { deleteRaw, rawKey } from './lib/raw-mail'
 import {
+  findCatchAllTarget,
   findDeliveryTarget,
   ingestBlock,
   rawBytesToday,
@@ -65,9 +66,20 @@ async function readPrefix(
 }
 
 /**
- * Email Routing catch-all entry point. Catch-all is only routing: mail is accepted solely for an
- * active mailbox of an active user, matched exactly on the lowercased envelope recipient.
- * Subaddresses (`name+tag@`) reach `name@` only when that mailbox opted in (findDeliveryTarget).
+ * The mailbox for a lowercased recipient. In personal mode, when there is none, an address that a
+ * catch-all domain will create with this message (findCatchAllTarget decides whether it may).
+ */
+async function resolveTarget(db: D1Database, recipient: string, config: AppConfig): Promise<DeliveryTarget | null> {
+  const found = await findDeliveryTarget(db, recipient, config.ingest)
+  if (found || config.mode !== 'personal') return found
+  return findCatchAllTarget(db, recipient, newId())
+}
+
+/**
+ * Email Routing catch-all entry point. Catch-all routing alone accepts nothing: mail is accepted for
+ * an active mailbox of an active user, matched exactly on the lowercased envelope recipient, or — in
+ * personal mode, on a domain whose catch-all an administrator switched on — for a new address created
+ * with it. Subaddresses (`name+tag@`) reach `name@` only when that mailbox opted in.
  */
 export async function handleEmail(
   message: ForwardableEmailMessage,
@@ -76,9 +88,7 @@ export async function handleEmail(
 ): Promise<void> {
   const config = getConfig(env)
   const recipient = message.to.trim()
-  const target = ASCII_ADDRESS.test(recipient)
-    ? await findDeliveryTarget(env.DB, recipient.toLowerCase(), config.ingest)
-    : null
+  const target = ASCII_ADDRESS.test(recipient) ? await resolveTarget(env.DB, recipient.toLowerCase(), config) : null
   if (!target) {
     message.setReject(REJECT_UNAVAILABLE)
     return
@@ -88,7 +98,8 @@ export async function handleEmail(
   // Cheap pre-check so floods don't cost a parse each; storeMessage re-checks atomically.
   const block = await ingestBlock(env.DB, target, receivedAt, 0, config.ingest)
   if (block) {
-    message.setReject(BLOCK_REASONS[block])
+    // An address catch-all may not create (today) bounces like any unknown address.
+    message.setReject(target.create ? REJECT_UNAVAILABLE : BLOCK_REASONS[block])
     return
   }
 

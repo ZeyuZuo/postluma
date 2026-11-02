@@ -152,7 +152,8 @@ export interface PublicMailbox {
 export interface MailboxQuota {
   /** Active mailboxes; disabled ones don't count. */
   used: number
-  limit: number
+  /** `null`: no quota (personal mode). */
+  limit: number | null
 }
 
 export interface MailboxListResponse {
@@ -176,12 +177,17 @@ export function normalizeLocalPart(value: string): string {
   return value.trim().toLowerCase()
 }
 
-export function isValidLocalPart(value: string): boolean {
+/**
+ * The strict rules (temporary mode, and catch-all in every mode): 3–32 characters, no reserved name.
+ * `personal`: the administrator owns the domain, so any 1–32 character local part, reserved names
+ * included. Never a `+` (LOCAL_PART_PATTERN): subaddressing relies on it.
+ */
+export function isValidLocalPart(value: string, opts: { personal?: boolean } = {}): boolean {
   return (
-    value.length >= LOCAL_PART_MIN &&
+    value.length >= (opts.personal ? 1 : LOCAL_PART_MIN) &&
     value.length <= LOCAL_PART_MAX &&
     LOCAL_PART_PATTERN.test(value) &&
-    !RESERVED_LOCAL_PARTS.includes(value)
+    (opts.personal === true || !RESERVED_LOCAL_PARTS.includes(value))
   )
 }
 

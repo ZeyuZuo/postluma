@@ -23,6 +23,7 @@ function mailboxLimits(config: AppConfig): MailboxLimits {
     defaultQuota: config.defaultMailboxQuota,
     maxTotal: config.maxTotalMailboxes,
     maxDailyCreations: config.maxDailyMailboxCreations,
+    quotaApplies: config.mode !== 'personal',
   }
 }
 
@@ -35,21 +36,22 @@ mailboxRoutes.get('/', async (c) => {
   // Sequential on purpose: with Promise.all a rejected listing (bad cursor) would leave the quota
   // query running after the response is sent.
   const page = await listMailboxes(c.env.DB, userId, query)
-  const body: MailboxListResponse = { ...page, quota: await getQuota(c.env.DB, userId, getConfig(c.env).defaultMailboxQuota) }
+  const body: MailboxListResponse = { ...page, quota: await getQuota(c.env.DB, userId, mailboxLimits(getConfig(c.env))) }
   return c.json(body)
 })
 
 mailboxRoutes.post('/', async (c) => {
   const input = await parseJson(c, createMailboxSchema)
   const userId = c.get('user').id
-  const limits = mailboxLimits(getConfig(c.env))
+  const config = getConfig(c.env)
+  const limits = mailboxLimits(config)
   const domain = await findEnabledDomain(c.env.DB, input.domainId)
   if (!domain) throw new ApiError(400, 'domain_unavailable')
   const note = input.note ?? null
 
   if (input.localPart !== undefined) {
     const localPart = normalizeLocalPart(input.localPart)
-    if (!isValidLocalPart(localPart)) throw new ApiError(400, 'invalid_local_part')
+    if (!isValidLocalPart(localPart, { personal: config.mode === 'personal' })) throw new ApiError(400, 'invalid_local_part')
     const mailbox = await createMailbox(c.env.DB, userId, { domainId: domain.id, address: `${localPart}@${domain.domain}`, note }, limits)
     return c.json({ mailbox }, 201)
   }
@@ -72,6 +74,6 @@ mailboxRoutes.get('/:id', async (c) => {
 
 mailboxRoutes.patch('/:id', async (c) => {
   const patch = await parseJson(c, updateMailboxSchema)
-  const defaultQuota = getConfig(c.env).defaultMailboxQuota
-  return c.json({ mailbox: await updateMailbox(c.env.DB, c.get('user').id, c.req.param('id'), patch, defaultQuota) })
+  const limits = mailboxLimits(getConfig(c.env))
+  return c.json({ mailbox: await updateMailbox(c.env.DB, c.get('user').id, c.req.param('id'), patch, limits) })
 })

@@ -43,7 +43,7 @@ async function copy(m: PublicMailbox): Promise<void> {
   <section class="addresses" aria-labelledby="addresses-title">
     <header class="head">
       <h2 id="addresses-title">{{ t('home.myAddresses') }}</h2>
-      <span v-if="quota" class="count">{{ quota.used }} / {{ quota.limit }}</span>
+      <span v-if="quota" class="count">{{ quota.limit === null ? quota.used : `${quota.used} / ${quota.limit}` }}</span>
       <RouterLink :to="{ name: 'mailboxes' }" class="manage">{{ t('home.manage') }} →</RouterLink>
     </header>
 

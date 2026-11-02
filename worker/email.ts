@@ -74,14 +74,16 @@ export async function handleEmail(
   env: Env,
   _ctx: ExecutionContext,
 ): Promise<void> {
+  const config = getConfig(env)
   const recipient = message.to.trim()
-  const target = ASCII_ADDRESS.test(recipient) ? await findDeliveryTarget(env.DB, recipient.toLowerCase()) : null
+  const target = ASCII_ADDRESS.test(recipient)
+    ? await findDeliveryTarget(env.DB, recipient.toLowerCase(), config.ingest)
+    : null
   if (!target) {
     message.setReject(REJECT_UNAVAILABLE)
     return
   }
 
-  const config = getConfig(env)
   const receivedAt = Date.now()
   // Cheap pre-check so floods don't cost a parse each; storeMessage re-checks atomically.
   const block = await ingestBlock(env.DB, target, receivedAt, 0, config.ingest)

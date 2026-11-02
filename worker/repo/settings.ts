@@ -12,7 +12,9 @@ export async function getSetting(db: D1Database, key: SettingKey): Promise<strin
   return row?.value ?? null
 }
 
+/** Never in personal mode, which has only the administrator; otherwise the admin override or the var. */
 export async function isRegistrationOpen(db: D1Database, config: AppConfig): Promise<boolean> {
+  if (config.mode === 'personal') return false
   const value = await getSetting(db, 'registration_open')
   return value === null ? config.registrationOpen : value === 'true'
 }

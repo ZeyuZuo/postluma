@@ -21,6 +21,7 @@ export const ERROR_CODES = [
   'account_pending',
   'account_rejected',
   'account_banned',
+  'admin_only',
   'internal_error',
   'payload_too_large',
   'invalid_local_part',

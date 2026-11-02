@@ -435,6 +435,7 @@ const zhCN = {
     account_pending: '账户还在等待管理员审核。',
     account_rejected: '账户申请未通过审核。',
     account_banned: '账户已被停用，请联系管理员。',
+    admin_only: '这个站点是个人邮箱，只有管理员能登录。',
     internal_error: '服务器出错了，请稍后再试。',
     network: '无法连接服务器，请检查网络。',
     payload_too_large: '提交的内容太大。',

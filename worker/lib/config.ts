@@ -45,6 +45,8 @@ export interface AppConfig {
   maxTotalMailboxes: number
   maxDailyMailboxCreations: number
   ingest: {
+    /** Personal mode: only mailboxes of administrators receive mail. */
+    adminOwnersOnly: boolean
     perMailboxPerHour: number
     perUserPerHour: number
     messagesPerDay: number
@@ -135,6 +137,7 @@ export function mailBucket(env: Env): R2Bucket | null {
 }
 
 export function getConfig(env: Env): AppConfig {
+  const mode = readMode(env)
   const ingestMb = readInt(env, 'INGEST_MAX_MB_PER_DAY')
   const rawMb = mailBucket(env) ? readInt(env, 'RAW_MAIL_MAX_MB_PER_DAY') : 0
   const maxRetentionDays = Math.min(
@@ -142,7 +145,7 @@ export function getConfig(env: Env): AppConfig {
     rawMb > 0 ? Math.floor(R2_BUDGET_BYTES / (rawMb * MB)) : Infinity,
   )
   return {
-    mode: readMode(env),
+    mode,
     registrationOpen: readBool(env, 'REGISTRATION_OPEN', true),
     passwordIterations: readInt(env, 'PASSWORD_PBKDF2_ITERATIONS'),
     sessionTtlMs: readInt(env, 'SESSION_TTL_DAYS') * DAY_MS,
@@ -150,6 +153,7 @@ export function getConfig(env: Env): AppConfig {
     maxTotalMailboxes: readInt(env, 'MAX_TOTAL_MAILBOXES'),
     maxDailyMailboxCreations: readInt(env, 'MAX_DAILY_MAILBOX_CREATIONS'),
     ingest: {
+      adminOwnersOnly: mode === 'personal',
       perMailboxPerHour: readInt(env, 'INGEST_MAX_PER_MAILBOX_PER_HOUR'),
       perUserPerHour: readInt(env, 'INGEST_MAX_PER_USER_PER_HOUR'),
       messagesPerDay: readInt(env, 'INGEST_MAX_MESSAGES_PER_DAY'),

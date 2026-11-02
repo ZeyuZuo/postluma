@@ -27,7 +27,7 @@ export const adminApi = {
   purgeMessages: (id: string) => http.post<BatchDeleteResponse>(`/api/admin/users/${enc(id)}/purge-messages`),
   deleteUser: (id: string) => http.delete<void>(`/api/admin/users/${enc(id)}`),
   settings: () => http.get<AdminSettings>('/api/admin/settings'),
-  updateSettings: (body: Partial<Record<'registrationOpen' | 'defaultMailboxQuota' | 'retentionDays', boolean | number | null>>) =>
+  updateSettings: (body: Partial<Record<'registrationOpen' | 'defaultMailboxQuota' | 'retentionDays' | 'catchAllMaxPerDay' | 'catchAllMaxPerAddressPerHour', boolean | number | null>>) =>
     http.patch<AdminSettings>('/api/admin/settings', body),
   stats: () => http.get<AdminStats>('/api/admin/stats'),
   audit: (cursor?: string | null) => http.get<AuditListResponse>(`/api/admin/audit${cursor ? `?cursor=${enc(cursor)}` : ''}`),

@@ -20,8 +20,10 @@ const { items, quota } = list
 const listLoaded = ref(false)
 const remembered = currentMailboxId()
 
-/** The remembered address if it is still active, else the newest one. */
-const current = computed(() => items.value.find((m) => m.id === remembered.value) ?? items.value[0] ?? null)
+/** Prefer the remembered address, then the newest address created by hand. */
+const current = computed(() =>
+  items.value.find((m) => m.id === remembered.value) ?? items.value.find((m) => !m.autoCreated) ?? items.value[0] ?? null,
+)
 
 async function reload(): Promise<void> {
   try {

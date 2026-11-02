@@ -24,5 +24,7 @@ export const adminDomainApi = {
   remove: (id: string) => http.delete<void>(`/api/admin/domains/${encodeURIComponent(id)}`),
   setCanSend: (id: string, canSend: boolean) =>
     http.patch<void>(`/api/admin/domains/${encodeURIComponent(id)}`, { canSend }),
+  setCatchAll: (id: string, catchAll: boolean) =>
+    http.patch<void>(`/api/admin/domains/${encodeURIComponent(id)}`, { catchAll }),
   health: (id: string) => http.get<{ health: DomainHealth }>(`/api/admin/domains/${encodeURIComponent(id)}/health`),
 }

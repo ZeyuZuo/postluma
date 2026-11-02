@@ -9,6 +9,7 @@ import DomainManager from './DomainManager.vue'
 import SettingsPanel from './SettingsPanel.vue'
 import StatsPanel from './StatsPanel.vue'
 import UserManager from './UserManager.vue'
+import { isPersonal } from '@/stores/mode'
 
 const TABS = ['users', 'domains', 'settings', 'stats', 'audit'] as const
 type Tab = (typeof TABS)[number]
@@ -17,8 +18,11 @@ const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const pending = ref(0)
+// Personal mode has only the administrator, so there are no users to manage.
+const personal = isPersonal()
+const tabs: readonly Tab[] = personal ? TABS.filter((tab) => tab !== 'users') : TABS
 
-const initial = TABS.includes(route.query.tab as Tab) ? (route.query.tab as Tab) : 'users'
+const initial = tabs.includes(route.query.tab as Tab) ? (route.query.tab as Tab) : tabs[0]!
 const tab = ref<Tab>(initial)
 
 function select(value: Tab): void {
@@ -32,7 +36,7 @@ const usersTab = () =>
 
 <template>
   <NTabs :value="tab" type="line" justify-content="center" animated @update:value="select">
-    <NTabPane name="users" :tab="usersTab">
+    <NTabPane v-if="!personal" name="users" :tab="usersTab">
       <UserManager @pending-changed="(n: number) => (pending = n)" />
     </NTabPane>
     <NTabPane name="domains" :tab="t('admin.tabs.domains')" display-directive="show:lazy">

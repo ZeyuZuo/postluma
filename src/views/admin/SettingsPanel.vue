@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 
 import { SETTING_RANGES, type AdminSettings } from '../../../shared/api'
 import { adminApi } from '@/api/admin'
+import { isPersonal } from '@/stores/mode'
 import SendingCard from './SendingCard.vue'
 import { errorCodeOf } from '@/api/client'
 
@@ -122,7 +123,8 @@ async function runCleanup(days: number): Promise<void> {
       <p class="intro">{{ t('admin.settings.intro') }}</p>
       <NCard v-if="settings">
         <NForm label-placement="top" class="form" @submit.prevent="save">
-          <NFormItem :label="t('admin.settings.registration')">
+          <!-- Personal mode: no sign-up and no quota, so neither setting applies. -->
+          <NFormItem v-if="!isPersonal()" :label="t('admin.settings.registration')">
             <div class="field">
               <NSwitch v-model:value="form.registrationOpen" />
               <p class="hint">{{ t('admin.settings.registrationHint') }}</p>
@@ -132,7 +134,7 @@ async function runCleanup(days: number): Promise<void> {
               </p>
             </div>
           </NFormItem>
-          <NFormItem :label="t('admin.settings.defaultQuota')">
+          <NFormItem v-if="!isPersonal()" :label="t('admin.settings.defaultQuota')">
             <div class="field">
               <NInputNumber v-model:value="form.defaultMailboxQuota" class="number" :min="SETTING_RANGES.defaultMailboxQuota.min" :max="SETTING_RANGES.defaultMailboxQuota.max" />
               <p class="hint">{{ t('admin.settings.defaultQuotaHint') }}</p>

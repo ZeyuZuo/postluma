@@ -8,6 +8,7 @@ export interface MessageQuery {
   since?: number
   unread?: boolean
   code?: boolean
+  starred?: '1'
   limit?: number
 }
 
@@ -20,12 +21,15 @@ export const messageApi = {
     if (params.since !== undefined) query.set('since', String(params.since))
     if (params.unread) query.set('unread', '1')
     if (params.code) query.set('code', '1')
+    if (params.starred) query.set('starred', params.starred)
     if (params.limit) query.set('limit', String(params.limit))
     return http.get<MessageListResponse>(`/api/messages?${query}`)
   },
   get: (id: string) => http.get<{ message: MessageDetail }>(`/api/messages/${encodeURIComponent(id)}`),
   rawUrl: (id: string) => `/api/messages/${encodeURIComponent(id)}/raw`,
   raw: (id: string) => http.binary(`/api/messages/${encodeURIComponent(id)}/raw`),
+  update: (id: string, changes: { isRead?: boolean; starred?: boolean }) =>
+    http.patch<void>(`/api/messages/${encodeURIComponent(id)}`, changes),
   setRead: (id: string, isRead: boolean) => http.patch<void>(`/api/messages/${encodeURIComponent(id)}`, { isRead }),
   remove: (id: string) => http.delete<void>(`/api/messages/${encodeURIComponent(id)}`),
   markAllRead: (mailboxId?: string | null) =>

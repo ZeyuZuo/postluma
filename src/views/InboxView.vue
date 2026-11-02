@@ -8,19 +8,20 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { MARK_READ_BATCH, SEARCH_MIN_CHARS, type MessageSummary, type PublicMailbox } from '../../shared/api'
 import { errorCodeOf } from '@/api/client'
 import { mailboxApi } from '@/api/mailboxes'
-import { messageApi } from '@/api/messages'
+import { messageApi, type MessageQuery } from '@/api/messages'
 import ComposePanel from '@/components/ComposePanel.vue'
 import MessageDetail from '@/components/MessageDetail.vue'
 import MessageRow from '@/components/MessageRow.vue'
 import { useIsMobile } from '@/composables/useIsMobile'
 import { inbox, refreshInbox } from '@/stores/inbox'
+import { isPersonal } from '@/stores/mode'
 import { canSend, loadOutboxStatus } from '@/stores/outbox'
 
 const SEARCH_DEBOUNCE_MS = 400
 /** Safety stop for "mark all read" on a huge backlog (each batch is MARK_READ_BATCH rows). */
 const MARK_READ_MAX_BATCHES = 10
 
-type Filter = 'all' | 'unread' | 'code'
+type Filter = 'all' | 'unread' | 'code' | 'starred'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -44,8 +45,11 @@ const effectiveQuery = computed(() => {
 const selectedId = computed(() => (typeof route.params.id === 'string' && route.params.id ? route.params.id : null))
 const mailboxFilter = computed(() => (typeof route.query.mailbox === 'string' ? route.query.mailbox : null))
 const filter = computed<Filter>(() =>
-  route.query.filter === 'unread' || route.query.filter === 'code' ? route.query.filter : 'all',
+  route.query.filter === 'unread' || route.query.filter === 'code' || (isPersonal() && route.query.filter === 'starred')
+    ? route.query.filter
+    : 'all',
 )
+const selectedIsStarred = computed(() => items.value.find((m) => m.id === selectedId.value)?.isStarred)
 
 const mailboxOptions = computed(() => {
   const active = mailboxes.value.filter((m) => m.status === 'active')
@@ -71,14 +75,16 @@ const filters = computed(() => [
         : t('inbox.filterUnread'),
   },
   { key: 'code' as const, label: t('inbox.filterCode') },
+  ...(isPersonal() ? [{ key: 'starred' as const, label: t('inbox.filterStarred') }] : []),
 ])
 
-function listParams() {
+function listParams(): MessageQuery {
   return {
     mailbox: mailboxFilter.value,
     q: effectiveQuery.value,
     unread: filter.value === 'unread',
     code: filter.value === 'code',
+    starred: filter.value === 'starred' ? '1' : undefined,
   }
 }
 
@@ -197,6 +203,11 @@ function onReadChanged(id: string, isRead: boolean): void {
   if (item) item.isRead = isRead
 }
 
+function onStarredChanged(id: string, isStarred: boolean): void {
+  const item = items.value.find((m) => m.id === id)
+  if (item) item.isStarred = isStarred
+}
+
 function onDeleted(id: string): void {
   items.value = items.value.filter((m) => m.id !== id)
   closeDetail()
@@ -241,7 +252,7 @@ const showList = computed(() => !isMobile.value || (!selectedId.value && !compos
 </script>
 
 <template>
-  <div class="inbox" :class="{ mobile: isMobile }">
+  <div class="inbox" :class="{ mobile: isMobile, personal: isPersonal() }">
     <section v-if="showList" class="list-pane" :aria-label="t('inbox.listLabel')">
       <div class="toolbar">
         <NInput
@@ -298,6 +309,7 @@ const showList = computed(() => !isMobile.value || (!selectedId.value && !compos
               :selected="message.id === selectedId"
               :show-mailbox="!mailboxFilter"
               @open="open(message)"
+              @starred-changed="onStarredChanged"
             />
           </ul>
           <div v-if="nextCursor" class="more">
@@ -325,9 +337,11 @@ const showList = computed(() => !isMobile.value || (!selectedId.value && !compos
         <MessageDetail
           :id="selectedId"
           :show-back="isMobile"
+          :is-starred="selectedIsStarred"
           @back="closeDetail"
           @deleted="onDeleted"
           @read-changed="onReadChanged"
+          @starred-changed="onStarredChanged"
         />
       </aside>
     </Transition>
@@ -517,6 +531,11 @@ const showList = computed(() => !isMobile.value || (!selectedId.value && !compos
 }
 .inbox.mobile .search {
   order: -2;
+}
+.inbox.mobile.personal .segmented {
+  flex-wrap: wrap;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 @media (prefers-reduced-motion: reduce) {
   .drawer-enter-active,

@@ -7,6 +7,8 @@ import {
   MailUnreadOutline,
   ReturnUpBackOutline,
   ShieldCheckmarkOutline,
+  Star,
+  StarOutline,
   TrashOutline,
   WarningOutline,
 } from '@vicons/ionicons5'
@@ -24,10 +26,18 @@ import { formatDateTime } from '@/lib/format'
 import { prepareMailHtml } from '@/lib/mail-html'
 import { forgetOriginal, loadOriginal, saveFile, toDataUri, type OriginalMail } from '@/lib/original-mail'
 import { adjustUnread } from '@/stores/inbox'
+import { isPersonal } from '@/stores/mode'
 import { canSend, loadOutboxStatus } from '@/stores/outbox'
 
-const props = defineProps<{ id: string; showBack?: boolean }>()
-const emit = defineEmits<{ back: []; deleted: [id: string]; readChanged: [id: string, isRead: boolean] }>()
+const props = withDefaults(defineProps<{ id: string; showBack?: boolean; isStarred?: boolean }>(), {
+  isStarred: undefined,
+})
+const emit = defineEmits<{
+  back: []
+  deleted: [id: string]
+  readChanged: [id: string, isRead: boolean]
+  starredChanged: [id: string, isStarred: boolean]
+}>()
 
 const { t } = useI18n()
 const toast = useMessage()
@@ -36,6 +46,7 @@ const dialog = useDialog()
 const message = ref<MessageDetail | null>(null)
 const loading = ref(false)
 const failed = ref(false)
+const starring = ref(false)
 const allowRemoteImages = ref(false)
 /** The original message, parsed in the browser (attachments, inline images); loaded on demand. */
 const original = ref<OriginalMail | null>(null)
@@ -150,6 +161,7 @@ async function load(id: string): Promise<void> {
     return
   }
   if (id !== props.id) return
+  detail.isStarred = props.isStarred ?? detail.isStarred
   message.value = detail
   loading.value = false
   const hasInline = detail.attachments.some((a) => a.inline)
@@ -178,6 +190,28 @@ watch(() => props.id, (id) => {
   replying.value = false
   void load(id)
 }, { immediate: true })
+
+watch(() => props.isStarred, (isStarred) => {
+  if (message.value?.id === props.id && isStarred !== undefined) message.value.isStarred = isStarred
+})
+
+async function toggleStar(): Promise<void> {
+  const current = message.value
+  if (!current || starring.value) return
+  const wasStarred = current.isStarred
+  starring.value = true
+  current.isStarred = !wasStarred
+  emit('starredChanged', current.id, current.isStarred)
+  try {
+    await messageApi.update(current.id, { starred: current.isStarred })
+  } catch (err) {
+    current.isStarred = wasStarred
+    emit('starredChanged', current.id, wasStarred)
+    toast.error(t(`errors.${errorCodeOf(err)}`))
+  } finally {
+    starring.value = false
+  }
+}
 
 async function markUnread(): Promise<void> {
   if (!message.value) return
@@ -229,6 +263,22 @@ function formatSize(bytes: number): string {
           {{ t('inbox.back') }}
         </NButton>
         <span class="spacer" />
+        <NTooltip v-if="isPersonal()">
+          <template #trigger>
+            <button
+              type="button"
+              class="icon-btn"
+              :class="{ starred: message.isStarred }"
+              :aria-label="t(message.isStarred ? 'inbox.unstar' : 'inbox.star')"
+              :aria-pressed="message.isStarred"
+              :disabled="starring"
+              @click="toggleStar"
+            >
+              <NIcon><Star v-if="message.isStarred" /><StarOutline v-else /></NIcon>
+            </button>
+          </template>
+          {{ t(message.isStarred ? 'inbox.unstar' : 'inbox.star') }}
+        </NTooltip>
         <NTooltip v-if="canSend() && message.mailboxStatus === 'active'">
           <template #trigger>
             <button type="button" class="icon-btn" :aria-label="t('compose.reply')" :aria-pressed="replying" @click="replying = !replying">
@@ -301,6 +351,10 @@ function formatSize(bytes: number): string {
         </div>
         <time class="when" :datetime="new Date(message.receivedAt).toISOString()">{{ formatDateTime(message.receivedAt) }}</time>
       </div>
+
+      <p v-if="isPersonal() && message.isStarred" class="starred-note">
+        <NIcon aria-hidden="true"><Star /></NIcon>{{ t('inbox.starredNote') }}
+      </p>
 
       <NAlert v-if="bodyIncomplete && !originalLoading" type="warning" :show-icon="false" class="notice">
         <div class="notice-row">
@@ -381,6 +435,17 @@ function formatSize(bytes: number): string {
 }
 .icon-btn.danger:hover {
   color: var(--pl-danger);
+}
+.icon-btn.starred {
+  color: var(--pl-ink);
+}
+.starred-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--pl-muted);
+  font-size: 0.75rem;
 }
 .icon-btn:focus-visible {
   outline: 2px solid var(--pl-blue);

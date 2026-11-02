@@ -6,6 +6,7 @@
  * Three of these are only *defaults*: an admin can override `REGISTRATION_OPEN`,
  * `DEFAULT_MAILBOX_QUOTA` and `MESSAGE_RETENTION_DAYS` at runtime (stored in the `settings` table).
  */
+import { SERVICE_MODES, type ServiceMode } from '../../shared/api'
 
 interface IntSpec {
   fallback: number
@@ -35,6 +36,8 @@ const INT_VARS = {
 type IntVar = keyof typeof INT_VARS
 
 export interface AppConfig {
+  /** `personal`: the administrator's own mailbox; `temporary`: many users, no sending. */
+  mode: ServiceMode
   registrationOpen: boolean
   passwordIterations: number
   sessionTtlMs: number
@@ -117,6 +120,15 @@ function readProvider(env: Env): MailProviderName {
   return 'resend'
 }
 
+/** Unset or invalid means `temporary`, so a multi-user deployment never locks its users out by default. */
+function readMode(env: Env): ServiceMode {
+  const raw = (env as unknown as Record<string, unknown>).SERVICE_MODE
+  if (raw === undefined || raw === '') return 'temporary'
+  if (SERVICE_MODES.includes(raw as ServiceMode)) return raw as ServiceMode
+  warnOnce('SERVICE_MODE', raw, 'temporary')
+  return 'temporary'
+}
+
 /** The R2 binding, if this deployment has one (it is optional; see wrangler.jsonc). */
 export function mailBucket(env: Env): R2Bucket | null {
   return (env as { MAIL_BUCKET?: R2Bucket }).MAIL_BUCKET ?? null
@@ -130,6 +142,7 @@ export function getConfig(env: Env): AppConfig {
     rawMb > 0 ? Math.floor(R2_BUDGET_BYTES / (rawMb * MB)) : Infinity,
   )
   return {
+    mode: readMode(env),
     registrationOpen: readBool(env, 'REGISTRATION_OPEN', true),
     passwordIterations: readInt(env, 'PASSWORD_PBKDF2_ITERATIONS'),
     sessionTtlMs: readInt(env, 'SESSION_TTL_DAYS') * DAY_MS,

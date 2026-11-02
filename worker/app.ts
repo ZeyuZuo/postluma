@@ -55,8 +55,10 @@ app.get('/health', async (c) => {
 })
 
 app.get('/settings/public', async (c) => {
+  const config = getConfig(c.env)
   const settings: PublicSettings = {
-    registrationOpen: await isRegistrationOpen(c.env.DB, getConfig(c.env)),
+    registrationOpen: await isRegistrationOpen(c.env.DB, config),
+    mode: config.mode,
   }
   return c.json(settings)
 })

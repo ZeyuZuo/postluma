@@ -29,6 +29,10 @@
 	// the comment). Change them HERE and push: `wrangler deploy` overwrites values edited in the
 	// Cloudflare dashboard. Starred (*) items are defaults an admin can override in the admin panel.
 	"vars": {
+		// ---- Service mode (docs/MODES_DESIGN.md). "personal": the administrator's own mailbox (only admins
+		// sign in; starring, catch-all and optional sending). "temporary": sign-ups approved by an admin, no
+		// sending. Unset or invalid means "temporary".
+		"SERVICE_MODE": "temporary",
 		// ---- Accounts
 		"REGISTRATION_OPEN": "true", // * allow new sign-up requests (true/false)
 		"PASSWORD_PBKDF2_ITERATIONS": "20000", // 10000–100000. Free plan: ~2.3 ms per 20k; keep ≤ 30000

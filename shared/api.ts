@@ -60,8 +60,16 @@ export interface PublicUser {
   createdAt: number
 }
 
+/**
+ * Chosen at deploy time (`SERVICE_MODE`, docs/MODES_DESIGN.md): `personal` is the administrator's own
+ * mailbox, `temporary` a temporary-mail service for approved users.
+ */
+export const SERVICE_MODES = ['personal', 'temporary'] as const
+export type ServiceMode = (typeof SERVICE_MODES)[number]
+
 export interface PublicSettings {
   registrationOpen: boolean
+  mode: ServiceMode
 }
 
 export const USERNAME_PATTERN = /^[a-zA-Z0-9_.-]+$/

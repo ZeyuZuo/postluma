@@ -1,6 +1,8 @@
 import { env, SELF } from 'cloudflare:test'
 import { describe, expect, it } from 'vitest'
 
+import { api, json } from './helpers'
+
 describe('GET /api/health', () => {
   it('reports the database as reachable', async () => {
     const res = await SELF.fetch('https://postluma.test/api/health')
@@ -11,5 +13,12 @@ describe('GET /api/health', () => {
   it('has the initial schema applied', async () => {
     const row = await env.DB.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE name = 'ingest_counters'").first<{ n: number }>()
     expect(row?.n).toBe(1)
+  })
+})
+
+describe('GET /api/settings/public', () => {
+  it('reports the service mode', async () => {
+    expect(await json(await api('/api/settings/public'))).toMatchObject({ mode: 'temporary' })
+    expect(await json(await api('/api/settings/public', { env: { SERVICE_MODE: 'personal' } }))).toMatchObject({ mode: 'personal' })
   })
 })

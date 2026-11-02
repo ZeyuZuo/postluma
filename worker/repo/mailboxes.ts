@@ -117,7 +117,7 @@ export async function getQuota(
 export async function listMailboxes(
   db: D1Database,
   userId: string,
-  opts: { status: MailboxStatus; q?: string; domain?: string; cursor?: string },
+  opts: { status: MailboxStatus; q?: string; domain?: string; manualOnly?: boolean; cursor?: string },
 ): Promise<{ items: PublicMailbox[]; nextCursor: string | null }> {
   const where = ['m.user_id = ?', 'm.status = ?']
   const params: unknown[] = [userId, opts.status]
@@ -130,6 +130,7 @@ export async function listMailboxes(
     where.push('m.domain_id = ?')
     params.push(opts.domain)
   }
+  if (opts.manualOnly) where.push('m.auto_created = 0')
   if (opts.cursor) {
     const c = decodeCursor(opts.cursor)
     where.push('(m.created_at, m.id) < (?, ?)') // row value: an index range, unlike the OR form

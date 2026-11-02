@@ -35,7 +35,7 @@ mailboxRoutes.get('/', async (c) => {
   const userId = c.get('user').id
   // Sequential on purpose: with Promise.all a rejected listing (bad cursor) would leave the quota
   // query running after the response is sent.
-  const page = await listMailboxes(c.env.DB, userId, query)
+  const page = await listMailboxes(c.env.DB, userId, { ...query, manualOnly: query.manual === '1' })
   const body: MailboxListResponse = { ...page, quota: await getQuota(c.env.DB, userId, mailboxLimits(getConfig(c.env))) }
   return c.json(body)
 })

@@ -52,6 +52,15 @@ describe('starring (personal mode)', () => {
     expect(await starredCount()).toBe(1)
   })
 
+  it('keeps starred mail of a disabled address in the Starred filter', async () => {
+    const kept = await addMessageRow(box, { subject: 'receipt' })
+    expect((await star(kept, true)).status).toBe(204)
+    await env.DB.prepare("UPDATE mailboxes SET status = 'disabled' WHERE id = ?").bind(box).run()
+    expect((await list('?starred=1')).items.map((m) => m.id)).toEqual([kept])
+    // The plain inbox still shows active addresses only.
+    expect((await list()).items).toEqual([])
+  })
+
   it('answers 404 for an unknown message', async () => {
     expect((await star('missing', true)).status).toBe(404)
     expect((await star('missing', false)).status).toBe(404)

@@ -33,7 +33,7 @@ Pick a mode at deploy time with `SERVICE_MODE`:
 | Sign-up, user management | None | Yes (sign-up can be closed) |
 | Addresses | Unlimited; `me@`, `contact@` and the like allowed | Quota; 3–32 characters, reserved names not allowed |
 | Starred mail (kept past cleanup) | Yes | No |
-| Catch-all: any address works, created on its first mail | Yes, per domain | No |
+| Catch-all: a new address is created by its first mail | Yes, per domain | No |
 | Sending | Yes, off by default | No |
 | Random addresses, codes, verification links, cleanup, R2 originals | Yes | Yes |
 
@@ -59,7 +59,7 @@ In both modes **isolation between users** comes first: each user sees only their
 
 **Personal mode**
 - Starring: click the star on a message to keep it — starred mail (and its R2 original) is never cleaned up automatically; the inbox has a “Starred” filter. Up to 500 per user (tunable)
-- Catch-all: switch it on for a domain under “Mail domains”, and the first mail to any address on that domain creates the address, listed under “In use” and marked “Auto-created”; disable one you don't want and it bounces from then on. At most 10 new addresses per day and 10 messages per auto-created address per hour (both adjustable in the settings), and all auto-created addresses together use at most half of the daily intake, so spam can't crowd out real mail
+- Catch-all: switch it on for a domain under “Mail domains”, and the first mail to a new address on that domain creates it, listed under “In use” and marked “Auto-created” (only 3–32 character addresses that aren't reserved names; create `me@`, `contact@` and the like by hand); disable one you don't want and it bounces from then on. At most 10 new addresses per day and 10 messages per auto-created address per hour (both adjustable in the settings), and all auto-created addresses together use at most half of the daily intake, so spam can't crowd out real mail
 - Sending (off by default): switch it on in the settings, allow a domain under “Mail domains”, then reply or write new mail from your own addresses (from the inbox, the message view and the home page; sent mail is under “Sent” in the inbox). Plain text only, up to 5 recipients per message, 20 per day and 100 service-wide per day (all tunable); replies carry threading headers. Sent through Resend (100/day on its free plan)
 
 **Temporary mode**

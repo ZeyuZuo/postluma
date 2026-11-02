@@ -137,7 +137,8 @@ export function buildListQuery(userId: string, opts: ListMessagesOptions): { sql
   if (opts.mailboxId) {
     where.push('g.mailbox_id = ?')
     params.push(opts.mailboxId)
-  } else {
+  } else if (!opts.starredOnly) {
+    // Starred mail stays findable after its address is disabled: "Starred" is where kept mail lives.
     where.push("m.status = 'active'")
   }
   if (opts.q) {

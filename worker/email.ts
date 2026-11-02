@@ -104,11 +104,12 @@ export async function handleEmail(
   }
 
   // The original goes to R2 only if this deployment has a bucket and today's R2 budget has room.
+  // Mail to auto-created addresses may fill only half of it, so spam can't strip real mail of its
+  // attachments for the rest of the day.
   const bucket = mailBucket(env)
+  const rawBudget = target.autoCreated ? config.ingest.rawBytesPerDay / 2 : config.ingest.rawBytesPerDay
   const keepRaw =
-    bucket !== null &&
-    message.rawSize > 0 &&
-    (await rawBytesToday(env.DB, receivedAt)) + message.rawSize <= config.ingest.rawBytesPerDay
+    bucket !== null && message.rawSize > 0 && (await rawBytesToday(env.DB, receivedAt)) + message.rawSize <= rawBudget
   const [parseStream, rawStream] = keepRaw ? message.raw.tee() : [message.raw, null]
 
   // Only a prefix is read and parsed: parsing (mostly base64-decoding attachments we never store)

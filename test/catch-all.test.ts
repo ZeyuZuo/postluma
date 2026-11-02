@@ -4,7 +4,8 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import type { AdminDomain, AdminSettings, MailboxListResponse } from '../shared/api'
 import { REJECT_FLOODED, REJECT_MALFORMED, REJECT_OVER_BUDGET, REJECT_UNAVAILABLE, handleEmail } from '../worker/email'
-import { utcDay } from '../worker/repo/ingest'
+import { getConfig } from '../worker/lib/config'
+import { findCatchAllTarget, findDeliveryTarget, ingestCheck, utcDay, type DeliveryTarget } from '../worker/repo/ingest'
 import { addDomain, addMailboxRow, api, createUser, emailStub, json, login, mime, setSetting } from './helpers'
 
 const personal = { SERVICE_MODE: 'personal' }
@@ -127,6 +128,18 @@ describe('catch-all delivery', () => {
     expect(await deliver('mine@d.test', budget)).toBeNull()
   })
 
+  it('keeps originals for auto-created addresses only within half of the daily R2 budget', async () => {
+    await addMailboxRow(rootId, domainId, 'mine@d.test')
+    const raw = { RAW_MAIL_MAX_MB_PER_DAY: '1' }
+    // More than half of today's 1 MB of originals is used already.
+    await env.DB.prepare('INSERT INTO ingest_counters (day, messages, bytes, raw_bytes) VALUES (?, 0, 0, 600000)').bind(utcDay(Date.now())).run()
+    expect(await deliver('shop-jd@d.test', raw)).toBeNull()
+    expect(await deliver('mine@d.test', raw)).toBeNull()
+    const original = (to: string) => env.DB.prepare('SELECT raw_r2_key FROM messages WHERE to_address = ?').bind(to).first('raw_r2_key')
+    expect(await original('shop-jd@d.test')).toBeNull()
+    expect(await original('mine@d.test')).not.toBeNull()
+  })
+
   it('creates no address when the message is refused', async () => {
     await env.DB.prepare('INSERT INTO ingest_counters (day, messages, bytes) VALUES (?, 5000, 0)').bind(utcDay(Date.now())).run()
     expect(await deliver('late@d.test')).toBe(REJECT_UNAVAILABLE)
@@ -174,6 +187,13 @@ describe('catch-all addresses in the address list', () => {
     const { items } = await json<MailboxListResponse>(await api('/api/mailboxes', { cookie: await login('root'), env: personal }))
     expect(Object.fromEntries(items.map((m) => [m.address, m.autoCreated]))).toEqual({ 'mine@d.test': false, 'shop-jd@d.test': true })
   })
+
+  it('can be left out with ?manual=1', async () => {
+    await addMailboxRow(rootId, domainId, 'mine@d.test')
+    await deliver('shop-jd@d.test')
+    const res = await api('/api/mailboxes?manual=1', { cookie: await login('root'), env: personal })
+    expect((await json<MailboxListResponse>(res)).items.map((m) => m.address)).toEqual(['mine@d.test'])
+  })
 })
 
 describe('admin controls', () => {
@@ -208,5 +228,27 @@ describe('admin controls', () => {
     expect((await patch({ catchAllMaxPerDay: null })).status).toBe(200)
     expect(await settings()).toMatchObject({ catchAllMaxPerDay: 10, overridden: { catchAllMaxPerDay: false } })
     expect((await patch({ catchAllMaxPerDay: 5 }, { SERVICE_MODE: 'temporary' })).status).toBe(404)
+  })
+})
+
+describe('the pre-check before parsing', () => {
+  it('reads a bounded number of rows however much mail the administrator got this hour', async () => {
+    const mine = await addMailboxRow(rootId, domainId, 'mine@d.test')
+    const now = Date.now()
+    const inserts = Array.from({ length: 2000 }, (_, i) =>
+      env.DB.prepare(
+        `INSERT INTO messages (id, mailbox_id, user_id, from_address, to_address, size, received_at)
+         VALUES (?, ?, ?, 'a@example.org', 'mine@d.test', 1, ?)`,
+      ).bind(`m${i}`, mine, rootId, now - 1_000 - i),
+    )
+    for (let i = 0; i < inserts.length; i += 200) await env.DB.batch(inserts.slice(i, i + 200))
+    const limits = getConfig({ ...env, ...personal } as Env).ingest
+    const rowsRead = async (target: DeliveryTarget) => {
+      const { sql, params } = ingestCheck(target, now, 0, limits)
+      return (await env.DB.prepare(sql).bind(...params).all()).meta.rows_read
+    }
+    // A spam message to a new address and a message to the administrator's own address.
+    expect(await rowsRead((await findCatchAllTarget(env.DB, 'new@d.test', 'new-id'))!)).toBeLessThan(20)
+    expect(await rowsRead((await findDeliveryTarget(env.DB, 'mine@d.test', limits))!)).toBeLessThan(20)
   })
 })

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 
-import { createMailbox, deliver, mime, signIn, uid } from './helpers'
+import { createMailbox, deliver, E2E_DOMAIN_ID, mime, signIn, sql, uid } from './helpers'
 
 async function setCatchAll(page: Page, enabled: boolean): Promise<void> {
   await page.goto('/admin')
@@ -81,4 +81,28 @@ test('catch-all controls and addresses have no horizontal scrolling at phone wid
   } finally {
     await setCatchAll(page, false)
   }
+})
+
+test('the home page keeps an address made by hand current when catch-all fills the first page', async ({ page, context }) => {
+  await signIn(context, { admin: true })
+  const older = await createMailbox(context.request, uid('old'))
+  const newer = await createMailbox(context.request, uid('new'))
+  const { user } = (await (await context.request.get('/api/auth/me')).json()) as { user: { id: string } }
+  // 55 newer addresses from catch-all push both off the first page of 50.
+  const from = Date.now() + 60_000
+  sql(
+    Array.from({ length: 55 }, (_, i) => {
+      const at = from + i
+      return `INSERT INTO mailboxes (id, user_id, domain_id, address, status, auto_created, created_at, updated_at)
+        VALUES ('${uid('auto')}', '${user.id}', '${E2E_DOMAIN_ID}', '${uid('auto')}@e2e.test', 'active', 1, ${at}, ${at});`
+    }).join(' '),
+  )
+
+  await page.goto('/')
+  await expect(page.locator('section.current .address .local')).toHaveText(newer.address.split('@')[0])
+
+  // An address remembered as current is still found when it isn't on the first page.
+  await page.evaluate(([key, id]) => localStorage.setItem(key, id), [`postluma.current.${user.id}`, older.id])
+  await page.reload()
+  await expect(page.locator('section.current .address .local')).toHaveText(older.address.split('@')[0])
 })

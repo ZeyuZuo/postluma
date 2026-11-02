@@ -57,9 +57,12 @@ const HOUR_MS = 60 * 60 * 1000
 // as received), ?27 (R2 key of the original, or null), ?28 (the verification link, or null), ?29 (auth
 // results), ?30 (1 = only administrators' mailboxes receive mail: personal mode) and ?33 (the domain of
 // a mailbox that catch-all creates).
+/** Counts matching messages, stopping at `limit`: enough to compare against it, and reads stay bounded. */
+const cappedCount = (where: string, limit: string) => `(SELECT COUNT(*) FROM (SELECT 1 FROM messages WHERE ${where} LIMIT ${limit}))`
+
 const WITHIN_RATE = `(
-  (SELECT COUNT(*) FROM messages WHERE mailbox_id = ?1 AND received_at > ?3) < ?21
-  AND (SELECT COUNT(*) FROM messages WHERE user_id = ?2 AND received_at > ?3) < ?22)`
+  ${cappedCount('mailbox_id = ?1 AND received_at > ?3', '?21')} < ?21
+  AND ${cappedCount('user_id = ?2 AND received_at > ?3', '?22')} < ?22)`
 const WITHIN_BUDGET = `(
   COALESCE((SELECT messages FROM ingest_counters WHERE day = ?4), 0) < ?23
   AND COALESCE((SELECT bytes FROM ingest_counters WHERE day = ?4), 0) + ?5 <= ?24)`
@@ -67,9 +70,9 @@ const WITHIN_BUDGET = `(
 const WITHIN_CATCH_ALL_SHARE = `(
   COALESCE((SELECT catch_all_messages FROM ingest_counters WHERE day = ?4), 0) < ?23 / 2
   AND COALESCE((SELECT catch_all_bytes FROM ingest_counters WHERE day = ?4), 0) + ?5 <= ?24 / 2)`
+const ADDRESS_RATE_LIMIT = settingIntSql('catch_all_max_per_address_per_hour', '?31')
 const WITHIN_ADDRESS_RATE = `(
-  (SELECT COUNT(*) FROM messages WHERE mailbox_id = ?1 AND received_at > ?3)
-  < ${settingIntSql('catch_all_max_per_address_per_hour', '?31')})`
+  ${cappedCount('mailbox_id = ?1 AND received_at > ?3', ADDRESS_RATE_LIMIT)} < ${ADDRESS_RATE_LIMIT})`
 const UNDER_CATCH_ALL_CAP = `(
   COALESCE((SELECT auto_created FROM ingest_counters WHERE day = ?4), 0) < ${settingIntSql('catch_all_max_per_day', '?32')})`
 /**
@@ -194,6 +197,35 @@ function checkParams(target: DeliveryTarget, now: number, bytes: number, limits:
  * on parsing, and to explain a conditional INSERT that matched nothing. For an address catch-all
  * would create, any block means "don't create it".
  */
+/** D1 wants exactly as many bound values as the highest `?N` placeholder in the statement. */
+function valuesFor(sql: string, values: unknown[]): unknown[] {
+  let highest = 0
+  for (const match of sql.matchAll(/\?(\d+)/g)) highest = Math.max(highest, Number(match[1]))
+  return values.slice(0, highest)
+}
+
+/**
+ * The pre-check statement for one target (exported so tests can measure what it reads). Only the
+ * limits that apply to this kind of mailbox are evaluated, so a refused spam message to an address
+ * catch-all would create costs a few primary-key lookups, not a count over the owner's mail.
+ */
+export function ingestCheck(
+  target: DeliveryTarget,
+  now: number,
+  bytes: number,
+  limits: IngestLimits,
+): { sql: string; params: unknown[] } {
+  const checks = [`${WITHIN_BUDGET} AS within_budget`]
+  if (target.autoCreated) {
+    checks.push(`${WITHIN_CATCH_ALL_SHARE} AS within_share`)
+    checks.push(target.create ? `${UNDER_CATCH_ALL_CAP} AS under_cap` : `${WITHIN_ADDRESS_RATE} AS within_address_rate`)
+  } else if (!target.isAdmin) {
+    checks.push(`${WITHIN_RATE} AS within_rate`)
+  }
+  const sql = `SELECT ${checks.join(', ')}`
+  return { sql, params: valuesFor(sql, checkParams(target, now, bytes, limits)) }
+}
+
 export async function ingestBlock(
   db: D1Database,
   target: DeliveryTarget,
@@ -201,15 +233,13 @@ export async function ingestBlock(
   bytes: number,
   limits: IngestLimits,
 ): Promise<IngestBlock | null> {
+  const { sql, params } = ingestCheck(target, now, bytes, limits)
   const row = await db
-    .prepare(
-      `SELECT ${WITHIN_RATE} AS within_rate, ${WITHIN_BUDGET} AS within_budget, ${WITHIN_CATCH_ALL_SHARE} AS within_share,
-              ${WITHIN_ADDRESS_RATE} AS within_address_rate, ${UNDER_CATCH_ALL_CAP} AS under_cap`,
-    )
-    .bind(...checkParams(target, now, bytes, limits))
-    .first<{ within_rate: number; within_budget: number; within_share: number; within_address_rate: number; under_cap: number }>()
+    .prepare(sql)
+    .bind(...params)
+    .first<{ within_budget: number; within_rate?: number; within_share?: number; within_address_rate?: number; under_cap?: number }>()
   if (!row?.within_budget) return 'over_budget'
-  if (!target.autoCreated) return !row.within_rate && !target.isAdmin ? 'flooded' : null
+  if (!target.autoCreated) return row.within_rate === 0 ? 'flooded' : null
   if (!row.within_share) return 'over_budget'
   if (target.create) return row.under_cap ? null : 'flooded'
   return row.within_address_rate ? null : 'flooded'
@@ -277,14 +307,14 @@ export async function storeMessage(
     limits.catchAllPerDay,
     target.create?.domainId ?? null,
   ]
+  const statement = (sql: string) => db.prepare(sql).bind(...valuesFor(sql, params))
   const statements: D1PreparedStatement[] = []
   if (target.create) {
     // Every gate the message INSERT checks, so a mailbox created here always gets its first message
     // (same transaction). OR IGNORE: a concurrent first delivery may have created the address already.
     statements.push(
-      db
-        .prepare(
-          `INSERT OR IGNORE INTO mailboxes (id, user_id, domain_id, address, status, auto_created, created_at, updated_at)
+      statement(
+        `INSERT OR IGNORE INTO mailboxes (id, user_id, domain_id, address, status, auto_created, created_at, updated_at)
            SELECT ?1, ?2, ?33, ?26, 'active', 1, ?20, ?20
            WHERE EXISTS (
                SELECT 1 FROM domains d JOIN users u ON u.id = d.catch_all_user_id
@@ -293,14 +323,12 @@ export async function storeMessage(
              AND ${UNDER_CATCH_ALL_CAP}
              AND ${WITHIN_BUDGET}
              AND ${WITHIN_CATCH_ALL_SHARE}`,
-        )
-        .bind(...params),
+      ),
     )
   }
   statements.push(
-    db
-      .prepare(
-        `INSERT INTO messages (id, mailbox_id, user_id, message_id_header, envelope_from, from_address, from_name,
+    statement(
+      `INSERT INTO messages (id, mailbox_id, user_id, message_id_header, envelope_from, from_address, from_name,
            to_address, subject, snippet, text_body, html_body, verification_code, size, has_attachments,
            attachments_json, is_truncated, received_at, raw_r2_key, verification_link, auth_results)
          SELECT ?6, m.id, m.user_id, ?7, ?8, ?9, ?10, ?26, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?27, ?28, ?29
@@ -310,9 +338,7 @@ export async function storeMessage(
            AND (?30 = 0 OR u.role = 'admin')
            AND ${WITHIN_MAILBOX_LIMITS}
            AND ${WITHIN_BUDGET}`,
-      )
-      // The highest placeholder here is ?31; D1 wants exactly that many values.
-      .bind(...params.slice(0, 31)),
+    ),
     db
       .prepare(
         // A message stored into an auto-created mailbox counts toward catch-all's share of the day;

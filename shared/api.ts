@@ -237,6 +237,8 @@ export const listMailboxesQuerySchema = z.object({
   q: z.string().trim().max(100).optional(),
   /** Only addresses on this domain (id). */
   domain: idSchema.optional(),
+  /** Only addresses created by hand, not by catch-all. */
+  manual: z.enum(['1']).optional(),
   cursor: z.string().max(200).optional(),
 })
 

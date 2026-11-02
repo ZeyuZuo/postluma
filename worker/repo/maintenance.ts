@@ -15,9 +15,10 @@ export const DELETE_BATCH = 500
 /** Which messages a bulk delete targets, oldest first. */
 export type DeleteScope = { kind: 'olderThan'; cutoff: number } | { kind: 'user'; userId: string }
 
+/** Age-based deletes (retention, manual cleanup) keep starred mail; purging a user deletes everything. */
 function scopeSql(scope: DeleteScope): { where: string; params: unknown[] } {
   return scope.kind === 'olderThan'
-    ? { where: 'received_at < ?', params: [scope.cutoff] }
+    ? { where: 'received_at < ? AND is_starred = 0', params: [scope.cutoff] }
     : { where: 'user_id = ?', params: [scope.userId] }
 }
 

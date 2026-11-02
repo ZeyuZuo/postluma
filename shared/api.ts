@@ -22,6 +22,7 @@ export const ERROR_CODES = [
   'account_rejected',
   'account_banned',
   'admin_only',
+  'star_limit_reached',
   'internal_error',
   'payload_too_large',
   'invalid_local_part',
@@ -264,6 +265,8 @@ export interface MessageSummary {
   /** https link to verify / confirm / sign in, detected at delivery. Attacker-controlled. */
   verificationLink: string | null
   isRead: boolean
+  /** Kept past retention (personal mode). */
+  isStarred: boolean
   hasAttachments: boolean
   receivedAt: number
 }
@@ -342,10 +345,14 @@ export const listMessagesQuerySchema = z.object({
   unread: flagSchema,
   /** Only messages with a detected verification code. */
   code: flagSchema,
+  /** Only starred messages (personal mode). */
+  starred: flagSchema,
   limit: z.coerce.number().int().min(1).max(MESSAGE_PAGE_SIZE).default(MESSAGE_PAGE_SIZE),
 })
 
-export const updateMessageSchema = z.object({ isRead: z.boolean() })
+export const updateMessageSchema = z
+  .object({ isRead: z.boolean().optional(), starred: z.boolean().optional() })
+  .refine((v) => v.isRead !== undefined || v.starred !== undefined)
 
 export const markReadSchema = z.object({ mailboxId: idSchema.optional() })
 

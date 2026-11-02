@@ -31,6 +31,7 @@ const INT_VARS = {
   SEND_MAX_PER_USER_PER_DAY: { fallback: 20, min: 0, max: 10_000 },
   SEND_MAX_PER_DAY: { fallback: 100, min: 0, max: 1_000_000 },
   SEND_MAX_RECIPIENTS: { fallback: 5, min: 1, max: 50 },
+  MAX_STARRED_MESSAGES: { fallback: 500, min: 0, max: 100_000 },
 } satisfies Record<string, IntSpec>
 
 type IntVar = keyof typeof INT_VARS
@@ -67,6 +68,8 @@ export interface AppConfig {
   maxRetentionDays: number
   /** Record Cloudflare's SPF/DKIM/DMARC results with each message (see worker/lib/sender-auth.ts). */
   senderAuthHints: boolean
+  /** Starred messages per user; they outlive retention, so they are capped (personal mode). */
+  maxStarredMessages: number
   sending: {
     /** Deploy-time default of the service-wide switch; admins override it (settings.sending_enabled). */
     enabled: boolean
@@ -165,6 +168,7 @@ export function getConfig(env: Env): AppConfig {
     maxDeletesPerDay: readInt(env, 'MAX_DELETES_PER_DAY'),
     maxRetentionDays: Math.max(1, maxRetentionDays),
     senderAuthHints: readBool(env, 'SENDER_AUTH_HINTS', false),
+    maxStarredMessages: readInt(env, 'MAX_STARRED_MESSAGES'),
     sending: {
       enabled: readBool(env, 'SENDING_ENABLED', false),
       provider: readProvider(env),

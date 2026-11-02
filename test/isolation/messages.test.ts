@@ -21,6 +21,19 @@ beforeEach(async () => {
   callers = { bob: await login('bob'), admin: await login('root-admin') }
 })
 
+describe("another administrator against user A's mail in personal mode", () => {
+  it("can't star it", async () => {
+    const res = await api(`/api/messages/${aliceMessage}`, {
+      cookie: callers.admin!,
+      method: 'PATCH',
+      body: { starred: true },
+      env: { SERVICE_MODE: 'personal' },
+    })
+    expect(res.status).toBe(404)
+    expect(await env.DB.prepare('SELECT is_starred FROM messages WHERE id = ?').bind(aliceMessage).first('is_starred')).toBe(0)
+  })
+})
+
 describe("other users (including admins) against user A's mail", () => {
   for (const who of ['bob', 'admin']) {
     it(`${who}: sees none of it in listings, searches or summaries`, async () => {

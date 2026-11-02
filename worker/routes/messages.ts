@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 
 import { listMessagesQuerySchema, markReadSchema, summaryQuerySchema, updateMessageSchema } from '../../shared/api'
-import { mailBucket } from '../lib/config'
+import { getConfig, mailBucket } from '../lib/config'
 import { ApiError } from '../lib/errors'
 import { deleteRaw } from '../lib/raw-mail'
 import { enforceRateLimit, parseJson, parseQuery } from '../lib/request'
@@ -13,6 +13,7 @@ import {
   listMessages,
   markAllRead,
   setMessageRead,
+  setMessageStarred,
 } from '../repo/messages'
 import type { AppEnv } from '../types'
 
@@ -22,8 +23,14 @@ import type { AppEnv } from '../types'
  */
 export const messageRoutes = new Hono<AppEnv>()
 
+/** Starring exists in personal mode only; elsewhere it answers like a route that doesn't exist. */
+function assertStarring(env: Env): void {
+  if (getConfig(env).mode !== 'personal') throw new ApiError(404, 'not_found')
+}
+
 messageRoutes.get('/', async (c) => {
   const q = parseQuery(c, listMessagesQuerySchema)
+  if (q.starred) assertStarring(c.env)
   return c.json(
     await listMessages(c.env.DB, c.get('user').id, {
       mailboxId: q.mailbox,
@@ -32,6 +39,7 @@ messageRoutes.get('/', async (c) => {
       since: q.since,
       unreadOnly: q.unread === '1',
       withCodeOnly: q.code === '1',
+      starredOnly: q.starred === '1',
       limit: q.limit,
     }),
   )
@@ -68,8 +76,14 @@ messageRoutes.get('/:id/raw', async (c) => {
 })
 
 messageRoutes.patch('/:id', async (c) => {
-  const { isRead } = await parseJson(c, updateMessageSchema)
-  await setMessageRead(c.env.DB, c.get('user').id, c.req.param('id'), isRead)
+  const { isRead, starred } = await parseJson(c, updateMessageSchema)
+  const userId = c.get('user').id
+  const id = c.req.param('id')
+  if (starred !== undefined) {
+    assertStarring(c.env)
+    await setMessageStarred(c.env.DB, userId, id, starred, getConfig(c.env).maxStarredMessages)
+  }
+  if (isRead !== undefined) await setMessageRead(c.env.DB, userId, id, isRead)
   return c.body(null, 204)
 })
 

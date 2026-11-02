@@ -47,6 +47,7 @@ describe('message listing query plans (after ANALYZE)', () => {
     'since poll': { since: 1_000_900 },
     'unread only': { unreadOnly: true },
     'codes and links': { withCodeOnly: true },
+    'starred only': { starredOnly: true },
   }
   for (const [name, extra] of Object.entries(variants)) {
     it(`${name}: messages first, through an index, no full scans`, async () => {
@@ -61,5 +62,10 @@ describe('message listing query plans (after ANALYZE)', () => {
   it('codes and links: uses the partial index for mail to act on', async () => {
     const { sql, params } = buildListQuery(aliceId, { limit: 50, withCodeOnly: true })
     expect(await plan(sql, params)).toMatch(/idx_messages_user_verify/)
+  })
+
+  it('starred only: uses the partial index for starred mail', async () => {
+    const { sql, params } = buildListQuery(aliceId, { limit: 50, starredOnly: true })
+    expect(await plan(sql, params)).toMatch(/idx_messages_user_starred/)
   })
 })

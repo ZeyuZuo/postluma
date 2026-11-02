@@ -435,6 +435,7 @@ const en: Messages = {
     account_rejected: 'Your account request was declined.',
     account_banned: 'This account is disabled. Contact the admin.',
     admin_only: 'This is a personal mailbox. Only the administrator can sign in.',
+    star_limit_reached: 'You’ve starred as many messages as allowed. Unstar some first.',
     internal_error: 'Something went wrong on the server. Try again shortly.',
     network: 'Can’t reach the server. Check your connection.',
     payload_too_large: 'That request is too large.',

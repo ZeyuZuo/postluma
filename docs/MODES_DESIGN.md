@@ -1,6 +1,6 @@
 # 部署模式：个人邮箱 / 临时邮箱（设计）
 
-> 状态：已确认（2026-11-02）。实施计划见 [MODES_PLAN.md](MODES_PLAN.md)，进度记在 `docs/DEV_PLAN.md` 的 Phase 10。
+> 状态：已实现（2026-11-02）。实施计划见 [MODES_PLAN.md](MODES_PLAN.md)，进度记在 `docs/DEV_PLAN.md` 的 Phase 10。
 > 界面以第 4 节的描述为准（讨论时用的示意图没有放进仓库）。
 
 ## 1. 为什么做

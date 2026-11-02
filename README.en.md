@@ -5,7 +5,7 @@
 <h1 align="center">PostLuma</h1>
 
 <p align="center">
-  A multi-user temporary mailbox on Cloudflare: create an address → receive the code → copy it.<br>
+  Mail on Cloudflare: your own personal mailbox, or a temporary mailbox for a few people — chosen at deploy time.<br>
   Workers + Email Routing + D1 (+ optional R2). Runs on the Free plan, no server needed.
 </p>
 
@@ -23,9 +23,21 @@
 
 ## What it is
 
-PostLuma is a private temporary mailbox for you and people you trust, built for signing up to websites and receiving verification codes. Click “Random address” on the home page: a random address is created, copied to your clipboard and becomes your current address. Mail sent to it appears right below it, the verification code is detected and highlighted in amber, and one click copies it — no page switching.
+PostLuma is mail without a server to maintain. Its core use is signing up to websites and receiving verification codes: click “Random address” on the home page and a random address is created, copied to your clipboard and becomes your current address. Mail sent to it appears right below it, the verification code is detected and highlighted in amber, and one click copies it — no page switching.
 
-What sets it apart from other Cloudflare mail projects is that **isolation between users** comes first: each user sees only their own mail, admins can't read anyone's mail, and an address that was ever handed out is never given to anyone else.
+Pick a mode at deploy time with `SERVICE_MODE`:
+
+| | Personal `personal` | Temporary `temporary` |
+|---|---|---|
+| Who uses it | Administrators only (you) | Several users, approved by an admin after signing up |
+| Sign-up, user management | None | Yes (sign-up can be closed) |
+| Addresses | Unlimited; `me@`, `contact@` and the like allowed | Quota; 3–32 characters, reserved names not allowed |
+| Starred mail (kept past cleanup) | Yes | No |
+| Catch-all: any address works, created on its first mail | Yes, per domain | No |
+| Sending | Yes, off by default | No |
+| Random addresses, codes, verification links, cleanup, R2 originals | Yes | Yes |
+
+In both modes **isolation between users** comes first: each user sees only their own mail, admins can't read anyone else's mail, and an address that was ever handed out is never given to anyone else.
 
 ## Features
 
@@ -45,15 +57,17 @@ What sets it apart from other Cloudflare mail projects is that **isolation betwe
 - Original messages are kept in R2 (optional): download attachments, see inline images, read bodies beyond the parse window, download the `.eml`
 - Inbox filters (All / Unread / Codes), per-address filter, search and keyboard navigation (`j` / `k`, `/` to search, `Esc` to close)
 
-**Sending (optional, off by default)**
-- Once an admin switches it on and allows domains and users one by one (admins themselves always can), those users can reply or write new mail from their own addresses (from the inbox, the message view and the home page; sent mail is under “Sent” in the inbox)
-- Plain text only, up to 5 recipients per message, 20 per user and 100 service-wide per day (all tunable); replies carry threading headers so the recipient sees one conversation
-- Sent through Resend (100/day on its free plan); while off, no sending feature appears anywhere
+**Personal mode**
+- Starring: click the star on a message to keep it — starred mail (and its R2 original) is never cleaned up automatically; the inbox has a “Starred” filter. Up to 500 per user (tunable)
+- Catch-all: switch it on for a domain under “Mail domains”, and the first mail to any address on that domain creates the address, listed under “In use” and marked “Auto-created”; disable one you don't want and it bounces from then on. At most 10 new addresses per day and 10 messages per auto-created address per hour (both adjustable in the settings), and all auto-created addresses together use at most half of the daily intake, so spam can't crowd out real mail
+- Sending (off by default): switch it on in the settings, allow a domain under “Mail domains”, then reply or write new mail from your own addresses (from the inbox, the message view and the home page; sent mail is under “Sent” in the inbox). Plain text only, up to 5 recipients per message, 20 per day and 100 service-wide per day (all tunable); replies carry threading headers. Sent through Resend (100/day on its free plan)
 
-**Users and administration**
+**Temporary mode**
 - Open sign-up with admin approval (sign-up can be closed); approve, reject, ban, unban — bans take effect immediately
 - Per-user address quota, total cap and daily creation cap
-- Admin panel: users, receiving domains (with an automatic check that MX points at Cloudflare Email Routing), settings, usage statistics, audit log
+
+**Administration**
+- Admin panel: receiving domains (with an automatic check that MX points at Cloudflare Email Routing), settings, usage statistics, audit log; plus users in temporary mode
 - Mail retention (30 days by default) with a daily cleanup job; all bulk deletions share a daily budget so they can't exhaust the Free plan's writes
 
 **Interface**
@@ -63,7 +77,7 @@ What sets it apart from other Cloudflare mail projects is that **isolation betwe
 ## Security model
 
 - **Tenant isolation**: every mailbox and message query filters on `user_id` in SQL; someone else's resource returns 404, exactly like a missing one, so ids can't be probed. Every endpoint has a "user B requests user A's resource" test.
-- **Ownership comes from the envelope recipient only**: mail is assigned by exact match of the recipient address, never from headers; no fuzzy matching.
+- **Ownership comes from the envelope recipient only**: mail is assigned by exact match of the recipient address, never from headers; no fuzzy matching. An address created by catch-all belongs to the administrator who switched catch-all on, decided by the recipient and the domain's settings alone; `+` addresses, reserved names and disabled or retired addresses are never created.
 - **Addresses are never reused**: addresses can be disabled but not deleted; when a user is deleted their addresses are reserved forever, so a new owner can never receive the previous owner's codes or password resets.
 - **Admins can't read mail**: admin endpoints return aggregate numbers only, never message content or users' addresses.
 - **Authentication**: PBKDF2 password hashes, HttpOnly cookie + database sessions (revocable), Turnstile + per-IP rate limits on sign-in and sign-up, same-origin `Origin` check on every write.
@@ -71,7 +85,8 @@ What sets it apart from other Cloudflare mail projects is that **isolation betwe
 
 ## Non-goals
 
-- **No open sending.** Sending is off by default and only users an admin allows can send, within daily quotas — a spammed domain would hurt receiving too.
+- **No sending in temporary mode.** Sending exists in personal mode only, off by default and within daily quotas — a spammed domain would hurt receiving too.
+- **Not a full mail client.** No folders, IMAP/SMTP, address book, HTML compose or attachments in outgoing mail.
 - **No address deletion.** Disabled addresses keep their history and can be re-enabled; old mail is removed by the retention job.
 - **Admins can't view users' mail.** A product decision, not a to-do.
 
@@ -102,24 +117,26 @@ What sets it apart from other Cloudflare mail projects is that **isolation betwe
    npm install
    ```
 
-2. **Create the D1 database** and put the printed `database_id` into `wrangler.jsonc` (replacing the existing value):
+2. **Choose the mode**: in `wrangler.jsonc#vars`, set `SERVICE_MODE` to `personal` (your own mailbox, administrators only) or `temporary` (sign-ups approved by an admin). The repository's value is `personal`, for the author's own deployment. Switching later is this one value and a redeploy; no data changes.
+
+3. **Create the D1 database** and put the printed `database_id` into `wrangler.jsonc` (replacing the existing value):
 
    ```bash
    npx wrangler d1 create postluma
    ```
 
-3. **(Optional) Create the R2 bucket** for original messages and attachments. Enabling R2 requires a payment method on the account; usage within the free tier is not charged. If you don't want it, remove `r2_buckets` from `wrangler.jsonc` and only the parsed content is stored.
+4. **(Optional) Create the R2 bucket** for original messages and attachments. Enabling R2 requires a payment method on the account; usage within the free tier is not charged. If you don't want it, remove `r2_buckets` from `wrangler.jsonc` and only the parsed content is stored.
 
    ```bash
    npx wrangler r2 bucket create postluma-mail
    ```
 
-4. **Create a Turnstile widget** (Cloudflare dashboard → Turnstile) with your site's hostname.
+5. **Create a Turnstile widget** (Cloudflare dashboard → Turnstile) with your site's hostname.
    - Site Key (public) → build variable `VITE_TURNSTILE_SITE_KEY`
    - Secret Key (private) → Worker secret `TURNSTILE_SECRET_KEY`
    - Don't swap them: the build fails if the site key looks like a secret key.
 
-5. **Deploy**, either way:
+6. **Deploy**, either way:
    - **Workers Builds (recommended)**: dashboard → Workers & Pages → Create → Import a repository. Project name `postluma` (must match `wrangler.jsonc#name`); build command `npm run build`; deploy command `npx wrangler d1 migrations apply DB --remote && npx wrangler deploy`; add the build variable `VITE_TURNSTILE_SITE_KEY`. Every push deploys.
    - **From your machine**: put `VITE_TURNSTILE_SITE_KEY` in `.env.production.local`, then run `npm run deploy`.
 
@@ -130,11 +147,13 @@ What sets it apart from other Cloudflare mail projects is that **isolation betwe
    npx wrangler secret put TURNSTILE_SECRET_KEY
    ```
 
-6. **Route mail**: for each receiving domain, open Email → Email Routing, enable it and add **Catch-all → Send to a Worker → postluma**. The catch-all only forwards; PostLuma decides what to accept and bounces unknown or disabled addresses.
+7. **Route mail**: for each receiving domain, open Email → Email Routing, enable it and add **Catch-all → Send to a Worker → postluma**. The catch-all only forwards; PostLuma decides what to accept and bounces unknown or disabled addresses.
 
-7. **First sign-in**: username `admin`, password `ADMIN_INITIAL_PASSWORD`. Change the password right away, then delete that secret (the admin account is created only once). Add the domains from step 6 under "Receiving domains" in the admin panel, and start approving sign-ups.
+8. **First sign-in**: username `admin`, password `ADMIN_INITIAL_PASSWORD`. Change the password right away, then delete that secret (the admin account is created only once). Add the domains from step 7 under "Receiving domains" in the admin panel. In temporary mode you can start approving sign-ups.
 
-8. **(Optional) Turn on sending**: add and verify your sending domain at [Resend](https://resend.com) (it asks for DKIM / SPF records in Cloudflare DNS, usually on a `send.` subdomain, which leaves the receiving MX alone), create an API key and run `npx wrangler secret put RESEND_API_KEY`. Then in the admin panel: Settings → Sending, switch it on and send a test message; Mail domains → “Can send”; Users → allow individual users.
+9. **(Optional, personal mode) Turn on sending**: add and verify your sending domain at [Resend](https://resend.com) (it asks for DKIM / SPF records in Cloudflare DNS, usually on a `send.` subdomain, which leaves the receiving MX alone), create an API key and run `npx wrangler secret put RESEND_API_KEY`. Then in the admin panel: Settings → Sending, switch it on and send a test message; Mail domains → “Can send”.
+
+10. **(Optional, personal mode) Turn on catch-all**: admin panel → Mail domains → “Catch-all: create addresses”. From then on the first mail to any address on that domain creates the address; how many per day and how much mail each may take per hour is set in the settings.
 
 ## Configuration
 
@@ -142,7 +161,8 @@ Tunables live in `wrangler.jsonc#vars`, each with a comment and an allowed range
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `REGISTRATION_OPEN` | `true` | Allow sign-up requests (admins can override) |
+| `SERVICE_MODE` | `temporary` | `personal` or `temporary`; unset or invalid means `temporary`. This repository's own deployment uses `personal` |
+| `REGISTRATION_OPEN` | `true` | Allow sign-up requests (temporary mode; admins can override) |
 | `DEFAULT_MAILBOX_QUOTA` | `10` | Active addresses per user (adjustable per user) |
 | `MAX_TOTAL_MAILBOXES` / `MAX_DAILY_MAILBOX_CREATIONS` | `100` / `30` | Total addresses incl. disabled, and new ones per 24 h |
 | `INGEST_MAX_PER_MAILBOX_PER_HOUR` / `INGEST_MAX_PER_USER_PER_HOUR` | `10` / `100` | Flood limits (admins exempt) |
@@ -150,9 +170,11 @@ Tunables live in `wrangler.jsonc#vars`, each with a comment and an allowed range
 | `RAW_MAIL_MAX_MB_PER_DAY` | `250` | Daily R2 budget for originals; `0` keeps none |
 | `MESSAGE_RETENTION_DAYS` | `30` | Mail retention (admins can override within storage limits) |
 | `MAX_DELETES_PER_DAY` | `5000` | Daily budget shared by cleanup and bulk deletions |
+| `MAX_STARRED_MESSAGES` | `500` | Personal mode: starred messages per user (kept past cleanup) |
+| `CATCH_ALL_MAX_PER_DAY` / `CATCH_ALL_MAX_PER_ADDRESS_PER_HOUR` | `10` / `10` | Personal mode: addresses catch-all may create per day, messages per auto-created address per hour (admins can override both) |
 | `SENDER_AUTH_HINTS` | `false` | Show sender authentication; enable after a real message shows the topmost ARC header is from `mx.cloudflare.net` |
 | `PASSWORD_PBKDF2_ITERATIONS` | `20000` | A Free-plan CPU trade-off; raise it on a paid plan |
-| `SENDING_ENABLED` | `false` | Default of the service-wide sending switch (admins can override) |
+| `SENDING_ENABLED` | `false` | Default of the service-wide sending switch (personal mode; admins can override) |
 | `MAIL_PROVIDER` | `resend` | Sending provider; `log` records without sending, for local development |
 | `SEND_MAX_PER_USER_PER_DAY` / `SEND_MAX_PER_DAY` | `20` / `100` | Sends per user / service-wide per rolling 24 h |
 | `SEND_MAX_RECIPIENTS` | `5` | Recipients per message |
@@ -180,7 +202,7 @@ npm run test:e2e     # Playwright: hostile HTML rendering, main flows, phone lay
 npm run type-check
 ```
 
-Browser tests run on their own throwaway state (`.wrangler/e2e`) and never touch your dev data; run `npx playwright install chromium` once first.
+Browser tests start two dev servers, one per mode, each on its own throwaway state (`.wrangler/e2e-personal`, `.wrangler/e2e`), and never touch your dev data; `*.personal.spec.ts` runs in personal mode, everything else in temporary mode. Run `npx playwright install chromium` once first.
 
 ## Repository layout
 
@@ -199,6 +221,7 @@ docs/          Product requirements, roadmap, decision log (Chinese)
 - [Product requirements (PRD)](docs/PRD.md) — Chinese
 - [Roadmap](docs/DEV_PLAN.md) — Chinese
 - [Open questions and decisions](docs/QUESTIONS.md) — Chinese
+- [Service modes: personal / temporary (design)](docs/MODES_DESIGN.md) — Chinese
 - [Code conventions and architecture](CLAUDE.md) — English, for contributors
 
 ## Troubleshooting

@@ -84,6 +84,7 @@ authRoutes.post('/login', async (c) => {
   }
   // Status is only revealed to someone who already proved the password.
   if (user.status !== 'active') throw new ApiError(403, STATUS_ERRORS[user.status])
+  if (config.mode === 'personal' && user.role !== 'admin') throw new ApiError(403, 'admin_only')
 
   const previous = readSessionToken(c)
   if (previous) await deleteSessionByToken(c.env.DB, previous)

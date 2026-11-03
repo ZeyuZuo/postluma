@@ -21,6 +21,8 @@ export const ERROR_CODES = [
   'account_pending',
   'account_rejected',
   'account_banned',
+  'admin_only',
+  'star_limit_reached',
   'internal_error',
   'payload_too_large',
   'invalid_local_part',
@@ -60,8 +62,16 @@ export interface PublicUser {
   createdAt: number
 }
 
+/**
+ * Chosen at deploy time (`SERVICE_MODE`, docs/MODES_DESIGN.md): `personal` is the administrator's own
+ * mailbox, `temporary` a temporary-mail service for approved users.
+ */
+export const SERVICE_MODES = ['personal', 'temporary'] as const
+export type ServiceMode = (typeof SERVICE_MODES)[number]
+
 export interface PublicSettings {
   registrationOpen: boolean
+  mode: ServiceMode
 }
 
 export const USERNAME_PATTERN = /^[a-zA-Z0-9_.-]+$/
@@ -108,6 +118,8 @@ export interface AdminDomain extends PublicDomain {
   enabled: boolean
   /** Phase 9: mail may be sent from this domain (verified at the provider when switched on). */
   canSend: boolean
+  /** Personal mode: the first mail to an unknown address on this domain creates it. */
+  catchAll: boolean
   mailboxCount: number
   createdAt: number
 }
@@ -133,6 +145,8 @@ export interface PublicMailbox {
   status: MailboxStatus
   /** Also receive mail sent to `local+anything@domain`. Off by default. */
   acceptSubaddress: boolean
+  /** Created by catch-all on its first mail rather than by hand. */
+  autoCreated: boolean
   /** Both counts stop at MAILBOX_COUNT_CAP (shown as "99+"). */
   messageCount: number
   unreadCount: number
@@ -143,7 +157,8 @@ export interface PublicMailbox {
 export interface MailboxQuota {
   /** Active mailboxes; disabled ones don't count. */
   used: number
-  limit: number
+  /** `null`: no quota (personal mode). */
+  limit: number | null
 }
 
 export interface MailboxListResponse {
@@ -167,12 +182,17 @@ export function normalizeLocalPart(value: string): string {
   return value.trim().toLowerCase()
 }
 
-export function isValidLocalPart(value: string): boolean {
+/**
+ * The strict rules (temporary mode, and catch-all in every mode): 3–32 characters, no reserved name.
+ * `personal`: the administrator owns the domain, so any 1–32 character local part, reserved names
+ * included. Never a `+` (LOCAL_PART_PATTERN): subaddressing relies on it.
+ */
+export function isValidLocalPart(value: string, opts: { personal?: boolean } = {}): boolean {
   return (
-    value.length >= LOCAL_PART_MIN &&
+    value.length >= (opts.personal ? 1 : LOCAL_PART_MIN) &&
     value.length <= LOCAL_PART_MAX &&
     LOCAL_PART_PATTERN.test(value) &&
-    !RESERVED_LOCAL_PARTS.includes(value)
+    (opts.personal === true || !RESERVED_LOCAL_PARTS.includes(value))
   )
 }
 
@@ -217,6 +237,8 @@ export const listMailboxesQuerySchema = z.object({
   q: z.string().trim().max(100).optional(),
   /** Only addresses on this domain (id). */
   domain: idSchema.optional(),
+  /** Only addresses created by hand, not by catch-all. */
+  manual: z.enum(['1']).optional(),
   cursor: z.string().max(200).optional(),
 })
 
@@ -229,8 +251,8 @@ export const createDomainSchema = z.object({
 })
 
 export const updateDomainSchema = z
-  .object({ enabled: z.boolean().optional(), canSend: z.boolean().optional() })
-  .refine((v) => v.enabled !== undefined || v.canSend !== undefined)
+  .object({ enabled: z.boolean().optional(), canSend: z.boolean().optional(), catchAll: z.boolean().optional() })
+  .refine((v) => v.enabled !== undefined || v.canSend !== undefined || v.catchAll !== undefined)
 
 // ---- Messages ------------------------------------------------------------------------------
 
@@ -249,6 +271,8 @@ export interface MessageSummary {
   /** https link to verify / confirm / sign in, detected at delivery. Attacker-controlled. */
   verificationLink: string | null
   isRead: boolean
+  /** Kept past retention (personal mode). */
+  isStarred: boolean
   hasAttachments: boolean
   receivedAt: number
 }
@@ -327,10 +351,14 @@ export const listMessagesQuerySchema = z.object({
   unread: flagSchema,
   /** Only messages with a detected verification code. */
   code: flagSchema,
+  /** Only starred messages (personal mode). */
+  starred: flagSchema,
   limit: z.coerce.number().int().min(1).max(MESSAGE_PAGE_SIZE).default(MESSAGE_PAGE_SIZE),
 })
 
-export const updateMessageSchema = z.object({ isRead: z.boolean() })
+export const updateMessageSchema = z
+  .object({ isRead: z.boolean().optional(), starred: z.boolean().optional() })
+  .refine((v) => v.isRead !== undefined || v.starred !== undefined)
 
 export const markReadSchema = z.object({ mailboxId: idSchema.optional() })
 
@@ -375,6 +403,8 @@ export const SETTING_RANGES = {
   defaultMailboxQuota: { min: 0, max: 10_000 },
   retentionDays: { min: 1, max: 3_650 },
   mailboxQuota: { min: 0, max: 10_000 },
+  catchAllMaxPerDay: { min: 0, max: 10_000 },
+  catchAllMaxPerAddressPerHour: { min: 1, max: 100_000 },
 } as const
 
 export interface AdminSettings {
@@ -383,9 +413,24 @@ export interface AdminSettings {
   registrationOpen: boolean
   defaultMailboxQuota: number
   retentionDays: number
+  /** Catch-all (personal mode): new addresses per day, messages per auto-created address per hour. */
+  catchAllMaxPerDay: number
+  catchAllMaxPerAddressPerHour: number
   /** Which values are admin overrides (vs. the deploy-time defaults in `defaults`). */
-  overridden: { registrationOpen: boolean; defaultMailboxQuota: boolean; retentionDays: boolean }
-  defaults: { registrationOpen: boolean; defaultMailboxQuota: number; retentionDays: number }
+  overridden: {
+    registrationOpen: boolean
+    defaultMailboxQuota: boolean
+    retentionDays: boolean
+    catchAllMaxPerDay: boolean
+    catchAllMaxPerAddressPerHour: boolean
+  }
+  defaults: {
+    registrationOpen: boolean
+    defaultMailboxQuota: number
+    retentionDays: number
+    catchAllMaxPerDay: number
+    catchAllMaxPerAddressPerHour: number
+  }
 }
 
 export interface AdminStats {
@@ -446,6 +491,20 @@ export const adminSettingsSchema = z
       .nullable()
       .optional(),
     retentionDays: z.number().int().min(SETTING_RANGES.retentionDays.min).max(SETTING_RANGES.retentionDays.max).nullable().optional(),
+    catchAllMaxPerDay: z
+      .number()
+      .int()
+      .min(SETTING_RANGES.catchAllMaxPerDay.min)
+      .max(SETTING_RANGES.catchAllMaxPerDay.max)
+      .nullable()
+      .optional(),
+    catchAllMaxPerAddressPerHour: z
+      .number()
+      .int()
+      .min(SETTING_RANGES.catchAllMaxPerAddressPerHour.min)
+      .max(SETTING_RANGES.catchAllMaxPerAddressPerHour.max)
+      .nullable()
+      .optional(),
   })
   .refine((v) => Object.keys(v).length > 0)
 

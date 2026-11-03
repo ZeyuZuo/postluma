@@ -1,7 +1,8 @@
 import { env } from 'cloudflare:test'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { runCleanup } from '../worker/jobs/cleanup'
+import { deleteOlderThan, runCleanup } from '../worker/jobs/cleanup'
+import { deleteBatch } from '../worker/repo/maintenance'
 import { addDomain, createUser, setSetting } from './helpers'
 
 const DAY = 24 * 3600 * 1000
@@ -67,5 +68,44 @@ describe('daily cleanup', () => {
     expect((await runCleanup(env, NOW)).sessionsDeleted).toBe(1)
     expect(await count('sessions')).toBe(1)
     expect((await env.DB.prepare('SELECT day FROM ingest_counters').all()).results).toEqual([{ day: '2026-10-18' }])
+  })
+})
+
+describe('starred mail', () => {
+  async function addOld(ageDays: number, starred: boolean): Promise<string> {
+    const id = crypto.randomUUID()
+    const key = `u/${userId}/${id}.eml`
+    await env.MAIL_BUCKET.put(key, 'Subject: x\r\n\r\nx')
+    await env.DB.prepare(
+      `INSERT INTO messages (id, mailbox_id, user_id, from_address, to_address, size, received_at, raw_r2_key, is_starred)
+       VALUES (?, ?, ?, 'a@example.org', 'box@mail.test', 1, ?, ?, ?)`,
+    )
+      .bind(id, mailboxId, userId, NOW - ageDays * DAY, key, starred ? 1 : 0)
+      .run()
+    return id
+  }
+  const ids = async () => (await env.DB.prepare('SELECT id FROM messages').all<{ id: string }>()).results.map((r) => r.id)
+
+  it('survives the retention cleanup, original included', async () => {
+    const kept = await addOld(40, true)
+    const gone = await addOld(40, false)
+    expect((await runCleanup(env, NOW)).messagesDeleted).toBe(1)
+    expect(await ids()).toEqual([kept])
+    expect(await env.MAIL_BUCKET.head(`u/${userId}/${kept}.eml`)).not.toBeNull()
+    expect(await env.MAIL_BUCKET.head(`u/${userId}/${gone}.eml`)).toBeNull()
+  })
+
+  it('survives the manual cleanup too', async () => {
+    const kept = await addOld(10, true)
+    await addOld(10, false)
+    expect((await deleteOlderThan(env, 5, NOW)).deleted).toBe(1)
+    expect(await ids()).toEqual([kept])
+  })
+
+  it("goes with the rest when a user's mail is purged", async () => {
+    await addOld(1, true)
+    await addOld(1, false)
+    expect((await deleteBatch(env.DB, env.MAIL_BUCKET, { kind: 'user', userId }, 5_000, NOW)).deleted).toBe(2)
+    expect(await ids()).toEqual([])
   })
 })

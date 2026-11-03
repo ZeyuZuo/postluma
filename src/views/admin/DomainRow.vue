@@ -5,9 +5,10 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type { AdminDomain, DomainHealth } from '../../../shared/api'
+import { isPersonal } from '@/stores/mode'
 
 const props = defineProps<{ domain: AdminDomain; health?: DomainHealth | 'checking'; sending?: boolean }>()
-const emit = defineEmits<{ toggle: [enabled: boolean]; remove: []; check: []; canSend: [value: boolean] }>()
+const emit = defineEmits<{ toggle: [enabled: boolean]; remove: []; check: []; canSend: [value: boolean]; catchAll: [value: boolean] }>()
 const { t } = useI18n()
 
 /** ok → green; partial/other/none → red (mail won't arrive, or not all of it); error → grey. */
@@ -37,6 +38,10 @@ const tone = computed(() => {
         </template>
       </NTooltip>
     </div>
+    <label v-if="isPersonal()" class="switch">
+      <NSwitch :value="domain.catchAll" size="small" @update:value="(v: boolean) => emit('catchAll', v)" />
+      {{ t('admin.domains.catchAll') }}
+    </label>
     <label v-if="sending" class="switch">
       <NSwitch :value="domain.canSend" size="small" @update:value="(v: boolean) => emit('canSend', v)" />
       {{ t('admin.domains.canSend') }}
@@ -147,6 +152,7 @@ const tone = computed(() => {
   gap: 8px;
   color: var(--pl-muted);
   font-size: 0.875rem;
+  white-space: nowrap;
   cursor: pointer;
 }
 @media (max-width: 600px) {
@@ -154,6 +160,10 @@ const tone = computed(() => {
     flex-wrap: wrap;
     gap: 8px 16px;
     padding: 12px 16px;
+  }
+  /* The domain gets its own line; the switches wrap below it instead of squeezing it. */
+  .main {
+    flex-basis: 100%;
   }
 }
 </style>

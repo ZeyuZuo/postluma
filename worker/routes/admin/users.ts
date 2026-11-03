@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 
 import { adminUserActionSchema, adminUserQuotaSchema, adminUserSendingSchema, adminUsersQuerySchema } from '../../../shared/api'
 import { getConfig, mailBucket } from '../../lib/config'
+import { ApiError } from '../../lib/errors'
 import { clientIp, parseJson, parseQuery } from '../../lib/request'
 import {
   applyUserAction,
@@ -36,6 +37,8 @@ adminUserRoutes.patch('/:id/quota', async (c) => {
 })
 
 adminUserRoutes.patch('/:id/sending', async (c) => {
+  // Temporary mode has no sending, so there is no per-user permission to set.
+  if (getConfig(c.env).mode === 'temporary') throw new ApiError(404, 'not_found')
   const sending = await parseJson(c, adminUserSendingSchema)
   const id = c.req.param('id')
   const audit = auditStatement(c.env.DB, { actorId: c.get('user').id, action: 'admin.user_sending', targetId: id, detail: sending, ip: clientIp(c) })

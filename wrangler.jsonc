@@ -29,6 +29,11 @@
 	// the comment). Change them HERE and push: `wrangler deploy` overwrites values edited in the
 	// Cloudflare dashboard. Starred (*) items are defaults an admin can override in the admin panel.
 	"vars": {
+		// ---- Service mode (docs/MODES_DESIGN.md). "personal": the administrator's own mailbox (only admins
+		// sign in; starring, catch-all and optional sending). "temporary": sign-ups approved by an admin, no
+		// sending. Unset or invalid means "temporary". This repository's own deployment is personal; set
+		// "temporary" when you deploy PostLuma as a temporary-mail service for several people.
+		"SERVICE_MODE": "personal",
 		// ---- Accounts
 		"REGISTRATION_OPEN": "true", // * allow new sign-up requests (true/false)
 		"PASSWORD_PBKDF2_ITERATIONS": "20000", // 10000–100000. Free plan: ~2.3 ms per 20k; keep ≤ 30000
@@ -44,6 +49,12 @@
 		"INGEST_MAX_MB_PER_DAY": "12", // whole service; × retention days must fit the 500 MB database
 		"INGEST_PARSE_WINDOW_KB": "256", // only this much of each message is read (Free plan CPU budget)
 		"MESSAGE_RETENTION_DAYS": "30", // * delete mail older than this; must satisfy MB/day × days ≤ 400 MB
+		"MAX_STARRED_MESSAGES": "500", // personal mode: starred mail per user, kept past retention (0–100000)
+		// ---- Catch-all (personal mode): the first mail to an unknown address on a catch-all domain creates
+		// it. * Both can be overridden in the admin settings. Auto-created addresses together may also use
+		// at most half of INGEST_MAX_MESSAGES_PER_DAY / INGEST_MAX_MB_PER_DAY.
+		"CATCH_ALL_MAX_PER_DAY": "10", // * new addresses per UTC day, whole service (0 = none)
+		"CATCH_ALL_MAX_PER_ADDRESS_PER_HOUR": "10", // * messages per auto-created address per hour
 		// ---- Original messages in R2 (attachments, inline images, .eml download). 0 = don't keep them.
 		"RAW_MAIL_MAX_MB_PER_DAY": "250", // whole service; × retention days must fit R2's free 10 GB (≤ 9 GB)
 		// Show SPF/DKIM/DMARC from Cloudflare's topmost ARC-Authentication-Results (mx.cloudflare.net).

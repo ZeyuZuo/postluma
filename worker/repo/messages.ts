@@ -39,6 +39,7 @@ interface SummaryRow {
   verification_code: string | null
   verification_link: string | null
   is_read: number
+  is_starred: number
   has_attachments: number
   received_at: number
 }
@@ -56,7 +57,8 @@ interface DetailRow extends SummaryRow {
 }
 
 const SUMMARY_COLUMNS = `g.id, g.mailbox_id, m.address AS mailbox_address, m.note AS mailbox_note, m.status AS mailbox_status,
-  g.from_address, g.from_name, g.subject, g.snippet, g.verification_code, g.verification_link, g.is_read, g.has_attachments, g.received_at`
+  g.from_address, g.from_name, g.subject, g.snippet, g.verification_code, g.verification_link, g.is_read, g.is_starred,
+  g.has_attachments, g.received_at`
 
 function toSummary(row: SummaryRow): MessageSummary {
   return {
@@ -72,6 +74,7 @@ function toSummary(row: SummaryRow): MessageSummary {
     verificationCode: row.verification_code,
     verificationLink: row.verification_link,
     isRead: row.is_read === 1,
+    isStarred: row.is_starred === 1,
     hasAttachments: row.has_attachments === 1,
     receivedAt: row.received_at,
   }
@@ -120,6 +123,7 @@ export interface ListMessagesOptions {
   since?: number
   unreadOnly?: boolean
   withCodeOnly?: boolean
+  starredOnly?: boolean
   limit: number
 }
 
@@ -133,7 +137,8 @@ export function buildListQuery(userId: string, opts: ListMessagesOptions): { sql
   if (opts.mailboxId) {
     where.push('g.mailbox_id = ?')
     params.push(opts.mailboxId)
-  } else {
+  } else if (!opts.starredOnly) {
+    // Starred mail stays findable after its address is disabled: "Starred" is where kept mail lives.
     where.push("m.status = 'active'")
   }
   if (opts.q) {
@@ -151,6 +156,8 @@ export function buildListQuery(userId: string, opts: ListMessagesOptions): { sql
   if (opts.unreadOnly) where.push('g.is_read = 0')
   // Must match idx_messages_user_verify's condition for the partial index to apply.
   if (opts.withCodeOnly) where.push('(g.verification_code IS NOT NULL OR g.verification_link IS NOT NULL)')
+  // Must match idx_messages_user_starred's condition for the partial index to apply.
+  if (opts.starredOnly) where.push('g.is_starred = 1')
   if (opts.since !== undefined) {
     where.push('g.received_at > ?')
     params.push(opts.since)
@@ -222,6 +229,37 @@ export async function setMessageRead(db: D1Database, userId: string, id: string,
     .bind(isRead ? 1 : 0, id, userId)
     .run()
   if (!result.meta.changes) throw new ApiError(404, 'not_found')
+}
+
+/**
+ * Stars or unstars one of the user's messages. Starring is capped at `maxStarred` per user inside the
+ * UPDATE itself (the count walks the starred partial index), so concurrent requests can't overshoot.
+ * Repeating either action is a no-op.
+ */
+export async function setMessageStarred(
+  db: D1Database,
+  userId: string,
+  id: string,
+  starred: boolean,
+  maxStarred: number,
+): Promise<void> {
+  const result = starred
+    ? await db
+        .prepare(
+          `UPDATE messages SET is_starred = 1
+           WHERE id = ?2 AND user_id = ?1 AND is_starred = 0
+             AND (SELECT COUNT(*) FROM (SELECT 1 FROM messages WHERE user_id = ?1 AND is_starred = 1 LIMIT ?3)) < ?3`,
+        )
+        .bind(userId, id, maxStarred)
+        .run()
+    : await db.prepare('UPDATE messages SET is_starred = 0 WHERE id = ? AND user_id = ?').bind(id, userId).run()
+  if (result.meta.changes) return
+  const row = await db
+    .prepare('SELECT is_starred FROM messages WHERE id = ? AND user_id = ?')
+    .bind(id, userId)
+    .first<{ is_starred: number }>()
+  if (!row) throw new ApiError(404, 'not_found')
+  if (starred && row.is_starred !== 1) throw new ApiError(409, 'star_limit_reached')
 }
 
 /** Deletes one of the user's messages and returns its R2 key (if any) for the caller to remove. */

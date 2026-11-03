@@ -25,6 +25,7 @@ export type AuditAction =
   | 'admin.sending_test'
   | 'admin.domain_sending'
   | 'admin.user_sending'
+  | 'admin.domain_catch_all'
 
 export interface AuditInput {
   actorId: string | null

@@ -27,7 +27,7 @@ export const adminApi = {
   purgeMessages: (id: string) => http.post<BatchDeleteResponse>(`/api/admin/users/${enc(id)}/purge-messages`),
   deleteUser: (id: string) => http.delete<void>(`/api/admin/users/${enc(id)}`),
   settings: () => http.get<AdminSettings>('/api/admin/settings'),
-  updateSettings: (body: Partial<Record<'registrationOpen' | 'defaultMailboxQuota' | 'retentionDays', boolean | number | null>>) =>
+  updateSettings: (body: Partial<Record<'registrationOpen' | 'defaultMailboxQuota' | 'retentionDays' | 'catchAllMaxPerDay' | 'catchAllMaxPerAddressPerHour', boolean | number | null>>) =>
     http.patch<AdminSettings>('/api/admin/settings', body),
   stats: () => http.get<AdminStats>('/api/admin/stats'),
   audit: (cursor?: string | null) => http.get<AuditListResponse>(`/api/admin/audit${cursor ? `?cursor=${enc(cursor)}` : ''}`),
@@ -36,6 +36,4 @@ export const adminApi = {
   setSending: (enabled: boolean | null) => http.patch<AdminSendingStatus>('/api/admin/sending', { enabled }),
   sendTest: (domainId: string, to: string) =>
     http.post<{ ok: boolean; error?: SendErrorCode }>('/api/admin/sending/test', { domainId, to }),
-  setUserSending: (id: string, canSend: boolean, sendQuota: number | null) =>
-    http.patch<void>(`/api/admin/users/${enc(id)}/sending`, { canSend, sendQuota }),
 }

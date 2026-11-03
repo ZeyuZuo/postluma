@@ -18,6 +18,18 @@ describe('deploy-time config', () => {
     expect(config.sessionTtlMs).toBe(30 * 24 * 3600 * 1000)
   })
 
+  it('defaults SERVICE_MODE to temporary', () => {
+    expect(getConfig({ ...env, SERVICE_MODE: '' } as Env).mode).toBe('temporary')
+  })
+
+  it('reads SERVICE_MODE=personal', () => {
+    expect(getConfig({ ...env, SERVICE_MODE: 'personal' } as Env).mode).toBe('personal')
+  })
+
+  it('falls back to temporary on an invalid SERVICE_MODE', () => {
+    expect(getConfig({ ...env, SERVICE_MODE: 'Personal' } as Env).mode).toBe('temporary')
+  })
+
   it('falls back to safe defaults for invalid or out-of-range values', () => {
     const config = getConfig({
       ...env,

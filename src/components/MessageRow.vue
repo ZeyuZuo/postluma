@@ -1,26 +1,47 @@
 <script setup lang="ts">
-import { AttachOutline } from '@vicons/ionicons5'
-import { NIcon } from 'naive-ui'
+import { AttachOutline, Star, StarOutline } from '@vicons/ionicons5'
+import { NIcon, useMessage } from 'naive-ui'
+import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import type { MessageSummary } from '../../shared/api'
+import { errorCodeOf } from '@/api/client'
+import { messageApi } from '@/api/messages'
 import CodeChip from '@/components/CodeChip.vue'
 import LinkChip from '@/components/LinkChip.vue'
 import { formatDateTime, formatListTime } from '@/lib/format'
+import { isPersonal } from '@/stores/mode'
 
 /**
  * One message in the inbox list: a single line on wide screens (sender · subject — snippet · code ·
  * address · time), two lines on narrow ones. Every field is attacker-controlled text.
  */
-defineProps<{ message: MessageSummary; selected?: boolean; showMailbox?: boolean }>()
-defineEmits<{ open: [] }>()
+const props = defineProps<{ message: MessageSummary; selected?: boolean; showMailbox?: boolean }>()
+const emit = defineEmits<{ open: []; starredChanged: [id: string, isStarred: boolean] }>()
 const { t } = useI18n()
+const toast = useMessage()
+const starring = ref(false)
+
+async function toggleStar(): Promise<void> {
+  if (starring.value) return
+  const { id, isStarred } = props.message
+  starring.value = true
+  emit('starredChanged', id, !isStarred)
+  try {
+    await messageApi.update(id, { starred: !isStarred })
+  } catch (err) {
+    emit('starredChanged', id, isStarred)
+    toast.error(t(`errors.${errorCodeOf(err)}`))
+  } finally {
+    starring.value = false
+  }
+}
 </script>
 
 <template>
   <li
     class="row"
-    :class="{ unread: !message.isRead, selected, 'with-mailbox': showMailbox }"
+    :class="{ unread: !message.isRead, selected, 'with-mailbox': showMailbox, personal: isPersonal() }"
     tabindex="0"
     role="button"
     :aria-current="selected ? 'true' : undefined"
@@ -42,6 +63,18 @@ const { t } = useI18n()
     <span v-if="showMailbox" class="mailbox" :class="{ 'pl-mono': !message.mailboxNote }" :title="message.mailboxAddress">
       {{ message.mailboxNote || message.mailboxAddress.split('@')[0] }}
     </span>
+    <button
+      v-if="isPersonal()"
+      type="button"
+      class="star"
+      :class="{ starred: message.isStarred }"
+      :aria-label="t(message.isStarred ? 'inbox.unstar' : 'inbox.star')"
+      :aria-pressed="message.isStarred"
+      :disabled="starring"
+      @click.stop="toggleStar"
+    >
+      <NIcon><Star v-if="message.isStarred" /><StarOutline v-else /></NIcon>
+    </button>
     <time class="time" :datetime="new Date(message.receivedAt).toISOString()" :title="formatDateTime(message.receivedAt)">
       {{ formatListTime(message.receivedAt) }}
     </time>
@@ -64,6 +97,14 @@ const { t } = useI18n()
 .row.with-mailbox {
   grid-template-columns: 8px minmax(0, 170px) minmax(0, 1fr) auto minmax(0, 140px) 64px;
   grid-template-areas: 'dot sender text code mailbox time';
+}
+.row.personal {
+  grid-template-columns: 8px minmax(0, 170px) minmax(0, 1fr) auto 28px 64px;
+  grid-template-areas: 'dot sender text code star time';
+}
+.row.personal.with-mailbox {
+  grid-template-columns: 8px minmax(0, 170px) minmax(0, 1fr) auto minmax(0, 140px) 28px 64px;
+  grid-template-areas: 'dot sender text code mailbox star time';
 }
 .row:hover {
   background: var(--pl-paper);
@@ -127,6 +168,32 @@ const { t } = useI18n()
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.star {
+  grid-area: star;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--pl-faint);
+  font-size: 1rem;
+  cursor: pointer;
+}
+.row:hover .star,
+.row:focus-within .star {
+  color: var(--pl-muted);
+}
+.row .star.starred {
+  color: var(--pl-ink);
+}
+.star:focus-visible {
+  outline: 2px solid var(--pl-blue);
+  outline-offset: -2px;
+}
 .time {
   grid-area: time;
   color: var(--pl-muted);
@@ -153,6 +220,14 @@ const { t } = useI18n()
   .mailbox {
     margin-top: 4px;
     line-height: 20px;
+  }
+  .row.personal,
+  .row.personal.with-mailbox {
+    grid-template-columns: 8px minmax(0, 1fr) 28px auto;
+    grid-template-areas:
+      'dot sender star time'
+      '. text text code'
+      '. mailbox mailbox mailbox';
   }
 }
 </style>

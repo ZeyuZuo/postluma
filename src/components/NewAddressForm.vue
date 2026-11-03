@@ -7,6 +7,7 @@ import { RouterLink } from 'vue-router'
 import { isValidLocalPart, normalizeLocalPart, type MailboxQuota, type PublicMailbox } from '../../shared/api'
 import { useCreateMailbox } from '@/composables/useCreateMailbox'
 import { useDomains } from '@/composables/useDomains'
+import { isPersonal } from '@/stores/mode'
 import { session } from '@/stores/session'
 
 /** One line: optional prefix @ domain, then create. An empty prefix makes a random address. */
@@ -24,10 +25,10 @@ onMounted(() => {
 })
 
 const domainOptions = computed(() => domains.value.map((d) => ({ value: d.id, label: d.domain })))
-const quotaFull = computed(() => !!props.quota && props.quota.used >= props.quota.limit)
+const quotaFull = computed(() => props.quota?.limit != null && props.quota.used >= props.quota.limit)
 const normalized = computed(() => normalizeLocalPart(localPart.value))
 const custom = computed(() => normalized.value !== '')
-const invalid = computed(() => custom.value && !isValidLocalPart(normalized.value))
+const invalid = computed(() => custom.value && !isValidLocalPart(normalized.value, { personal: isPersonal() }))
 
 async function submit(): Promise<void> {
   if (invalid.value || quotaFull.value) return
@@ -78,9 +79,11 @@ async function submit(): Promise<void> {
       </form>
       <p class="hint" :class="{ error: invalid || quotaFull }">
         <template v-if="quotaFull">{{ t('mailboxes.quotaFull') }}</template>
-        <template v-else-if="invalid">{{ t('mailboxes.localPartRule') }}</template>
+        <template v-else-if="invalid">{{ t(isPersonal() ? 'mailboxes.localPartRulePersonal' : 'mailboxes.localPartRule') }}</template>
         <template v-else>{{ t('home.prefixHint') }}</template>
-        <span v-if="quota" class="quota">{{ t('mailboxes.quota', { used: quota.used, limit: quota.limit }) }}</span>
+        <span v-if="quota" class="quota">{{
+          quota.limit === null ? t('mailboxes.inUse', { used: quota.used }) : t('mailboxes.quota', { used: quota.used, limit: quota.limit })
+        }}</span>
       </p>
     </template>
   </div>

@@ -18,6 +18,9 @@ adminSystemRoutes.get('/settings', async (c) => c.json(await getAdminSettings(c.
 adminSystemRoutes.patch('/settings', async (c) => {
   const input = await parseJson(c, adminSettingsSchema)
   const config = getConfig(c.env)
+  // Catch-all exists in personal mode only.
+  const catchAll = input.catchAllMaxPerDay !== undefined || input.catchAllMaxPerAddressPerHour !== undefined
+  if (catchAll && config.mode !== 'personal') throw new ApiError(404, 'not_found')
   // INGEST_MAX_MB_PER_DAY × retention must fit the database, or it fills up and every write fails.
   if (typeof input.retentionDays === 'number' && input.retentionDays > config.maxRetentionDays) {
     throw new ApiError(400, 'retention_too_long')
@@ -27,6 +30,12 @@ adminSystemRoutes.patch('/settings', async (c) => {
     ...(input.registrationOpen !== undefined ? [overrideStatement(c.env.DB, 'registration_open', str(input.registrationOpen))] : []),
     ...(input.defaultMailboxQuota !== undefined ? [overrideStatement(c.env.DB, 'default_mailbox_quota', str(input.defaultMailboxQuota))] : []),
     ...(input.retentionDays !== undefined ? [overrideStatement(c.env.DB, 'retention_days', str(input.retentionDays))] : []),
+    ...(input.catchAllMaxPerDay !== undefined
+      ? [overrideStatement(c.env.DB, 'catch_all_max_per_day', str(input.catchAllMaxPerDay))]
+      : []),
+    ...(input.catchAllMaxPerAddressPerHour !== undefined
+      ? [overrideStatement(c.env.DB, 'catch_all_max_per_address_per_hour', str(input.catchAllMaxPerAddressPerHour))]
+      : []),
   ]
   // All-or-nothing, including the audit row.
   await c.env.DB.batch([

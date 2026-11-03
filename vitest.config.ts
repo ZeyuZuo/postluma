@@ -9,6 +9,9 @@ export default defineConfig({
         bindings: {
           TEST_MIGRATIONS: await readD1Migrations('./migrations'),
           ADMIN_INITIAL_PASSWORD: 'test-admin-password',
+          // Tests run the multi-user (temporary) mode whatever wrangler.jsonc says; personal-mode tests
+          // override SERVICE_MODE per request.
+          SERVICE_MODE: 'temporary',
           // Override any local .dev.vars so tests never call the real Turnstile API.
           TURNSTILE_SECRET_KEY: '',
           TURNSTILE_DISABLED: 'true',

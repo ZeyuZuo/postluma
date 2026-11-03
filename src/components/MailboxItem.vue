@@ -123,6 +123,7 @@ async function setSubaddress(acceptSubaddress: boolean): Promise<void> {
         <span v-if="mailbox.unreadCount > 0" class="unread">· {{ t('mailboxes.unread', { n: formatCount(mailbox.unreadCount, MAILBOX_COUNT_CAP) }) }}</span>
       </p>
       <p class="muted" :title="formatDateTime(mailbox.lastReceivedAt ?? mailbox.createdAt)">
+        <span v-if="mailbox.autoCreated" class="auto-tag">{{ t('mailboxes.autoCreated') }}</span>
         {{
           mailbox.lastReceivedAt
             ? t('home.lastReceived', { time: formatRelative(mailbox.lastReceivedAt) })
@@ -226,6 +227,15 @@ p {
 }
 .domain {
   color: var(--pl-faint);
+}
+.auto-tag {
+  margin-right: 8px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--pl-sunken);
+  color: var(--pl-muted);
+  font-size: 0.6875rem;
+  font-weight: 650;
 }
 .disabled .local {
   color: var(--pl-muted);

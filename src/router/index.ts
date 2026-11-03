@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 
 import { i18n } from '@/i18n'
 import AppLayout from '@/layouts/AppLayout.vue'
+import { loadServiceMode } from '@/stores/mode'
 import { loadSession, session, setUser } from '@/stores/session'
 
 declare module 'vue-router' {
@@ -71,6 +72,8 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to) => {
+  // Personal mode has no sign-up; an old link to the form lands on the login page instead.
+  if ((await loadServiceMode()) === 'personal' && to.name === 'register') return { name: 'login' }
   if (!session.loaded) await loadSession().catch(() => setUser(null))
   if (to.meta.public) return session.user && to.meta.guestOnly ? { name: 'home' } : true
   if (!session.user) return { name: 'login', query: to.fullPath === '/' ? {} : { redirect: to.fullPath } }

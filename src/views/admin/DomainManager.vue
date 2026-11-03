@@ -65,6 +65,16 @@ async function setCanSend(domain: AdminDomain, canSend: boolean): Promise<void> 
   }
 }
 
+async function setCatchAll(domain: AdminDomain, catchAll: boolean): Promise<void> {
+  try {
+    await adminDomainApi.setCatchAll(domain.id, catchAll)
+    domain.catchAll = catchAll
+    message.success(t(catchAll ? 'admin.domains.catchAllOn' : 'admin.domains.catchAllOff', { domain: domain.domain }))
+  } catch (err) {
+    message.error(t(`errors.${errorCodeOf(err)}`))
+  }
+}
+
 async function add(): Promise<void> {
   if (!normalized.value || invalid.value) return
   adding.value = true
@@ -128,7 +138,7 @@ function confirmDelete(domain: AdminDomain): void {
 
     <NSpin :show="loading" :delay="150">
       <ul v-if="enabledDomains.length" class="list">
-        <DomainRow v-for="domain in enabledDomains" :key="domain.id" :domain="domain" :health="health[domain.id]" :sending="sending?.enabled" @check="check(domain)" @can-send="(v) => setCanSend(domain, v)" @toggle="(v) => toggle(domain, v)" @remove="confirmDelete(domain)" />
+        <DomainRow v-for="domain in enabledDomains" :key="domain.id" :domain="domain" :health="health[domain.id]" :sending="sending?.enabled" @check="check(domain)" @catch-all="(v) => setCatchAll(domain, v)" @can-send="(v) => setCanSend(domain, v)" @toggle="(v) => toggle(domain, v)" @remove="confirmDelete(domain)" />
       </ul>
       <p v-else-if="!loading" class="empty">{{ t('admin.domains.empty') }}</p>
       <p class="note">{{ t('admin.domains.routingNote') }}</p>
@@ -137,7 +147,7 @@ function confirmDelete(domain: AdminDomain): void {
         <NCollapseItem :title="t('admin.domains.disabledSection', { n: disabledDomains.length })" name="disabled">
           <p class="disabled-hint">{{ t('admin.domains.disabledHint') }}</p>
           <ul class="list">
-            <DomainRow v-for="domain in disabledDomains" :key="domain.id" :domain="domain" :health="health[domain.id]" :sending="sending?.enabled" @check="check(domain)" @can-send="(v) => setCanSend(domain, v)" @toggle="(v) => toggle(domain, v)" @remove="confirmDelete(domain)" />
+            <DomainRow v-for="domain in disabledDomains" :key="domain.id" :domain="domain" :health="health[domain.id]" :sending="sending?.enabled" @check="check(domain)" @catch-all="(v) => setCatchAll(domain, v)" @can-send="(v) => setCanSend(domain, v)" @toggle="(v) => toggle(domain, v)" @remove="confirmDelete(domain)" />
           </ul>
         </NCollapseItem>
       </NCollapse>

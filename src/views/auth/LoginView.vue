@@ -10,6 +10,7 @@ import TurnstileWidget from '@/components/TurnstileWidget.vue'
 import AuthLayout from '@/layouts/AuthLayout.vue'
 import { safeRedirect } from '@/lib/redirect'
 import { turnstileEnabled } from '@/lib/turnstile'
+import { isPersonal } from '@/stores/mode'
 import { setUser } from '@/stores/session'
 
 const { t } = useI18n()
@@ -73,7 +74,8 @@ async function submit(): Promise<void> {
           {{ t('auth.login') }}
         </NButton>
       </NForm>
-      <RouterLink class="switch" :to="{ name: 'register' }">{{ t('auth.toRegister') }}</RouterLink>
+      <!-- Personal mode has only the administrator: nobody can ask for an account. -->
+      <RouterLink v-if="!isPersonal()" class="switch" :to="{ name: 'register' }">{{ t('auth.toRegister') }}</RouterLink>
     </div>
   </AuthLayout>
 </template>

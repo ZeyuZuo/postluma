@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 
 import { SETTING_RANGES, type AdminSettings } from '../../../shared/api'
 import { adminApi } from '@/api/admin'
+import { isPersonal } from '@/stores/mode'
 import SendingCard from './SendingCard.vue'
 import { errorCodeOf } from '@/api/client'
 
@@ -13,10 +14,18 @@ const toast = useMessage()
 const dialog = useDialog()
 
 const settings = ref<AdminSettings | null>(null)
-const form = reactive<{ registrationOpen: boolean; defaultMailboxQuota: number | null; retentionDays: number | null }>({
+const form = reactive<{
+  registrationOpen: boolean
+  defaultMailboxQuota: number | null
+  retentionDays: number | null
+  catchAllMaxPerDay: number | null
+  catchAllMaxPerAddressPerHour: number | null
+}>({
   registrationOpen: true,
   defaultMailboxQuota: 10,
   retentionDays: 30,
+  catchAllMaxPerDay: null,
+  catchAllMaxPerAddressPerHour: null,
 })
 const MAX_BATCHES_PER_CLICK = 10
 const saving = ref(false)
@@ -25,7 +34,13 @@ const cleaning = ref(false)
 
 function apply(s: AdminSettings): void {
   settings.value = s
-  Object.assign(form, { registrationOpen: s.registrationOpen, defaultMailboxQuota: s.defaultMailboxQuota, retentionDays: s.retentionDays })
+  Object.assign(form, {
+    registrationOpen: s.registrationOpen,
+    defaultMailboxQuota: s.defaultMailboxQuota,
+    retentionDays: s.retentionDays,
+    catchAllMaxPerDay: s.catchAllMaxPerDay,
+    catchAllMaxPerAddressPerHour: s.catchAllMaxPerAddressPerHour,
+  })
 }
 
 onMounted(async () => {
@@ -37,13 +52,17 @@ onMounted(async () => {
 })
 
 /** Only fields the admin actually changed become overrides; a cleared number means "unchanged". */
-function changes(): Partial<Record<'registrationOpen' | 'defaultMailboxQuota' | 'retentionDays', boolean | number>> {
+function changes(): Partial<Record<keyof typeof form, boolean | number>> {
   const s = settings.value
   if (!s) return {}
-  const out: Partial<Record<'registrationOpen' | 'defaultMailboxQuota' | 'retentionDays', boolean | number>> = {}
+  const out: Partial<Record<keyof typeof form, boolean | number>> = {}
   if (form.registrationOpen !== s.registrationOpen) out.registrationOpen = form.registrationOpen
   if (form.defaultMailboxQuota !== null && form.defaultMailboxQuota !== s.defaultMailboxQuota) out.defaultMailboxQuota = form.defaultMailboxQuota
   if (form.retentionDays !== null && form.retentionDays !== s.retentionDays) out.retentionDays = form.retentionDays
+  if (isPersonal()) {
+    if (form.catchAllMaxPerDay !== null && form.catchAllMaxPerDay !== s.catchAllMaxPerDay) out.catchAllMaxPerDay = form.catchAllMaxPerDay
+    if (form.catchAllMaxPerAddressPerHour !== null && form.catchAllMaxPerAddressPerHour !== s.catchAllMaxPerAddressPerHour) out.catchAllMaxPerAddressPerHour = form.catchAllMaxPerAddressPerHour
+  }
   return out
 }
 
@@ -64,7 +83,7 @@ async function save(): Promise<void> {
   }
 }
 
-async function reset(key: 'registrationOpen' | 'defaultMailboxQuota' | 'retentionDays'): Promise<void> {
+async function reset(key: keyof typeof form): Promise<void> {
   try {
     apply(await adminApi.updateSettings({ [key]: null }))
     toast.success(t('admin.settings.saved'))
@@ -122,7 +141,8 @@ async function runCleanup(days: number): Promise<void> {
       <p class="intro">{{ t('admin.settings.intro') }}</p>
       <NCard v-if="settings">
         <NForm label-placement="top" class="form" @submit.prevent="save">
-          <NFormItem :label="t('admin.settings.registration')">
+          <!-- Personal mode: no sign-up and no quota, so neither setting applies. -->
+          <NFormItem v-if="!isPersonal()" :label="t('admin.settings.registration')">
             <div class="field">
               <NSwitch v-model:value="form.registrationOpen" />
               <p class="hint">{{ t('admin.settings.registrationHint') }}</p>
@@ -132,7 +152,7 @@ async function runCleanup(days: number): Promise<void> {
               </p>
             </div>
           </NFormItem>
-          <NFormItem :label="t('admin.settings.defaultQuota')">
+          <NFormItem v-if="!isPersonal()" :label="t('admin.settings.defaultQuota')">
             <div class="field">
               <NInputNumber v-model:value="form.defaultMailboxQuota" class="number" :min="SETTING_RANGES.defaultMailboxQuota.min" :max="SETTING_RANGES.defaultMailboxQuota.max" />
               <p class="hint">{{ t('admin.settings.defaultQuotaHint') }}</p>
@@ -154,11 +174,34 @@ async function runCleanup(days: number): Promise<void> {
               </p>
             </div>
           </NFormItem>
+          <template v-if="isPersonal()">
+            <NFormItem :label="t('admin.settings.catchAllPerDay')">
+              <div class="field">
+                <NInputNumber v-model:value="form.catchAllMaxPerDay" class="number" :min="SETTING_RANGES.catchAllMaxPerDay.min" :max="SETTING_RANGES.catchAllMaxPerDay.max" />
+                <p class="hint">{{ t('admin.settings.catchAllPerDayHint') }}</p>
+                <p class="default">
+                  {{ t('admin.settings.deployDefault', { value: show(settings.defaults.catchAllMaxPerDay, 'catchAllMaxPerDay') }) }}
+                  <NButton v-if="settings.overridden.catchAllMaxPerDay" text type="primary" size="tiny" @click="reset('catchAllMaxPerDay')">{{ t('admin.settings.reset') }}</NButton>
+                </p>
+              </div>
+            </NFormItem>
+            <NFormItem :label="t('admin.settings.catchAllPerAddressPerHour')">
+              <div class="field">
+                <NInputNumber v-model:value="form.catchAllMaxPerAddressPerHour" class="number" :min="SETTING_RANGES.catchAllMaxPerAddressPerHour.min" :max="SETTING_RANGES.catchAllMaxPerAddressPerHour.max" />
+                <p class="hint">{{ t('admin.settings.catchAllPerAddressPerHourHint') }}</p>
+                <p class="default">
+                  {{ t('admin.settings.deployDefault', { value: show(settings.defaults.catchAllMaxPerAddressPerHour, 'catchAllMaxPerAddressPerHour') }) }}
+                  <NButton v-if="settings.overridden.catchAllMaxPerAddressPerHour" text type="primary" size="tiny" @click="reset('catchAllMaxPerAddressPerHour')">{{ t('admin.settings.reset') }}</NButton>
+                </p>
+              </div>
+            </NFormItem>
+          </template>
           <NButton type="primary" attr-type="submit" :loading="saving">{{ t('admin.settings.save') }}</NButton>
         </NForm>
       </NCard>
 
-      <SendingCard />
+      <!-- Temporary mode has no sending at all. -->
+      <SendingCard v-if="isPersonal()" />
 
       <NCard :title="t('admin.settings.maintenance')" class="danger">
         <p class="hint">{{ t('admin.settings.maintenanceHint') }}</p>

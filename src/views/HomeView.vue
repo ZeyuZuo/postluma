@@ -3,6 +3,8 @@ import { NSkeleton } from 'naive-ui'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import type { PublicMailbox } from '../../shared/api'
+import { mailboxApi } from '@/api/mailboxes'
 import AddressSwitchList from '@/components/home/AddressSwitchList.vue'
 import CurrentPanel from '@/components/home/CurrentPanel.vue'
 import NewAddressForm from '@/components/NewAddressForm.vue'
@@ -19,13 +21,45 @@ const list = useMailboxList('active')
 const { items, quota } = list
 const listLoaded = ref(false)
 const remembered = currentMailboxId()
+/** The current address when the list's first page doesn't hold it (see findOffPage). */
+const offPage = ref<PublicMailbox | null>(null)
 
-/** The remembered address if it is still active, else the newest one. */
-const current = computed(() => items.value.find((m) => m.id === remembered.value) ?? items.value[0] ?? null)
+/**
+ * The remembered address while it is active; else the newest address created by hand, so an address
+ * catch-all created never takes over on its own; only with no address made by hand at all, the newest.
+ */
+const current = computed(
+  () =>
+    items.value.find((m) => m.id === remembered.value) ??
+    offPage.value ??
+    items.value.find((m) => !m.autoCreated) ??
+    items.value[0] ??
+    null,
+)
+
+/**
+ * The list loads the newest 50 addresses, and catch-all can push every address that matters off that
+ * page: fetch the remembered one by id, or else ask for the newest address made by hand.
+ */
+async function findOffPage(): Promise<void> {
+  offPage.value = null
+  const id = remembered.value
+  if (id && !items.value.some((m) => m.id === id)) {
+    const mailbox = await mailboxApi.get(id).then((r) => r.mailbox, () => null)
+    if (mailbox?.status === 'active') {
+      offPage.value = mailbox
+      return
+    }
+  }
+  if (items.value.length && !items.value.some((m) => !m.autoCreated)) {
+    offPage.value = await mailboxApi.list({ status: 'active', manual: true }).then((r) => r.items[0] ?? null, () => null)
+  }
+}
 
 async function reload(): Promise<void> {
   try {
     await list.reload()
+    await findOffPage()
   } finally {
     listLoaded.value = true
   }

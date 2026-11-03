@@ -10,8 +10,8 @@ import { adminDomainApi } from '@/api/mailboxes'
 import { useAdminSending } from '@/composables/useAdminSending'
 
 /**
- * The service-wide sending switch (off by default), the provider's state and a test send. Users
- * still need their own permission and a domain allowed to send (the other admin tabs).
+ * The service-wide sending switch (off by default), the provider's state and a test send. Only in
+ * personal mode, where the administrator always may send; a domain still has to allow sending.
  */
 const { t } = useI18n()
 const toast = useMessage()
@@ -80,9 +80,6 @@ async function sendTest(): Promise<void> {
         <li :class="{ ok: status.enabled }">{{ status.enabled ? '✓' : '✗' }} {{ t('admin.sending.checkSwitch') }}</li>
         <li :class="{ ok: status.sendingDomains > 0 }">
           {{ status.sendingDomains > 0 ? '✓' : '✗' }} {{ t('admin.sending.checkDomains', { n: status.sendingDomains }) }}
-        </li>
-        <li :class="{ ok: status.sendingUsers > 0 }">
-          {{ status.sendingUsers > 0 ? '✓' : '✗' }} {{ t('admin.sending.checkUsers', { n: status.sendingUsers }) }}
         </li>
       </ul>
 

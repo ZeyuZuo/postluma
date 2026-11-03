@@ -27,7 +27,9 @@ function assertTurnstileSiteKey(mode: string): void {
  * (.wrangler/e2e, rebuilt per run) with Turnstile off, so browser tests never touch your dev data.
  */
 const E2E = process.env.POSTLUMA_E2E === '1'
-const E2E_STATE = '.wrangler/e2e'
+// Each service mode gets its own dev server and state (two Playwright projects; playwright.config.ts).
+const E2E_MODE = process.env.POSTLUMA_E2E_MODE === 'personal' ? 'personal' : 'temporary'
+const E2E_STATE = E2E_MODE === 'personal' ? '.wrangler/e2e-personal' : '.wrangler/e2e'
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -36,9 +38,16 @@ export default defineConfig(({ mode }) => {
     plugins: [
       vue(),
       cloudflare(
-        E2E ? { persistState: { path: E2E_STATE }, config: { vars: { TURNSTILE_DISABLED: 'true', MAIL_PROVIDER: 'log' } } } : {},
+        E2E
+          ? {
+              persistState: { path: E2E_STATE },
+              config: { vars: { TURNSTILE_DISABLED: 'true', MAIL_PROVIDER: 'log', SERVICE_MODE: E2E_MODE } },
+            }
+          : {},
       ),
     ],
+    // Two e2e dev servers run at once; separate dependency caches keep them from racing.
+    cacheDir: E2E ? `node_modules/.vite-e2e-${E2E_MODE}` : undefined,
     resolve: {
       alias: {
         '@': fileURLToPath(new URL('./src', import.meta.url)),

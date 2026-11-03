@@ -2,13 +2,15 @@ import type { AdminDomain, DomainHealth, MailboxListResponse, MailboxStatus, Pub
 import { http } from './client'
 
 export const mailboxApi = {
-  list: (params: { status: MailboxStatus; q?: string; domain?: string | null; cursor?: string | null }) => {
+  list: (params: { status: MailboxStatus; q?: string; domain?: string | null; manual?: boolean; cursor?: string | null }) => {
     const query = new URLSearchParams({ status: params.status })
     if (params.q) query.set('q', params.q)
     if (params.domain) query.set('domain', params.domain)
+    if (params.manual) query.set('manual', '1')
     if (params.cursor) query.set('cursor', params.cursor)
     return http.get<MailboxListResponse>(`/api/mailboxes?${query}`)
   },
+  get: (id: string) => http.get<{ mailbox: PublicMailbox }>(`/api/mailboxes/${encodeURIComponent(id)}`),
   create: (body: { domainId: string; localPart?: string; note?: string }) =>
     http.post<{ mailbox: PublicMailbox }>('/api/mailboxes', body),
   update: (id: string, body: { note?: string | null; status?: MailboxStatus; acceptSubaddress?: boolean }) =>
@@ -24,5 +26,7 @@ export const adminDomainApi = {
   remove: (id: string) => http.delete<void>(`/api/admin/domains/${encodeURIComponent(id)}`),
   setCanSend: (id: string, canSend: boolean) =>
     http.patch<void>(`/api/admin/domains/${encodeURIComponent(id)}`, { canSend }),
+  setCatchAll: (id: string, catchAll: boolean) =>
+    http.patch<void>(`/api/admin/domains/${encodeURIComponent(id)}`, { catchAll }),
   health: (id: string) => http.get<{ health: DomainHealth }>(`/api/admin/domains/${encodeURIComponent(id)}/health`),
 }

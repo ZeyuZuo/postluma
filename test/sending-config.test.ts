@@ -5,6 +5,8 @@ import { getConfig } from '../worker/lib/config'
 import { isSendingEnabled } from '../worker/repo/settings'
 import { addDomain, createUser } from './helpers'
 
+const personal = { SERVICE_MODE: 'personal' }
+
 describe('sending configuration (Phase 9.1)', () => {
   it('is off everywhere by default', async () => {
     const config = getConfig({ ...env, SENDING_ENABLED: undefined, MAIL_PROVIDER: undefined } as unknown as Env)
@@ -19,7 +21,7 @@ describe('sending configuration (Phase 9.1)', () => {
   })
 
   it('lets the admin setting override the deploy default', async () => {
-    const config = getConfig(env)
+    const config = getConfig({ ...env, ...personal } as Env)
     await env.DB.prepare("INSERT INTO settings (key, value, updated_at) VALUES ('sending_enabled', 'true', 0)").run()
     expect(await isSendingEnabled(env.DB, config)).toBe(true)
     await env.DB.prepare("UPDATE settings SET value = 'false' WHERE key = 'sending_enabled'").run()

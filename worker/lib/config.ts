@@ -6,6 +6,7 @@
  * Three of these are only *defaults*: an admin can override `REGISTRATION_OPEN`,
  * `DEFAULT_MAILBOX_QUOTA` and `MESSAGE_RETENTION_DAYS` at runtime (stored in the `settings` table).
  */
+import { SERVICE_MODES, type ServiceMode } from '../../shared/api'
 
 interface IntSpec {
   fallback: number
@@ -30,11 +31,16 @@ const INT_VARS = {
   SEND_MAX_PER_USER_PER_DAY: { fallback: 20, min: 0, max: 10_000 },
   SEND_MAX_PER_DAY: { fallback: 100, min: 0, max: 1_000_000 },
   SEND_MAX_RECIPIENTS: { fallback: 5, min: 1, max: 50 },
+  MAX_STARRED_MESSAGES: { fallback: 500, min: 0, max: 100_000 },
+  CATCH_ALL_MAX_PER_DAY: { fallback: 10, min: 0, max: 10_000 },
+  CATCH_ALL_MAX_PER_ADDRESS_PER_HOUR: { fallback: 10, min: 1, max: 100_000 },
 } satisfies Record<string, IntSpec>
 
 type IntVar = keyof typeof INT_VARS
 
 export interface AppConfig {
+  /** `personal`: the administrator's own mailbox; `temporary`: many users, no sending. */
+  mode: ServiceMode
   registrationOpen: boolean
   passwordIterations: number
   sessionTtlMs: number
@@ -42,6 +48,8 @@ export interface AppConfig {
   maxTotalMailboxes: number
   maxDailyMailboxCreations: number
   ingest: {
+    /** Personal mode: only mailboxes of administrators receive mail. */
+    adminOwnersOnly: boolean
     perMailboxPerHour: number
     perUserPerHour: number
     messagesPerDay: number
@@ -49,6 +57,9 @@ export interface AppConfig {
     parseWindowBytes: number
     /** R2 bytes of original messages per UTC day; 0 = originals are not kept. */
     rawBytesPerDay: number
+    /** Catch-all defaults (personal mode); an admin may override both in the settings. */
+    catchAllPerDay: number
+    catchAllPerAddressPerHour: number
   }
   /** 0 = keep forever. */
   retentionDays: number
@@ -62,6 +73,8 @@ export interface AppConfig {
   maxRetentionDays: number
   /** Record Cloudflare's SPF/DKIM/DMARC results with each message (see worker/lib/sender-auth.ts). */
   senderAuthHints: boolean
+  /** Starred messages per user; they outlive retention, so they are capped (personal mode). */
+  maxStarredMessages: number
   sending: {
     /** Deploy-time default of the service-wide switch; admins override it (settings.sending_enabled). */
     enabled: boolean
@@ -117,12 +130,22 @@ function readProvider(env: Env): MailProviderName {
   return 'resend'
 }
 
+/** Unset or invalid means `temporary`, so a multi-user deployment never locks its users out by default. */
+function readMode(env: Env): ServiceMode {
+  const raw = (env as unknown as Record<string, unknown>).SERVICE_MODE
+  if (raw === undefined || raw === '') return 'temporary'
+  if (SERVICE_MODES.includes(raw as ServiceMode)) return raw as ServiceMode
+  warnOnce('SERVICE_MODE', raw, 'temporary')
+  return 'temporary'
+}
+
 /** The R2 binding, if this deployment has one (it is optional; see wrangler.jsonc). */
 export function mailBucket(env: Env): R2Bucket | null {
   return (env as { MAIL_BUCKET?: R2Bucket }).MAIL_BUCKET ?? null
 }
 
 export function getConfig(env: Env): AppConfig {
+  const mode = readMode(env)
   const ingestMb = readInt(env, 'INGEST_MAX_MB_PER_DAY')
   const rawMb = mailBucket(env) ? readInt(env, 'RAW_MAIL_MAX_MB_PER_DAY') : 0
   const maxRetentionDays = Math.min(
@@ -130,6 +153,7 @@ export function getConfig(env: Env): AppConfig {
     rawMb > 0 ? Math.floor(R2_BUDGET_BYTES / (rawMb * MB)) : Infinity,
   )
   return {
+    mode,
     registrationOpen: readBool(env, 'REGISTRATION_OPEN', true),
     passwordIterations: readInt(env, 'PASSWORD_PBKDF2_ITERATIONS'),
     sessionTtlMs: readInt(env, 'SESSION_TTL_DAYS') * DAY_MS,
@@ -137,17 +161,21 @@ export function getConfig(env: Env): AppConfig {
     maxTotalMailboxes: readInt(env, 'MAX_TOTAL_MAILBOXES'),
     maxDailyMailboxCreations: readInt(env, 'MAX_DAILY_MAILBOX_CREATIONS'),
     ingest: {
+      adminOwnersOnly: mode === 'personal',
       perMailboxPerHour: readInt(env, 'INGEST_MAX_PER_MAILBOX_PER_HOUR'),
       perUserPerHour: readInt(env, 'INGEST_MAX_PER_USER_PER_HOUR'),
       messagesPerDay: readInt(env, 'INGEST_MAX_MESSAGES_PER_DAY'),
       bytesPerDay: ingestMb * MB,
       parseWindowBytes: readInt(env, 'INGEST_PARSE_WINDOW_KB') * 1024,
       rawBytesPerDay: rawMb * MB,
+      catchAllPerDay: readInt(env, 'CATCH_ALL_MAX_PER_DAY'),
+      catchAllPerAddressPerHour: readInt(env, 'CATCH_ALL_MAX_PER_ADDRESS_PER_HOUR'),
     },
     retentionDays: readInt(env, 'MESSAGE_RETENTION_DAYS'),
     maxDeletesPerDay: readInt(env, 'MAX_DELETES_PER_DAY'),
     maxRetentionDays: Math.max(1, maxRetentionDays),
     senderAuthHints: readBool(env, 'SENDER_AUTH_HINTS', false),
+    maxStarredMessages: readInt(env, 'MAX_STARRED_MESSAGES'),
     sending: {
       enabled: readBool(env, 'SENDING_ENABLED', false),
       provider: readProvider(env),

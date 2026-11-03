@@ -15,6 +15,7 @@ interface MailboxRow {
   note: string | null
   status: MailboxStatus
   accept_subaddress: number
+  auto_created: number
   message_count: number
   unread_count: number
   created_at: number
@@ -24,7 +25,7 @@ interface MailboxRow {
 // Counts stop at MAILBOX_COUNT_CAP: an uncapped COUNT(*) reads every message of every listed
 // mailbox (D1 bills rows read), so one list page could cost the user's whole history.
 const SELECT_MAILBOX = `
-  SELECT m.id, m.address, d.domain, m.note, m.status, m.accept_subaddress, m.created_at,
+  SELECT m.id, m.address, d.domain, m.note, m.status, m.accept_subaddress, m.auto_created, m.created_at,
          (SELECT MAX(g.received_at) FROM messages g WHERE g.mailbox_id = m.id) AS last_received_at,
          (SELECT COUNT(*) FROM (SELECT 1 FROM messages g WHERE g.mailbox_id = m.id LIMIT ${MAILBOX_COUNT_CAP})) AS message_count,
          (SELECT COUNT(*) FROM (
@@ -37,6 +38,11 @@ export interface MailboxLimits {
   defaultQuota: number
   maxTotal: number
   maxDailyCreations: number
+  /**
+   * False in personal mode: the active quota and the total cap only stop users squatting addresses
+   * on a shared service. The daily creation cap applies either way.
+   */
+  quotaApplies: boolean
 }
 
 /** SQL condition: user ?1 has fewer active mailboxes than their effective quota. */
@@ -45,12 +51,13 @@ const underQuota = (defaultQuotaParam: string) => `
   ${effectiveQuotaSql('?1', defaultQuotaParam)}`
 
 /**
- * SQL condition for creating a new row: total mailboxes (any status) stays under ?8 and creations
- * since ?7 under ?9.
+ * SQL conditions for creating a new row: unless ?11 is 0 (no quota), active mailboxes stay under the
+ * quota (default ?10) and the total (any status) under ?8; creations by hand since ?7 stay under ?9
+ * (catch-all has its own daily cap).
  */
 const UNDER_CREATION_LIMITS = `
-  (SELECT COUNT(*) FROM mailboxes WHERE user_id = ?1) < ?8
-  AND (SELECT COUNT(*) FROM mailboxes WHERE user_id = ?1 AND created_at > ?7) < ?9`
+  (?11 = 0 OR (${underQuota('?10')} AND (SELECT COUNT(*) FROM mailboxes WHERE user_id = ?1) < ?8))
+  AND (SELECT COUNT(*) FROM mailboxes WHERE user_id = ?1 AND created_at > ?7 AND auto_created = 0) < ?9`
 
 const CREATION_WINDOW_MS = 24 * 60 * 60 * 1000
 
@@ -64,6 +71,7 @@ function toPublic(row: MailboxRow): PublicMailbox {
     note: row.note,
     status: row.status,
     acceptSubaddress: row.accept_subaddress === 1,
+    autoCreated: row.auto_created === 1,
     messageCount: row.message_count,
     unreadCount: row.unread_count,
     createdAt: row.created_at,
@@ -90,22 +98,26 @@ function escapeLike(value: string): string {
   return value.replace(/[\\%_]/g, (ch) => `\\${ch}`)
 }
 
-export async function getQuota(db: D1Database, userId: string, defaultQuota: number): Promise<MailboxQuota> {
+export async function getQuota(
+  db: D1Database,
+  userId: string,
+  limits: Pick<MailboxLimits, 'defaultQuota' | 'quotaApplies'>,
+): Promise<MailboxQuota> {
   const row = await db
     .prepare(
       `SELECT
          (SELECT COUNT(*) FROM mailboxes WHERE user_id = ?1 AND status = 'active') AS used,
          ${effectiveQuotaSql('?1', '?2')} AS quota`,
     )
-    .bind(userId, defaultQuota)
+    .bind(userId, limits.defaultQuota)
     .first<{ used: number; quota: number }>()
-  return { used: row?.used ?? 0, limit: Math.max(0, row?.quota ?? 0) }
+  return { used: row?.used ?? 0, limit: limits.quotaApplies ? Math.max(0, row?.quota ?? 0) : null }
 }
 
 export async function listMailboxes(
   db: D1Database,
   userId: string,
-  opts: { status: MailboxStatus; q?: string; domain?: string; cursor?: string },
+  opts: { status: MailboxStatus; q?: string; domain?: string; manualOnly?: boolean; cursor?: string },
 ): Promise<{ items: PublicMailbox[]; nextCursor: string | null }> {
   const where = ['m.user_id = ?', 'm.status = ?']
   const params: unknown[] = [userId, opts.status]
@@ -118,6 +130,7 @@ export async function listMailboxes(
     where.push('m.domain_id = ?')
     params.push(opts.domain)
   }
+  if (opts.manualOnly) where.push('m.auto_created = 0')
   if (opts.cursor) {
     const c = decodeCursor(opts.cursor)
     where.push('(m.created_at, m.id) < (?, ?)') // row value: an index range, unlike the OR form
@@ -159,15 +172,15 @@ async function creationFailure(
          EXISTS (SELECT 1 FROM retired_addresses WHERE address = ?2) AS retired,
          EXISTS (SELECT 1 FROM domains WHERE id = ?3 AND enabled = 1) AS domain_ok,
          (SELECT COUNT(*) FROM mailboxes WHERE user_id = ?1) AS total,
-         (SELECT COUNT(*) FROM mailboxes WHERE user_id = ?1 AND created_at > ?4) AS recent`,
+         (SELECT COUNT(*) FROM mailboxes WHERE user_id = ?1 AND created_at > ?4 AND auto_created = 0) AS recent`,
     )
     .bind(userId, address, domainId, since)
     .first<{ retired: number; domain_ok: number; total: number; recent: number }>()
   if (row?.retired) return new ApiError(409, 'address_taken')
   if (!row?.domain_ok) return new ApiError(400, 'domain_unavailable')
-  if (row.total >= limits.maxTotal) return new ApiError(409, 'mailbox_total_limit_reached')
+  if (limits.quotaApplies && row.total >= limits.maxTotal) return new ApiError(409, 'mailbox_total_limit_reached')
   if (row.recent >= limits.maxDailyCreations) return new ApiError(429, 'rate_limited')
-  return new ApiError(409, 'mailbox_quota_exceeded')
+  return limits.quotaApplies ? new ApiError(409, 'mailbox_quota_exceeded') : new ApiError(409, 'invalid_state')
 }
 
 /**
@@ -191,10 +204,21 @@ export async function createMailbox(
          SELECT ?2, ?1, ?3, ?4, ?5, 'active', ?6, ?6
          WHERE NOT EXISTS (SELECT 1 FROM retired_addresses WHERE address = ?4)
            AND EXISTS (SELECT 1 FROM domains WHERE id = ?3 AND enabled = 1)
-           AND ${underQuota('?10')}
            AND ${UNDER_CREATION_LIMITS}`,
       )
-      .bind(userId, id, input.domainId, input.address, input.note, now, since, limits.maxTotal, limits.maxDailyCreations, limits.defaultQuota)
+      .bind(
+        userId,
+        id,
+        input.domainId,
+        input.address,
+        input.note,
+        now,
+        since,
+        limits.maxTotal,
+        limits.maxDailyCreations,
+        limits.defaultQuota,
+        limits.quotaApplies ? 1 : 0,
+      )
       .run()
     changes = result.meta.changes
   } catch (err) {
@@ -210,7 +234,7 @@ export async function updateMailbox(
   userId: string,
   id: string,
   patch: { note?: string | null; status?: MailboxStatus; acceptSubaddress?: boolean },
-  defaultQuota: number,
+  limits: Pick<MailboxLimits, 'defaultQuota' | 'quotaApplies'>,
 ): Promise<PublicMailbox> {
   const current = await getMailbox(db, userId, id)
   const now = Date.now()
@@ -221,9 +245,9 @@ export async function updateMailbox(
         ? await db
             .prepare(
               `UPDATE mailboxes SET status = 'active', updated_at = ?3
-               WHERE id = ?2 AND user_id = ?1 AND status = 'disabled' AND ${underQuota('?4')}`,
+               WHERE id = ?2 AND user_id = ?1 AND status = 'disabled' AND (?5 = 0 OR ${underQuota('?4')})`,
             )
-            .bind(userId, id, now, defaultQuota)
+            .bind(userId, id, now, limits.defaultQuota, limits.quotaApplies ? 1 : 0)
             .run()
         : await db
             .prepare("UPDATE mailboxes SET status = 'disabled', updated_at = ? WHERE id = ? AND user_id = ?")

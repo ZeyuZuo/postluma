@@ -230,3 +230,15 @@ docs/          Product requirements, roadmap, decision log (Chinese)
 - **Local queries fail with `no such table`**: after changing `database_id`, run `npm run db:migrate:local` again.
 - **Sign-in fails with error 1102 (CPU limit)**: lower `PASSWORD_PBKDF2_ITERATIONS`.
 - **Mail to an address bounces**: check that the address is in use, its owner is approved, and the domain has the catch-all rule.
+
+## License
+
+Copyright (C) 2026 Zeyu Zuo
+
+PostLuma is open source under the [GNU AGPL-3.0](LICENSE):
+
+- Anyone may use, deploy, modify and share it for free, commercially too.
+- If you distribute a modified version, it must use AGPL-3.0 as well, and whoever receives it must be able to get the complete source.
+- If you run a modified version as a website or service, you must offer its source to the people using it.
+
+It comes with no warranty. Third-party packages and fonts keep their own licenses.

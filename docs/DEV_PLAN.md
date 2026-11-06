@@ -251,7 +251,7 @@
 
 - [ ] 跑完 Phase 6 的上线验证，并按 [MODES_DESIGN.md](MODES_DESIGN.md) 第 7 节确认切到个人模式后线上正常
 - [ ] 加 CI，推送时跑 `npm test`、类型检查和 e2e。现在 Workers Builds 只做类型检查和构建，测试全靠手动
-- [ ] 选一个开源许可证：README 写了别人可以自己部署，但仓库没有 LICENSE
+- [x] 许可证：AGPL-3.0，取舍见 [QUESTIONS.md](QUESTIONS.md) Q20
 - [ ] 升级开发工具链（wrangler、`@cloudflare/vite-plugin`、`@cloudflare/vitest-plugin`），清掉 `npm audit` 的 6 条提醒（都不进生产包）。本机 npm 指向 npmmirror，审计要加 `--registry=https://registry.npmjs.org`
 - [ ] 当正式邮箱用还缺的：备份或批量导出、两步验证、更长的保留期（按现在的额度，后台最多设 33 天）
 

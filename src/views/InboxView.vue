@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { CloseOutline, CreateOutline, SearchOutline } from '@vicons/ionicons5'
-import { NButton, NIcon, NInput, NSelect, NSkeleton, NSpin, useMessage } from 'naive-ui'
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { CreateOutline, SearchOutline } from '@vicons/ionicons5'
+import { NButton, NIcon, NInput, NSelect, useMessage } from 'naive-ui'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 
@@ -10,9 +10,10 @@ import { errorCodeOf } from '@/api/client'
 import { mailboxApi } from '@/api/mailboxes'
 import { messageApi, type MessageQuery } from '@/api/messages'
 import ComposePanel from '@/components/ComposePanel.vue'
+import MailListLayout from '@/components/MailListLayout.vue'
 import MessageDetail from '@/components/MessageDetail.vue'
 import MessageRow from '@/components/MessageRow.vue'
-import { useIsMobile } from '@/composables/useIsMobile'
+import { useMailDrawer } from '@/composables/useMailDrawer'
 import { inbox, refreshInbox } from '@/stores/inbox'
 import { isPersonal } from '@/stores/mode'
 import { canSend, loadOutboxStatus } from '@/stores/outbox'
@@ -27,7 +28,6 @@ const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const toast = useMessage()
-const isMobile = useIsMobile()
 
 const items = ref<MessageSummary[]>([])
 const nextCursor = ref<string | null>(null)
@@ -37,12 +37,18 @@ const mailboxes = ref<PublicMailbox[]>([])
 const search = ref(typeof route.query.q === 'string' ? route.query.q : '')
 const searchInput = ref<InstanceType<typeof NInput> | null>(null)
 
+const { selectedId, composing, drawerOpen, open, closeDetail, compose, closeDrawer } = useMailDrawer(
+  'inbox',
+  () => items.value,
+  () => searchInput.value?.focus(),
+)
+void loadOutboxStatus(true)
+
 /** Searches shorter than SEARCH_MIN_CHARS aren't sent (every search scans rows). */
 const effectiveQuery = computed(() => {
   const q = search.value.trim()
   return q.length >= SEARCH_MIN_CHARS ? q : undefined
 })
-const selectedId = computed(() => (typeof route.params.id === 'string' && route.params.id ? route.params.id : null))
 const mailboxFilter = computed(() => (typeof route.query.mailbox === 'string' ? route.query.mailbox : null))
 const filter = computed<Filter>(() =>
   route.query.filter === 'unread' || route.query.filter === 'code' || (isPersonal() && route.query.filter === 'starred')
@@ -138,7 +144,6 @@ async function pullNew(): Promise<void> {
 
 onMounted(async () => {
   void reload()
-  window.addEventListener('keydown', onKey)
   try {
     const [active, disabled] = await Promise.all([
       mailboxApi.list({ status: 'active' }),
@@ -149,7 +154,6 @@ onMounted(async () => {
     // The filter is optional; the list still works without it.
   }
 })
-onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
 watch([mailboxFilter, filter], () => void reload())
 watch(() => inbox.arrivals, () => void pullNew())
@@ -169,33 +173,6 @@ function setMailbox(value: string): void {
 
 function setFilter(value: Filter): void {
   void router.replace({ name: 'inbox', params: {}, query: { ...route.query, filter: value === 'all' ? undefined : value } })
-}
-
-function open(message: MessageSummary): void {
-  void router.push({ name: 'inbox', params: { id: message.id }, query: route.query })
-}
-
-function closeDetail(): void {
-  void router.push({ name: 'inbox', params: {}, query: route.query })
-}
-
-/** j/k move through the list, / focuses search, Esc closes the message — never while typing. */
-function onKey(e: KeyboardEvent): void {
-  if (e.metaKey || e.ctrlKey || e.altKey) return
-  const target = e.target as HTMLElement | null
-  if (target?.closest('input, textarea, select, [contenteditable="true"]')) return
-  if (e.key === '/') {
-    e.preventDefault()
-    searchInput.value?.focus()
-  } else if (e.key === 'Escape' && selectedId.value) {
-    closeDetail()
-  } else if (e.key === 'j' || e.key === 'k') {
-    const index = items.value.findIndex((m) => m.id === selectedId.value)
-    const next = items.value[index === -1 ? 0 : index + (e.key === 'j' ? 1 : -1)]
-    if (!next) return
-    open(next)
-    void nextTick(() => document.querySelector(`[data-id="${CSS.escape(next.id)}"]`)?.scrollIntoView({ block: 'nearest' }))
-  }
 }
 
 function onReadChanged(id: string, isRead: boolean): void {
@@ -236,139 +213,89 @@ const emptyText = computed(() => {
   if (mailboxFilter.value) return t('inbox.emptyMailbox')
   return t('inbox.empty')
 })
-/** Phones show either the list or one message; wider screens slide the message over the list. */
-/** New mail in the drawer (sending only); opening a message replaces it. */
-const composing = ref(false)
-void loadOutboxStatus(true)
-watch(selectedId, (id) => {
-  if (id) composing.value = false
-})
-function compose(): void {
-  if (selectedId.value) closeDetail()
-  composing.value = true
-}
-
-const showList = computed(() => !isMobile.value || (!selectedId.value && !composing.value))
 </script>
 
 <template>
-  <div class="inbox" :class="{ mobile: isMobile, personal: isPersonal() }">
-    <section v-if="showList" class="list-pane" :aria-label="t('inbox.listLabel')">
-      <div class="toolbar">
-        <NInput
-          ref="searchInput"
-          v-model:value="search"
-          class="search"
-          clearable
-          :placeholder="isMobile ? t('inbox.searchPlaceholder') : t('inbox.searchPlaceholderKey')"
-          :input-props="{ 'aria-label': t('inbox.searchPlaceholder') }"
+  <MailListLayout
+    class="inbox"
+    :class="{ personal: isPersonal() }"
+    :list-label="t('inbox.listLabel')"
+    :drawer-label="composing ? t('compose.newTitle') : t('inbox.detailLabel')"
+    :drawer-open="drawerOpen"
+    :loading="loading"
+    :loading-more="loadingMore"
+    :count="items.length"
+    :has-more="Boolean(nextCursor)"
+    :empty-text="emptyText"
+    :hint="t('inbox.shortcuts')"
+    @close-drawer="closeDrawer"
+    @load-more="loadMore"
+  >
+    <template #toolbar="{ mobile }">
+      <NInput
+        ref="searchInput"
+        v-model:value="search"
+        class="search"
+        clearable
+        :placeholder="mobile ? t('inbox.searchPlaceholder') : t('inbox.searchPlaceholderKey')"
+        :input-props="{ 'aria-label': t('inbox.searchPlaceholder') }"
+      >
+        <template #prefix><NIcon><SearchOutline /></NIcon></template>
+      </NInput>
+      <div class="segmented" role="group" :aria-label="t('inbox.filterLabel')">
+        <button
+          v-for="f in filters"
+          :key="f.key"
+          type="button"
+          :class="{ on: filter === f.key }"
+          :aria-pressed="filter === f.key"
+          @click="setFilter(f.key)"
         >
-          <template #prefix><NIcon><SearchOutline /></NIcon></template>
-        </NInput>
-        <div class="segmented" role="group" :aria-label="t('inbox.filterLabel')">
-          <button
-            v-for="f in filters"
-            :key="f.key"
-            type="button"
-            :class="{ on: filter === f.key }"
-            :aria-pressed="filter === f.key"
-            @click="setFilter(f.key)"
-          >
-            {{ f.label }}
-          </button>
-          <RouterLink v-if="canSend()" :to="{ name: 'sent' }" class="seg-link">{{ t('compose.sentTab') }}</RouterLink>
-        </div>
-        <NSelect
-          class="mailbox-filter"
-          :value="mailboxFilter ?? ''"
-          :options="mailboxOptions"
-          :aria-label="t('inbox.allMailboxes')"
-          :consistent-menu-width="false"
-          @update:value="setMailbox"
-        />
-        <NButton class="mark-all" quaternary @click="markAllRead">{{ t('inbox.markAllRead') }}</NButton>
-        <button v-if="canSend()" type="button" class="pl-btn primary" @click="compose">
-          <NIcon><CreateOutline /></NIcon>{{ t('compose.newButton') }}
+          {{ f.label }}
         </button>
+        <RouterLink v-if="canSend()" :to="{ name: 'sent' }" class="seg-link">{{ t('compose.sentTab') }}</RouterLink>
       </div>
+      <NSelect
+        class="mailbox-filter"
+        :value="mailboxFilter ?? ''"
+        :options="mailboxOptions"
+        :aria-label="t('inbox.allMailboxes')"
+        :consistent-menu-width="false"
+        @update:value="setMailbox"
+      />
+      <NButton class="mark-all" quaternary @click="markAllRead">{{ t('inbox.markAllRead') }}</NButton>
+      <button v-if="canSend()" type="button" class="pl-btn primary" @click="compose">
+        <NIcon><CreateOutline /></NIcon>{{ t('compose.newButton') }}
+      </button>
+    </template>
 
-      <NSpin :show="loading && items.length > 0" :delay="150" class="list-spin">
-        <div v-if="loading && !items.length" class="skeleton" aria-hidden="true">
-          <div v-for="i in 8" :key="i" class="skeleton-row">
-            <NSkeleton text :width="120" />
-            <NSkeleton text :width="`${40 + ((i * 13) % 35)}%`" />
-            <NSkeleton text :width="48" />
-          </div>
-        </div>
-        <template v-else-if="items.length">
-          <ul class="list">
-            <MessageRow
-              v-for="message in items"
-              :key="message.id"
-              :message="message"
-              :selected="message.id === selectedId"
-              :show-mailbox="!mailboxFilter"
-              @open="open(message)"
-              @starred-changed="onStarredChanged"
-            />
-          </ul>
-          <div v-if="nextCursor" class="more">
-            <NButton :loading="loadingMore" @click="loadMore">{{ t('common.loadMore') }}</NButton>
-          </div>
-        </template>
-        <p v-else-if="!loading" class="empty">{{ emptyText }}</p>
-      </NSpin>
-      <p v-if="!isMobile && items.length" class="keys">{{ t('inbox.shortcuts') }}</p>
-    </section>
+    <MessageRow
+      v-for="message in items"
+      :key="message.id"
+      :message="message"
+      :selected="message.id === selectedId"
+      :show-mailbox="!mailboxFilter"
+      @open="open(message.id)"
+      @starred-changed="onStarredChanged"
+    />
 
-    <Transition name="drawer">
-      <aside v-if="composing && !selectedId" class="drawer" :aria-label="t('compose.newTitle')">
-        <NButton v-if="!isMobile" class="close" quaternary circle :aria-label="t('inbox.close')" @click="composing = false">
-          <template #icon><NIcon><CloseOutline /></NIcon></template>
-        </NButton>
-        <ComposePanel @sent="composing = false" @cancel="composing = false" />
-      </aside>
-    </Transition>
-    <Transition name="drawer">
-      <aside v-if="selectedId" class="drawer" :aria-label="t('inbox.detailLabel')">
-        <NButton v-if="!isMobile" class="close" quaternary circle :aria-label="t('inbox.close')" @click="closeDetail">
-          <template #icon><NIcon><CloseOutline /></NIcon></template>
-        </NButton>
-        <MessageDetail
-          :id="selectedId"
-          :show-back="isMobile"
-          :is-starred="selectedIsStarred"
-          @back="closeDetail"
-          @deleted="onDeleted"
-          @read-changed="onReadChanged"
-          @starred-changed="onStarredChanged"
-        />
-      </aside>
-    </Transition>
-  </div>
+    <template #drawer="{ mobile }">
+      <ComposePanel v-if="composing && !selectedId" @sent="composing = false" @cancel="composing = false" />
+      <MessageDetail
+        v-else-if="selectedId"
+        :id="selectedId"
+        :show-back="mobile"
+        :is-starred="selectedIsStarred"
+        @back="closeDetail"
+        @deleted="onDeleted"
+        @read-changed="onReadChanged"
+        @starred-changed="onStarredChanged"
+      />
+    </template>
+  </MailListLayout>
 </template>
 
 <style scoped>
-.inbox {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  height: calc(100dvh - var(--pl-chrome, 120px));
-  min-height: 480px;
-}
-.list-pane {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-}
-.toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 14px;
-}
 .search {
   flex: 0 1 300px;
 }
@@ -422,99 +349,6 @@ const showList = computed(() => !isMobile.value || (!selectedId.value && !compos
 .mark-all {
   margin-left: auto;
 }
-.list-spin {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  border: 1px solid var(--pl-line);
-  border-radius: 14px;
-  background: var(--pl-surface);
-}
-.list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.skeleton-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  height: 46px;
-  padding: 0 16px 0 36px;
-  border-bottom: 1px solid var(--pl-line);
-}
-.empty {
-  margin: 0;
-  padding: 56px 24px;
-  color: var(--pl-muted);
-  text-align: center;
-  line-height: 1.7;
-}
-.more {
-  display: flex;
-  justify-content: center;
-  padding: 14px;
-}
-.keys {
-  margin: 8px 4px 0;
-  color: var(--pl-faint);
-  font-size: 0.75rem;
-}
-.drawer {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 5;
-  width: min(var(--pl-mail-width), 86%);
-  padding: 20px 28px 24px;
-  box-sizing: border-box;
-  overflow: auto;
-  border: 1px solid var(--pl-line);
-  border-radius: 16px;
-  background: var(--pl-surface);
-  box-shadow: -24px 0 48px rgb(19 22 27 / 0.12);
-}
-:root[data-theme='dark'] .drawer {
-  box-shadow: -24px 0 48px rgb(0 0 0 / 0.45);
-}
-.close {
-  position: absolute;
-  top: 18px;
-  left: 16px;
-  z-index: 1;
-}
-/* Room for the close button beside the compose title. */
-.inbox:not(.mobile) .drawer :deep(.compose > .title) {
-  padding-left: 28px;
-  line-height: 34px;
-}
-.drawer-enter-active,
-.drawer-leave-active {
-  transition: transform 0.2s ease-out, opacity 0.2s ease-out;
-}
-.drawer-enter-from,
-.drawer-leave-to {
-  transform: translateX(24px);
-  opacity: 0;
-}
-.inbox.mobile {
-  height: auto;
-  min-height: 0;
-}
-.inbox.mobile .list-spin {
-  overflow: visible;
-}
-.inbox.mobile .drawer {
-  position: static;
-  width: auto;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-}
 .inbox.mobile .search,
 .inbox.mobile .mailbox-filter {
   flex: 1 1 100%;
@@ -531,11 +365,5 @@ const showList = computed(() => !isMobile.value || (!selectedId.value && !compos
   flex-wrap: wrap;
   max-width: 100%;
   box-sizing: border-box;
-}
-@media (prefers-reduced-motion: reduce) {
-  .drawer-enter-active,
-  .drawer-leave-active {
-    transition: none;
-  }
 }
 </style>

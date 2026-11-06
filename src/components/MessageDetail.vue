@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import {
-  ArrowBackOutline,
   DocumentOutline,
   DownloadOutline,
   InformationCircleOutline,
@@ -12,7 +11,7 @@ import {
   TrashOutline,
   WarningOutline,
 } from '@vicons/ionicons5'
-import { NAlert, NButton, NIcon, NSpin, NTooltip, useDialog, useMessage } from 'naive-ui'
+import { NAlert, NButton, NIcon, NTooltip, useDialog, useMessage } from 'naive-ui'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -20,9 +19,9 @@ import type { MessageDetail } from '../../shared/api'
 import { errorCodeOf } from '@/api/client'
 import { messageApi } from '@/api/messages'
 import ComposePanel from '@/components/ComposePanel.vue'
+import MailArticle from '@/components/MailArticle.vue'
 import MailFrame from '@/components/MailFrame.vue'
 import TextBody from '@/components/TextBody.vue'
-import { formatDateTime } from '@/lib/format'
 import { prepareMailHtml } from '@/lib/mail-html'
 import { forgetOriginal, loadOriginal, saveFile, toDataUri, type OriginalMail } from '@/lib/original-mail'
 import { adjustUnread } from '@/stores/inbox'
@@ -80,7 +79,15 @@ const previews = computed(() =>
   ),
 )
 
-const initial = computed(() => (message.value?.fromName || message.value?.fromAddress || '?').trim().slice(0, 1).toUpperCase())
+const mail = computed(() =>
+  message.value
+    ? {
+        subject: message.value.subject || t('inbox.noSubject'),
+        who: message.value.fromName || message.value.fromAddress,
+        time: message.value.receivedAt,
+      }
+    : null,
+)
 /** "box+shop@example.com" → box / +shop / @example.com, so the alias part can be highlighted. */
 /**
  * Cloudflare's SPF/DKIM/DMARC verdict, shown only when it says something: DMARC pass means the
@@ -255,103 +262,94 @@ function formatSize(bytes: number): string {
 </script>
 
 <template>
-  <NSpin :show="loading" :delay="150" class="spin">
-    <article v-if="message" class="detail">
-      <div class="toolbar">
-        <NButton v-if="showBack" quaternary size="small" @click="emit('back')">
-          <template #icon><NIcon><ArrowBackOutline /></NIcon></template>
-          {{ t('inbox.back') }}
-        </NButton>
-        <span class="spacer" />
-        <NTooltip v-if="isPersonal()">
+  <MailArticle :mail="mail" :loading="loading" :failed="failed" :show-back="showBack" @back="emit('back')">
+    <template v-if="message" #actions>
+      <NTooltip v-if="isPersonal()">
+        <template #trigger>
+          <button
+            type="button"
+            class="icon-btn"
+            :class="{ starred: message.isStarred }"
+            :aria-label="t(message.isStarred ? 'inbox.unstar' : 'inbox.star')"
+            :aria-pressed="message.isStarred"
+            :disabled="starring"
+            @click="toggleStar"
+          >
+            <NIcon><Star v-if="message.isStarred" /><StarOutline v-else /></NIcon>
+          </button>
+        </template>
+        {{ t(message.isStarred ? 'inbox.unstar' : 'inbox.star') }}
+      </NTooltip>
+      <NTooltip v-if="canSend() && message.mailboxStatus === 'active'">
+        <template #trigger>
+          <button type="button" class="icon-btn" :aria-label="t('compose.reply')" :aria-pressed="replying" @click="replying = !replying">
+            <NIcon><ReturnUpBackOutline /></NIcon>
+          </button>
+        </template>
+        {{ t('compose.reply') }}
+      </NTooltip>
+      <NTooltip v-if="message.hasRaw">
+        <template #trigger>
+          <a class="icon-btn" :href="messageApi.rawUrl(message.id)" download="message.eml" :aria-label="t('inbox.downloadOriginal')">
+            <NIcon><DownloadOutline /></NIcon>
+          </a>
+        </template>
+        {{ t('inbox.downloadOriginal') }}
+      </NTooltip>
+      <NTooltip>
+        <template #trigger>
+          <button type="button" class="icon-btn" :aria-label="t('inbox.markUnread')" @click="markUnread">
+            <NIcon><MailUnreadOutline /></NIcon>
+          </button>
+        </template>
+        {{ t('inbox.markUnread') }}
+      </NTooltip>
+      <NTooltip>
+        <template #trigger>
+          <button type="button" class="icon-btn danger" :aria-label="t('inbox.delete')" @click="confirmDelete">
+            <NIcon><TrashOutline /></NIcon>
+          </button>
+        </template>
+        {{ t('inbox.delete') }}
+      </NTooltip>
+    </template>
+
+    <template v-if="message && replying" #above>
+      <ComposePanel :reply-to="message" class="reply" @sent="replying = false" @cancel="replying = false" />
+    </template>
+
+    <template v-if="message" #who>
+      <p class="from">
+        <span v-if="message.fromName" class="name">{{ message.fromName }}</span>
+        <span class="pl-mono addr">{{ message.fromAddress }}</span>
+        <NTooltip v-if="authVerdict">
           <template #trigger>
-            <button
-              type="button"
-              class="icon-btn"
-              :class="{ starred: message.isStarred }"
-              :aria-label="t(message.isStarred ? 'inbox.unstar' : 'inbox.star')"
-              :aria-pressed="message.isStarred"
-              :disabled="starring"
-              @click="toggleStar"
-            >
-              <NIcon><Star v-if="message.isStarred" /><StarOutline v-else /></NIcon>
-            </button>
+            <span class="auth" :class="authVerdict" tabindex="0">
+              <NIcon><ShieldCheckmarkOutline v-if="authVerdict === 'ok'" /><WarningOutline v-else /></NIcon>
+              {{ authVerdict === 'ok' ? t('inbox.authOk') : t('inbox.authBad') }}
+            </span>
           </template>
-          {{ t(message.isStarred ? 'inbox.unstar' : 'inbox.star') }}
+          {{ authVerdict === 'ok' ? t('inbox.authOkHint') : t('inbox.authBadHint') }}
+          <br />
+          <span class="pl-mono">{{ authDetail }}</span>
         </NTooltip>
-        <NTooltip v-if="canSend() && message.mailboxStatus === 'active'">
-          <template #trigger>
-            <button type="button" class="icon-btn" :aria-label="t('compose.reply')" :aria-pressed="replying" @click="replying = !replying">
-              <NIcon><ReturnUpBackOutline /></NIcon>
-            </button>
-          </template>
-          {{ t('compose.reply') }}
-        </NTooltip>
-        <NTooltip v-if="message.hasRaw">
-          <template #trigger>
-            <a class="icon-btn" :href="messageApi.rawUrl(message.id)" download="message.eml" :aria-label="t('inbox.downloadOriginal')">
-              <NIcon><DownloadOutline /></NIcon>
-            </a>
-          </template>
-          {{ t('inbox.downloadOriginal') }}
-        </NTooltip>
+      </p>
+      <p class="to">
+        {{ t('inbox.sentTo') }}
+        <span class="pl-mono addr">{{ toParts.base }}<mark v-if="toParts.tag" class="tag-part">{{ toParts.tag }}</mark>{{ toParts.domain }}</span>
+        <span v-if="message.mailboxNote" class="note-tag">{{ message.mailboxNote }}</span>
+        <span v-if="message.mailboxStatus === 'disabled'" class="tag">{{ t('inbox.disabledMailbox') }}</span>
+      </p>
+      <p v-if="message.envelopeFrom && message.envelopeFrom !== message.fromAddress" class="via">
+        {{ t('inbox.deliveredBy') }} <span class="pl-mono">{{ message.envelopeFrom }}</span>
         <NTooltip>
-          <template #trigger>
-            <button type="button" class="icon-btn" :aria-label="t('inbox.markUnread')" @click="markUnread">
-              <NIcon><MailUnreadOutline /></NIcon>
-            </button>
-          </template>
-          {{ t('inbox.markUnread') }}
+          <template #trigger><NIcon class="hint" :aria-label="t('inbox.deliveredByHint')"><InformationCircleOutline /></NIcon></template>
+          {{ t('inbox.deliveredByHint') }}
         </NTooltip>
-        <NTooltip>
-          <template #trigger>
-            <button type="button" class="icon-btn danger" :aria-label="t('inbox.delete')" @click="confirmDelete">
-              <NIcon><TrashOutline /></NIcon>
-            </button>
-          </template>
-          {{ t('inbox.delete') }}
-        </NTooltip>
-      </div>
+      </p>
+    </template>
 
-      <ComposePanel v-if="replying" :reply-to="message" class="reply" @sent="replying = false" @cancel="replying = false" />
-
-      <h2 class="subject">{{ message.subject || t('inbox.noSubject') }}</h2>
-
-      <div class="sender">
-        <span class="avatar" aria-hidden="true">{{ initial }}</span>
-        <div class="who">
-          <p class="from">
-            <span v-if="message.fromName" class="name">{{ message.fromName }}</span>
-            <span class="pl-mono addr">{{ message.fromAddress }}</span>
-            <NTooltip v-if="authVerdict">
-              <template #trigger>
-                <span class="auth" :class="authVerdict" tabindex="0">
-                  <NIcon><ShieldCheckmarkOutline v-if="authVerdict === 'ok'" /><WarningOutline v-else /></NIcon>
-                  {{ authVerdict === 'ok' ? t('inbox.authOk') : t('inbox.authBad') }}
-                </span>
-              </template>
-              {{ authVerdict === 'ok' ? t('inbox.authOkHint') : t('inbox.authBadHint') }}
-              <br />
-              <span class="pl-mono">{{ authDetail }}</span>
-            </NTooltip>
-          </p>
-          <p class="to">
-            {{ t('inbox.sentTo') }}
-            <span class="pl-mono addr">{{ toParts.base }}<mark v-if="toParts.tag" class="tag-part">{{ toParts.tag }}</mark>{{ toParts.domain }}</span>
-            <span v-if="message.mailboxNote" class="note-tag">{{ message.mailboxNote }}</span>
-            <span v-if="message.mailboxStatus === 'disabled'" class="tag">{{ t('inbox.disabledMailbox') }}</span>
-          </p>
-          <p v-if="message.envelopeFrom && message.envelopeFrom !== message.fromAddress" class="via">
-            {{ t('inbox.deliveredBy') }} <span class="pl-mono">{{ message.envelopeFrom }}</span>
-            <NTooltip>
-              <template #trigger><NIcon class="hint" :aria-label="t('inbox.deliveredByHint')"><InformationCircleOutline /></NIcon></template>
-              {{ t('inbox.deliveredByHint') }}
-            </NTooltip>
-          </p>
-        </div>
-        <time class="when" :datetime="new Date(message.receivedAt).toISOString()">{{ formatDateTime(message.receivedAt) }}</time>
-      </div>
-
+    <template v-if="message" #notices>
       <p v-if="isPersonal() && message.isStarred" class="starred-note">
         <NIcon aria-hidden="true"><Star /></NIcon>{{ t('inbox.starredNote') }}
       </p>
@@ -368,13 +366,13 @@ function formatSize(bytes: number): string {
           <NButton size="small" secondary :loading="originalLoading" @click="loadImages">{{ t('inbox.loadImages') }}</NButton>
         </div>
       </NAlert>
+    </template>
 
-      <div class="body">
-        <MailFrame v-if="prepared" :html="prepared.html" :allow-remote-images="allowRemoteImages" :title="message.subject || t('inbox.noSubject')" />
-        <TextBody v-else :text="textBody ?? message.snippet" />
-      </div>
+    <MailFrame v-if="prepared" :html="prepared.html" :allow-remote-images="allowRemoteImages" :title="mail?.subject ?? ''" />
+    <TextBody v-else :text="textBody ?? message?.snippet ?? ''" />
 
-      <section v-if="files.length" class="attachments" :aria-label="t('inbox.attachments')">
+    <template v-if="message && files.length" #below>
+      <section class="attachments" :aria-label="t('inbox.attachments')">
         <ul>
           <li v-for="(file, i) in files" :key="i" class="file-card">
             <img v-if="previews[i]" :src="previews[i]!" alt="" class="thumb" />
@@ -390,32 +388,11 @@ function formatSize(bytes: number): string {
         </ul>
         <p v-if="!message.hasRaw" class="note">{{ t('inbox.attachmentNotStored') }}</p>
       </section>
-    </article>
-    <p v-else-if="failed" class="failed">{{ t('inbox.loadFailed') }}</p>
-  </NSpin>
+    </template>
+  </MailArticle>
 </template>
 
 <style scoped>
-.spin,
-.spin :deep(.n-spin-content) {
-  height: 100%;
-}
-.detail {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  min-height: 100%;
-  min-width: 0;
-}
-.toolbar {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  min-height: 36px;
-}
-.spacer {
-  flex: 1;
-}
 .icon-btn {
   display: inline-flex;
   align-items: center;
@@ -450,40 +427,6 @@ function formatSize(bytes: number): string {
 .icon-btn:focus-visible {
   outline: 2px solid var(--pl-blue);
   outline-offset: -2px;
-}
-.subject {
-  margin: 0;
-  font-size: 1.375rem;
-  font-weight: 750;
-  line-height: 1.3;
-  letter-spacing: -0.01em;
-  overflow-wrap: anywhere;
-}
-.sender {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-}
-.avatar {
-  flex: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: var(--pl-ink);
-  color: var(--pl-surface);
-  font-weight: 700;
-}
-.who {
-  flex: 1;
-  min-width: 0;
-  font-size: 0.8125rem;
-}
-.who p {
-  margin: 0;
-  overflow-wrap: anywhere;
 }
 .from {
   font-size: 0.875rem;
@@ -566,26 +509,12 @@ function formatSize(bytes: number): string {
   border-radius: 14px;
   background: var(--pl-paper);
 }
-.when {
-  flex: none;
-  color: var(--pl-muted);
-  font-size: 0.8125rem;
-}
 .notice-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 8px 16px;
-}
-.body {
-  flex: 1;
-  min-height: 360px;
-  display: flex;
-  flex-direction: column;
-}
-.body > * {
-  flex: 1;
 }
 .attachments ul {
   display: grid;
@@ -642,19 +571,5 @@ function formatSize(bytes: number): string {
 }
 .note {
   margin: 6px 0 0;
-}
-.failed {
-  color: var(--pl-muted);
-  text-align: center;
-  padding: 48px 0;
-}
-@media (max-width: 600px) {
-  .sender {
-    flex-wrap: wrap;
-  }
-  .when {
-    width: 100%;
-    padding-left: 52px;
-  }
 }
 </style>

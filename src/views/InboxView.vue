@@ -467,7 +467,7 @@ const showList = computed(() => !isMobile.value || (!selectedId.value && !compos
   right: 0;
   bottom: 0;
   z-index: 5;
-  width: min(680px, 62%);
+  width: min(var(--pl-mail-width), 86%);
   padding: 20px 28px 24px;
   box-sizing: border-box;
   overflow: auto;
@@ -498,11 +498,6 @@ const showList = computed(() => !isMobile.value || (!selectedId.value && !compos
 .drawer-leave-to {
   transform: translateX(24px);
   opacity: 0;
-}
-@media (max-width: 1023px) {
-  .drawer {
-    width: min(680px, 86%);
-  }
 }
 .inbox.mobile {
   height: auto;

@@ -21,6 +21,8 @@
   --pl-font: 'Schibsted Grotesk Variable', system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
     'Microsoft YaHei', 'Noto Sans SC', sans-serif;
   --pl-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  /* A message reads at this width wherever it opens (inbox drawer, home dialog): newsletters run 600–720 px wide. */
+  --pl-mail-width: 880px;
 }
 
 :root[data-theme='dark'] {

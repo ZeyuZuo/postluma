@@ -3,13 +3,18 @@ import { expect, test, type Page } from '@playwright/test'
 
 import { base, createMailbox, deliver, E2E_DOMAIN_ID, mime, signIn, sql, uid, type Mailbox } from './helpers'
 
-/** Both switches on. The first test needs them off, and the database is shared: keep it first. */
+/** Both switches on. The first test below needs them off, so it stays first. */
 function enableSending(): void {
   sql(
     "INSERT INTO settings (key, value, updated_at) VALUES ('sending_enabled', 'true', 0) ON CONFLICT (key) DO UPDATE SET value = 'true';" +
       ` UPDATE domains SET can_send = 1 WHERE id = '${E2E_DOMAIN_ID}';`,
   )
 }
+
+// The database is shared with the other personal specs.
+test.afterAll(() => {
+  sql(`DELETE FROM settings WHERE key = 'sending_enabled'; UPDATE domains SET can_send = 0 WHERE id = '${E2E_DOMAIN_ID}';`)
+})
 
 async function send(page: Page, box: Mailbox, subject: string, to = ['friend@example.org']): Promise<void> {
   const res = await page.context().request.post('/api/outbox', {

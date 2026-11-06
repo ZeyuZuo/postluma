@@ -32,7 +32,7 @@ const showList = computed(() => !isMobile.value || !props.drawerOpen)
 </script>
 
 <template>
-  <div class="mail-page" :class="{ mobile: isMobile }">
+  <div class="mail-page" :class="{ mobile: isMobile, 'drawer-open': drawerOpen }">
     <section v-if="showList" class="list-pane" :aria-label="listLabel">
       <div class="toolbar"><slot name="toolbar" :mobile="isMobile" /></div>
 
@@ -86,6 +86,10 @@ const showList = computed(() => !isMobile.value || !props.drawerOpen)
   align-items: center;
   gap: 10px;
   margin-bottom: 14px;
+}
+/* The toolbar's last button sits behind the drawer and would show through its rounded corner. */
+.mail-page.drawer-open:not(.mobile) .toolbar {
+  clip-path: inset(-8px 18px -8px -8px);
 }
 .list-spin {
   flex: 1;

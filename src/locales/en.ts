@@ -59,7 +59,6 @@ const en: Messages = {
     copyAddress: 'Copy address',
     newRandom: 'Random address',
     customPrefix: 'Custom address',
-    copyAlias: 'Copy alias',
     latestCode: 'Latest code · click to copy',
     latestCodeRead: 'Latest code · copied',
     copyCodeLabel: 'Copy code {code}',
@@ -78,10 +77,6 @@ const en: Messages = {
     copyAddressLabel: 'Copy {address}',
     firstTitle: 'Create your first address',
     firstBody: 'Leave the prefix empty for a random address. It is copied as soon as it exists — paste it into the site you are signing up for, and its mail and codes show up here.',
-  },
-  comingSoon: {
-    title: 'This page isn’t ready yet',
-    description: 'This part of PostLuma arrives in an upcoming release.',
   },
   account: {
     passwordSection: 'Change password',
@@ -389,7 +384,6 @@ const en: Messages = {
     deleted: 'Message deleted',
     disabledMailbox: 'Disabled',
     noSubject: '(no subject)',
-    viewInbox: 'Open inbox',
     loadFailed: 'Couldn’t load this message.',
   },
   compose: {

@@ -53,7 +53,6 @@ const zhCN = {
     copyAddress: '复制地址',
     newRandom: '随机新地址',
     customPrefix: '自定义地址',
-    copyAlias: '复制别名',
     latestCode: '最新验证码 · 点击复制',
     latestCodeRead: '最新验证码 · 已复制',
     copyCodeLabel: '复制验证码 {code}',
@@ -72,10 +71,6 @@ const zhCN = {
     copyAddressLabel: '复制 {address}',
     firstTitle: '创建你的第一个地址',
     firstBody: '前缀留空会生成随机地址。创建后地址会自动复制，粘贴到要注册的网站即可，邮件和验证码会显示在这里。',
-  },
-  comingSoon: {
-    title: '这个页面还没做好',
-    description: '这部分功能会在后续版本中上线。',
   },
   account: {
     passwordSection: '修改密码',
@@ -383,7 +378,6 @@ const zhCN = {
     deleted: '邮件已删除',
     disabledMailbox: '已停用',
     noSubject: '（无主题）',
-    viewInbox: '打开收件箱',
     loadFailed: '邮件加载失败。',
   },
   compose: {

@@ -3,7 +3,7 @@ import { CreateOutline, SearchOutline } from '@vicons/ionicons5'
 import { NButton, NIcon, NInput, NSelect, useMessage } from 'naive-ui'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { RouterLink, useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 import { MARK_READ_BATCH, SEARCH_MIN_CHARS, type MessageSummary, type PublicMailbox } from '../../shared/api'
 import { errorCodeOf } from '@/api/client'
@@ -253,7 +253,6 @@ const emptyText = computed(() => {
         >
           {{ f.label }}
         </button>
-        <RouterLink v-if="canSend()" :to="{ name: 'sent' }" class="seg-link">{{ t('compose.sentTab') }}</RouterLink>
       </div>
       <NSelect
         class="mailbox-filter"
@@ -324,21 +323,6 @@ const emptyText = computed(() => {
   font-weight: 650;
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
 }
-.segmented .seg-link {
-  display: inline-flex;
-  align-items: center;
-  height: 28px;
-  padding: 0 14px;
-  border-radius: 7px;
-  color: var(--pl-muted);
-  font-size: 0.8125rem;
-  text-decoration: none;
-  white-space: nowrap;
-}
-.segmented .seg-link:hover {
-  color: var(--pl-ink);
-}
-.segmented .seg-link:focus-visible,
 .segmented button:focus-visible {
   outline: 2px solid var(--pl-blue);
   outline-offset: -2px;

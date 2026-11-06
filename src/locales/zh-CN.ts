@@ -5,6 +5,7 @@ const zhCN = {
   nav: {
     home: '首页',
     inbox: '收件箱',
+    sent: '发件箱',
     mailboxes: '地址',
     disabled: '已停用地址',
     admin: '管理',
@@ -390,7 +391,6 @@ const zhCN = {
     newTitle: '写邮件',
     replyTitle: '回复',
     reply: '回复',
-    sentTab: '已发送',
     from: '发件地址',
     to: '收件人',
     toPlaceholder: '多个地址用逗号或空格分隔，最多 {n} 个',
@@ -412,6 +412,7 @@ const zhCN = {
     quoteHeader: '{who} 写道：',
     canSendTag: '可发信',
     sentEmpty: '还没有发出的邮件。',
+    sentShortcuts: 'j / k 上下切换 · Esc 关闭',
     sendingOff: '发信功能未开启。',
     status: { sending: '发送中', sent: '已发送', failed: '发送失败' },
   },

@@ -7,6 +7,7 @@ const en: Messages = {
   nav: {
     home: 'Home',
     inbox: 'Inbox',
+    sent: 'Sent',
     mailboxes: 'Addresses',
     disabled: 'Disabled addresses',
     admin: 'Admin',
@@ -396,7 +397,6 @@ const en: Messages = {
     newTitle: 'New message',
     replyTitle: 'Reply',
     reply: 'Reply',
-    sentTab: 'Sent',
     from: 'From',
     to: 'To',
     toPlaceholder: 'Separate addresses with commas or spaces, up to {n}',
@@ -418,6 +418,7 @@ const en: Messages = {
     quoteHeader: '{who} wrote:',
     canSendTag: 'Can send',
     sentEmpty: 'Nothing sent yet.',
+    sentShortcuts: 'j / k to move · Esc to close',
     sendingOff: 'Sending is not switched on.',
     status: { sending: 'Sending', sent: 'Sent', failed: 'Failed' },
   },

@@ -8,6 +8,7 @@ import { adminApi } from '@/api/admin'
 import { errorCodeOf } from '@/api/client'
 import { adminDomainApi } from '@/api/mailboxes'
 import { useAdminSending } from '@/composables/useAdminSending'
+import { loadOutboxStatus } from '@/stores/outbox'
 
 /**
  * The service-wide sending switch (off by default), the provider's state and a test send. Only in
@@ -39,6 +40,7 @@ async function setEnabled(enabled: boolean | null): Promise<void> {
   saving.value = true
   try {
     set(await adminApi.setSending(enabled))
+    void loadOutboxStatus(true) // The navigation offers Sent as soon as sending is on.
     toast.success(t('admin.settings.saved'))
   } catch (err) {
     toast.error(t(`errors.${errorCodeOf(err)}`))

@@ -1,5 +1,7 @@
 # 部署模式实施计划
 
+> 状态：已全部完成（2026-11-02，PR #1）。进度记在 `docs/DEV_PLAN.md` 的 Phase 10。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 部署时用 `SERVICE_MODE` 选择"个人邮箱"或"临时邮箱"。个人模式只有管理员，并新增收藏和 catch-all；临时模式去掉发信。
@@ -37,9 +39,9 @@
 
 ## 开始前
 
-- [ ] 新建分支：`git switch -c feat/service-modes`（不直接提交到 main）。
-- [ ] 提交设计和计划：`git add docs/MODES_DESIGN.md docs/MODES_PLAN.md && git commit -m "docs(modes): design and implementation plan"`
-- [ ] e2e 需要浏览器：`npx playwright install chromium`
+- [x] 新建分支：`git switch -c feat/service-modes`（不直接提交到 main）。
+- [x] 提交设计和计划：`git add docs/MODES_DESIGN.md docs/MODES_PLAN.md && git commit -m "docs(modes): design and implementation plan"`
+- [x] e2e 需要浏览器：`npx playwright install chromium`
 
 ## 设计步骤与任务的对应
 
@@ -74,7 +76,7 @@
   - `AppConfig.mode: ServiceMode`
   - `src/stores/mode.ts`：`loadServiceMode(): Promise<ServiceMode>`（只请求一次并缓存；请求失败时按 `temporary`）、`isPersonal(): boolean`
 
-- [ ] **Step 1: 写失败的测试**
+- [x] **Step 1: 写失败的测试**
 
 ```ts
 // test/config.test.ts
@@ -94,15 +96,15 @@ it('public settings report the service mode', async () => {
 })
 ```
 
-- [ ] **Step 2:** 运行 `npx vitest run test/config.test.ts test/health.test.ts`。预期：4 个新测试失败。
-- [ ] **Step 3: 实现**
+- [x] **Step 2:** 运行 `npx vitest run test/config.test.ts test/health.test.ts`。预期：4 个新测试失败。
+- [x] **Step 3: 实现**
   - `config.ts`：新增 `readMode(env)`，写法参照 `readProvider`。
   - `wrangler.jsonc#vars`：加 `"SERVICE_MODE": "temporary"`，注释写明取值和设计文档的链接。然后运行 `npm run cf-typegen`。
   - `vitest.config.ts`：在 `miniflare.bindings` 里固定 `SERVICE_MODE: 'temporary'`，注释说明个人模式的测试要单独覆盖这个变量。
   - `app.ts`：`/settings/public` 返回 `mode`。
   - `router/index.ts`：`beforeEach` 一开始先 `await loadServiceMode()`。
-- [ ] **Step 4:** 运行 `npm test && npm run type-check && npm run build`。预期：全部通过。
-- [ ] **Step 5: 提交** `feat(modes): SERVICE_MODE setting, read everywhere through getConfig (no behaviour yet)`
+- [x] **Step 4:** 运行 `npm test && npm run type-check && npm run build`。预期：全部通过。
+- [x] **Step 5: 提交** `feat(modes): SERVICE_MODE setting, read everywhere through getConfig (no behaviour yet)`
 
 ### Task 2: 个人模式只允许管理员（后端）
 
@@ -120,7 +122,7 @@ it('public settings report the service mode', async () => {
   - `IngestLimits.adminOwnersOnly: boolean`
   - `findDeliveryTarget(db, recipient, opts: Pick<IngestLimits, 'adminOwnersOnly'>)`
 
-- [ ] **Step 1: 写失败的测试**（`const personal = { SERVICE_MODE: 'personal' }`）
+- [x] **Step 1: 写失败的测试**（`const personal = { SERVICE_MODE: 'personal' }`）
 
 ```ts
 it('registration is closed in personal mode, whatever the setting says', async () => {
@@ -157,15 +159,15 @@ it('storeMessage re-checks the owner role', async () => {
 
 （`api()` 参数名以 `test/helpers.ts` 实际为准；清除 cookie 的断言以 `clearSessionCookie` 的实际输出为准。）
 
-- [ ] **Step 2:** 运行 `npx vitest run test/personal-mode.test.ts`。预期：失败。
-- [ ] **Step 3: 实现**
+- [x] **Step 2:** 运行 `npx vitest run test/personal-mode.test.ts`。预期：失败。
+- [x] **Step 3: 实现**
   - `isRegistrationOpen()`：`config.mode === 'personal'` 时直接返回 `false`。
   - `requireUser`：个人模式下，非管理员按未登录处理（清 cookie，返回 401）。
   - `/login`：在状态检查之后、`prepareSession` 之前判断，个人模式下非管理员返回 403 `admin_only`，不创建会话。
   - `findDeliveryTarget` 和 `storeMessage` 的条件 INSERT 都加上 `AND (? = 0 OR u.role = 'admin')`，并同步更新 `ingest.ts` 顶部的参数编号注释。`storeMessage` 失败分支里调用 `findDeliveryTarget` 时也要传入 opts。
   - `email.ts` 把 `config.ingest` 传给 `findDeliveryTarget`。
-- [ ] **Step 4:** 运行 `npm test && npm run type-check`。预期：全部通过，旧测试不变（它们都跑临时模式）。
-- [ ] **Step 5: 提交** `feat(modes): personal mode admits administrators only`
+- [x] **Step 4:** 运行 `npm test && npm run type-check`。预期：全部通过，旧测试不变（它们都跑临时模式）。
+- [x] **Step 5: 提交** `feat(modes): personal mode admits administrators only`
 
 ### Task 3: 个人模式的地址规则（后端 + 表单和配额显示）
 
@@ -185,7 +187,7 @@ it('storeMessage re-checks the owner role', async () => {
   - `getQuota(db, userId, limits: Pick<MailboxLimits, 'defaultQuota' | 'quotaApplies'>)`
   - `updateMailbox(db, userId, id, patch, limits: Pick<MailboxLimits, 'defaultQuota' | 'quotaApplies'>)`
 
-- [ ] **Step 1: 写失败的测试**
+- [x] **Step 1: 写失败的测试**
 
 ```ts
 it('personal mode has no active quota or total cap', async () => {
@@ -212,13 +214,13 @@ it.each([['me', true, false], ['postmaster', true, false], ['a+b', false, false]
   })
 ```
 
-- [ ] **Step 2:** 运行 `npx vitest run test/mailboxes.test.ts test/personal-mode.test.ts`。预期：新测试失败。
-- [ ] **Step 3: 实现**
+- [x] **Step 2:** 运行 `npx vitest run test/mailboxes.test.ts test/personal-mode.test.ts`。预期：新测试失败。
+- [x] **Step 3: 实现**
   - `quotaApplies === false` 时，`createMailbox` 去掉 `underQuota` 和总数条件，只保留每日新建上限；`creationFailure` 也不再返回配额和总数相关的错误；`updateMailbox` 重新启用时跳过配额；`getQuota` 返回 `limit: null`。
   - 路由里设置 `quotaApplies: config.mode !== 'personal'`，并调用 `isValidLocalPart(localPart, { personal })`。
   - 前端：`NewAddressForm` 的校验传入 `isPersonal()`；`limit === null` 时 `quotaFull` 为 false，并且只显示数量。
-- [ ] **Step 4:** 运行 `npm test && npm run type-check && npm run build`。预期：全部通过。
-- [ ] **Step 5: 提交** `feat(modes): personal mode lifts address quotas and reserved names`
+- [x] **Step 4:** 运行 `npm test && npm run type-check && npm run build`。预期：全部通过。
+- [x] **Step 5: 提交** `feat(modes): personal mode lifts address quotas and reserved names`
 
 ### Task 4: 个人模式界面、e2e 跑两种模式、仓库切到 personal
 
@@ -235,15 +237,15 @@ it.each([['me', true, false], ['postmaster', true, false], ['a+b', false, false]
   - 环境变量 `POSTLUMA_E2E_MODE=personal|temporary` 决定 `vite.config.ts` 的数据目录和 `SERVICE_MODE`
   - `e2e/helpers.ts` 按当前 project 选择 base URL 和数据目录。个人模式下 `signIn(context, { admin: true })` 不走注册：用 `worker/lib/password.ts` 的 `hashPassword` 生成密码哈希，再用 SQL 插入一个管理员
 
-- [ ] **Step 1: 写失败的 e2e**（`e2e/personal.personal.spec.ts`）
+- [x] **Step 1: 写失败的 e2e**（`e2e/personal.personal.spec.ts`）
   - `login page has no register link`：`/login` 页面上没有链接到 `/register`；访问 `/register` 会跳到 `/login`。
   - `admin panel has no users tab`：管理员登录后打开 `/admin`，标签依次是 收信域名 / 系统设置 / 统计 / 操作记录，默认选中"收信域名"；系统设置里没有"开放注册"和"默认地址配额"。
   - `a non-admin sees the admin_only message`：用 SQL 插入一个普通用户；用它登录时，页面显示"这个站点是个人邮箱，只有管理员能登录"。
-- [ ] **Step 2:** 运行 `npm run test:e2e -- --project personal`。预期：失败（这时还没有 personal project，或者测试本身失败）。
-- [ ] **Step 3: 实现** 界面按设计 §4 第 8 条和 §5 #3 改（`admin_only` 的文案在 Task 2 已加好）；e2e 基础设施按上面的 Interfaces 搭。
-- [ ] **Step 4:** 运行 `npm test && npm run type-check && npm run build && npm run test:e2e`。预期：两个 project 都通过，现有的 e2e 不受影响。然后在 personal project 下截取登录页和后台的桌面、390 px 截图核对。
-- [ ] **Step 5: 提交** `feat(modes): personal mode interface; e2e runs both modes`
-- [ ] **Step 6:** 把 `wrangler.jsonc` 的 `SERVICE_MODE` 改成 `"personal"`，注释写明这是本仓库自己的部署、别人部署时可以改。运行 `npm test`，预期仍然通过，因为 vitest 固定了临时模式。提交 `chore(config): this deployment runs in personal mode`
+- [x] **Step 2:** 运行 `npm run test:e2e -- --project personal`。预期：失败（这时还没有 personal project，或者测试本身失败）。
+- [x] **Step 3: 实现** 界面按设计 §4 第 8 条和 §5 #3 改（`admin_only` 的文案在 Task 2 已加好）；e2e 基础设施按上面的 Interfaces 搭。
+- [x] **Step 4:** 运行 `npm test && npm run type-check && npm run build && npm run test:e2e`。预期：两个 project 都通过，现有的 e2e 不受影响。然后在 personal project 下截取登录页和后台的桌面、390 px 截图核对。
+- [x] **Step 5: 提交** `feat(modes): personal mode interface; e2e runs both modes`
+- [x] **Step 6:** 把 `wrangler.jsonc` 的 `SERVICE_MODE` 改成 `"personal"`，注释写明这是本仓库自己的部署、别人部署时可以改。运行 `npm test`，预期仍然通过，因为 vitest 固定了临时模式。提交 `chore(config): this deployment runs in personal mode`
 
 ### Task 5: 临时模式去掉发信
 
@@ -260,7 +262,7 @@ it.each([['me', true, false], ['postmaster', true, false], ['a+b', false, false]
 - Consumes: `AppConfig.mode`；`signIn(context, { admin: true })` 的个人模式写法（Task 4）
 - Produces: `isSendingEnabled(db, config)` 在 `temporary` 下恒为 `false`；`/api/admin/sending/*`、PATCH 域名 `canSend`、`/api/admin/users/:id/sending` 在临时模式下都返回 404
 
-- [ ] **Step 1: 写失败的测试**（`test/temporary-mode.test.ts`，使用默认的临时模式）
+- [x] **Step 1: 写失败的测试**（`test/temporary-mode.test.ts`，使用默认的临时模式）
 
 ```ts
 it('temporary mode has no sending, even with the switch on', async () => {
@@ -271,10 +273,10 @@ it('temporary mode has no sending, even with the switch on', async () => {
 })
 ```
 
-- [ ] **Step 2:** 运行 `npx vitest run test/temporary-mode.test.ts`。预期：失败。
-- [ ] **Step 3: 实现** 后端开关和三个 404。现有的发信测试全部改成用个人模式的 env，发件人改成管理员（`createUser(name, { role: 'admin' })`）。HTTP 层面需要"非管理员发件人"的用例删掉：个人模式下非管理员无法登录，临时模式下又没有发信。跨用户测试改为两个管理员互相验证。前端按 Files 列表修改。
-- [ ] **Step 4:** 运行 `npm test && npm run type-check && npm run build && npm run test:e2e`。预期：全部通过；发信的 e2e 在 personal project 下运行。
-- [ ] **Step 5: 提交** `feat(modes): temporary mode has no sending`
+- [x] **Step 2:** 运行 `npx vitest run test/temporary-mode.test.ts`。预期：失败。
+- [x] **Step 3: 实现** 后端开关和三个 404。现有的发信测试全部改成用个人模式的 env，发件人改成管理员（`createUser(name, { role: 'admin' })`）。HTTP 层面需要"非管理员发件人"的用例删掉：个人模式下非管理员无法登录，临时模式下又没有发信。跨用户测试改为两个管理员互相验证。前端按 Files 列表修改。
+- [x] **Step 4:** 运行 `npm test && npm run type-check && npm run build && npm run test:e2e`。预期：全部通过；发信的 e2e 在 personal project 下运行。
+- [x] **Step 5: 提交** `feat(modes): temporary mode has no sending`
 
 ### Task 6: 收藏（后端）
 
@@ -302,7 +304,7 @@ it('temporary mode has no sending, even with the switch on', async () => {
   - `setMessageStarred(db, userId: string, id: string, starred: boolean, maxStarred: number): Promise<void>`：消息不存在或不属于该用户时抛 404；超过上限时抛 409 `star_limit_reached`；重复收藏或重复取消都不报错
   - `listMessages` 的 opts 加 `starredOnly?: boolean`
 
-- [ ] **Step 1: 写失败的测试**
+- [x] **Step 1: 写失败的测试**
 
 ```ts
 it('stars and unstars a message', async () => {
@@ -332,13 +334,13 @@ it("deleting a user's mail removes starred mail too", async () => { /* scope 'us
 
 （除"临时模式"那条以外，以上请求都用 `SERVICE_MODE: 'personal'` 和管理员账号；跨用户测试用两个管理员。）
 
-- [ ] **Step 2:** 运行这四个测试文件。预期：失败。
-- [ ] **Step 3: 实现**
+- [x] **Step 2:** 运行这四个测试文件。预期：失败。
+- [x] **Step 3: 实现**
   - 收藏的条件 UPDATE：`... AND (SELECT COUNT(*) FROM (SELECT 1 FROM messages WHERE user_id = ?1 AND is_starred = 1 LIMIT ?3)) < ?3`。没有改动任何行时，再查一次这一行，区分 404、"本来就已收藏"和 409。
   - 路由：临时模式下，只要带了 `starred`（PATCH 的字段或列表的查询参数）就返回 404。
   - `maintenance.ts`：`olderThan` 范围加上 `AND is_starred = 0`，`user` 范围不变。
-- [ ] **Step 4:** 运行 `npm test && npm run type-check && npm run build`。预期：全部通过。
-- [ ] **Step 5: 提交** `feat(inbox): star messages to keep them past retention (personal mode)`
+- [x] **Step 4:** 运行 `npm test && npm run type-check && npm run build`。预期：全部通过。
+- [x] **Step 5: 提交** `feat(inbox): star messages to keep them past retention (personal mode)`
 
 ### Task 7: 收藏（界面）
 
@@ -364,11 +366,11 @@ it("deleting a user's mail removes starred mail too", async () => { /* scope 'us
 | `inbox.unstar` | 取消收藏 | Unstar |
 | `inbox.starredNote` | 已收藏，不会被自动清理 | Starred — kept when old mail is cleaned up |
 
-- [ ] **Step 1: 写失败的 e2e**：投递一封邮件 → 在列表行上点星标 → 切到"收藏"筛选能看到它 → 打开后能看到"已收藏，不会被自动清理" → 取消收藏 → 它从"收藏"筛选里消失。另外，390 px 宽度下收件箱没有横向滚动（写法参照 `flows.spec.ts` 里的溢出检查）。
-- [ ] **Step 2:** 运行 `npm run test:e2e -- --project personal`。预期：失败。
-- [ ] **Step 3: 实现** 按上面的要求；星标点击后乐观更新，接口失败时回滚，并按错误码提示。
-- [ ] **Step 4:** 运行 `npm test && npm run type-check && npm run build && npm run test:e2e`，并截取桌面和 390 px 截图核对。
-- [ ] **Step 5: 提交** `feat(inbox): star button, Starred filter and kept-mail note`
+- [x] **Step 1: 写失败的 e2e**：投递一封邮件 → 在列表行上点星标 → 切到"收藏"筛选能看到它 → 打开后能看到"已收藏，不会被自动清理" → 取消收藏 → 它从"收藏"筛选里消失。另外，390 px 宽度下收件箱没有横向滚动（写法参照 `flows.spec.ts` 里的溢出检查）。
+- [x] **Step 2:** 运行 `npm run test:e2e -- --project personal`。预期：失败。
+- [x] **Step 3: 实现** 按上面的要求；星标点击后乐观更新，接口失败时回滚，并按错误码提示。
+- [x] **Step 4:** 运行 `npm test && npm run type-check && npm run build && npm run test:e2e`，并截取桌面和 390 px 截图核对。
+- [x] **Step 5: 提交** `feat(inbox): star button, Starred filter and kept-mail note`
 
 ### Task 8: catch-all（后端）
 
@@ -413,7 +415,7 @@ it("deleting a user's mail removes starred mail too", async () => { /* scope 'us
 - 解析之前，先用便宜的预检查拦掉超限的情况（参照现有的 `ingestBlock`），不浪费 CPU。
 - 手动建地址的每日上限（Task 3）只统计 `auto_created = 0` 的行。
 
-- [ ] **Step 1: 写失败的测试**（`test/catch-all.test.ts`。准备：管理员 root；域名 `d.test` 的 `catch_all_user_id = root`；`const personal = { ...env, SERVICE_MODE: 'personal' }`）
+- [x] **Step 1: 写失败的测试**（`test/catch-all.test.ts`。准备：管理员 root；域名 `d.test` 的 `catch_all_user_id = root`；`const personal = { ...env, SERVICE_MODE: 'personal' }`）
 
 ```ts
 it('creates the address on first mail and delivers it', async () => {
@@ -467,10 +469,10 @@ it('catch-all limits can be overridden and reset in settings', async () => {
 // query-plans.test.ts：catch-all 查找（按 domains.domain、mailboxes.address、retired_addresses 主键）都走索引。
 ```
 
-- [ ] **Step 2:** 运行 `npx vitest run test/catch-all.test.ts test/isolation/catch-all.test.ts`。预期：失败。
-- [ ] **Step 3: 实现** 按上面的收信规则；`ingest.ts` 顶部的参数编号注释同步更新。
-- [ ] **Step 4:** 运行 `npm test && npm run type-check && npm run build`。预期：全部通过，其中 `test/email.test.ts` 不需要改。
-- [ ] **Step 5: 提交** `feat(mail): catch-all creates addresses on first mail (personal mode)`
+- [x] **Step 2:** 运行 `npx vitest run test/catch-all.test.ts test/isolation/catch-all.test.ts`。预期：失败。
+- [x] **Step 3: 实现** 按上面的收信规则；`ingest.ts` 顶部的参数编号注释同步更新。
+- [x] **Step 4:** 运行 `npm test && npm run type-check && npm run build`。预期：全部通过，其中 `test/email.test.ts` 不需要改。
+- [x] **Step 5: 提交** `feat(mail): catch-all creates addresses on first mail (personal mode)`
 
 ### Task 9: catch-all（界面）
 
@@ -499,33 +501,33 @@ it('catch-all limits can be overridden and reset in settings', async () => {
 | `admin.settings.catchAllPerAddressPerHour` | 自动建的地址每个每小时最多收几封 | Messages per auto-created address per hour |
 | `mailboxes.autoCreated` | 自动创建 | Auto-created |
 
-- [ ] **Step 1: 写失败的 e2e**：管理员在"收信域名"里打开 e2e 域名的 catch-all → 投递到 `shop-<uid>@e2e.test` → 地址页能看到这个地址，带"自动创建" → 收件箱能看到这封信。另外，390 px 宽度下后台域名页和地址页没有横向滚动。
-- [ ] **Step 2:** 运行 `npm run test:e2e -- --project personal`。预期：失败。
-- [ ] **Step 3: 实现** 按上面的要求。
-- [ ] **Step 4:** 运行 `npm test && npm run type-check && npm run build && npm run test:e2e`，并截取桌面和 390 px 截图核对。
-- [ ] **Step 5: 提交** `feat(admin): catch-all switch, limits and auto-created tag`
+- [x] **Step 1: 写失败的 e2e**：管理员在"收信域名"里打开 e2e 域名的 catch-all → 投递到 `shop-<uid>@e2e.test` → 地址页能看到这个地址，带"自动创建" → 收件箱能看到这封信。另外，390 px 宽度下后台域名页和地址页没有横向滚动。
+- [x] **Step 2:** 运行 `npm run test:e2e -- --project personal`。预期：失败。
+- [x] **Step 3: 实现** 按上面的要求。
+- [x] **Step 4:** 运行 `npm test && npm run type-check && npm run build && npm run test:e2e`，并截取桌面和 390 px 截图核对。
+- [x] **Step 5: 提交** `feat(admin): catch-all switch, limits and auto-created tag`
 
 ### Task 10: 文档
 
 **Files:**
 - Modify: `README.md`、`README.en.md`、`CLAUDE.md`、`docs/DEV_PLAN.md`、`docs/MODES_DESIGN.md`
 
-- [ ] **Step 1: README（中英文）**
+- [x] **Step 1: README（中英文）**
   - 开头改成"部署在 Cloudflare 上的邮箱：个人邮箱或临时邮箱，部署时二选一"，并附上设计 §2 的对比表。
   - 部署步骤加一步"选模式"。
   - 配置表加 `SERVICE_MODE`、`MAX_STARRED_MESSAGES`、`CATCH_ALL_MAX_PER_DAY`、`CATCH_ALL_MAX_PER_ADDRESS_PER_HOUR`。
   - "不做什么"改成：发信只在个人模式里有。
   - 补充 catch-all 的说明：Email Routing 的 catch-all 本来就要配，PostLuma 自己决定收不收。
-- [ ] **Step 2: CLAUDE.md**
+- [x] **Step 2: CLAUDE.md**
   - 架构：模式的概念，以及模式只在哪几个入口判断。
   - 收信流水线：catch-all 分支和它的几个上限。
   - 安全规则：catch-all 是"归属只来自 D1"的唯一新来源（域名的 `catch_all_user_id`）；个人模式只允许管理员；保留前缀只在个人模式的手动创建中放开。
   - `settings` 表的 key 列表。
   - 收藏和清理的关系。
   - 测试：vitest 固定临时模式；个人模式的测试覆盖 env；e2e 有两个 project。
-- [ ] **Step 3: DEV_PLAN.md** 新增 Phase 10 表格（对应 Task 1–10，标记已完成），链接到 `MODES_DESIGN.md` 和 `MODES_PLAN.md`；`MODES_DESIGN.md` 的状态改成"已实现"。
-- [ ] **Step 4:** 运行 `npm run build`。预期：通过。
-- [ ] **Step 5: 提交** `docs(modes): README, conventions and roadmap for service modes`
+- [x] **Step 3: DEV_PLAN.md** 新增 Phase 10 表格（对应 Task 1–10，标记已完成），链接到 `MODES_DESIGN.md` 和 `MODES_PLAN.md`；`MODES_DESIGN.md` 的状态改成"已实现"。
+- [x] **Step 4:** 运行 `npm run build`。预期：通过。
+- [x] **Step 5: 提交** `docs(modes): README, conventions and roadmap for service modes`
 
 ## 完成后
 

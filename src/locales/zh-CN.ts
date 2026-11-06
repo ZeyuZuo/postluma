@@ -1,6 +1,7 @@
 const zhCN = {
   app: {
     tagline: '给你和信任的人用的私人临时邮箱',
+    taglinePersonal: '你自己的邮箱，部署在 Cloudflare 上',
   },
   nav: {
     home: '首页',

@@ -2,6 +2,7 @@
 import BrandMark from '@/components/BrandMark.vue'
 import LetterShowcase from '@/components/LetterShowcase.vue'
 import PreferenceSwitches from '@/components/PreferenceSwitches.vue'
+import { isPersonal } from '@/stores/mode'
 </script>
 
 <template>
@@ -9,7 +10,7 @@ import PreferenceSwitches from '@/components/PreferenceSwitches.vue'
     <aside class="side">
       <BrandMark />
       <LetterShowcase class="side-showcase" />
-      <p class="tagline">{{ $t('app.tagline') }}</p>
+      <p class="tagline">{{ $t(isPersonal() ? 'app.taglinePersonal' : 'app.tagline') }}</p>
     </aside>
     <main class="main">
       <header class="top">

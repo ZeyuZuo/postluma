@@ -7,6 +7,7 @@ test('the login page offers no sign-up, and /register leads back to it', async (
   await page.goto('/login')
   await expect(page.getByRole('button', { name: '登录' })).toBeVisible()
   await expect(page.locator('a[href="/register"]')).toHaveCount(0)
+  await expect(page.locator('.tagline')).toHaveText('你自己的邮箱，部署在 Cloudflare 上')
   await page.goto('/register')
   await expect(page).toHaveURL(/\/login$/)
 })

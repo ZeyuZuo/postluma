@@ -3,6 +3,7 @@ import type { Messages } from './zh-CN'
 const en: Messages = {
   app: {
     tagline: 'Private disposable inboxes for you and the people you trust',
+    taglinePersonal: 'Your own mailbox, running on Cloudflare',
   },
   nav: {
     home: 'Home',

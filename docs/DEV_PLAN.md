@@ -105,7 +105,7 @@
 - [x] 定时清理（Q14，从 Phase 5 提前）：默认保留 30 天，每天分批删除过期邮件，同时清理过期会话和旧计数
 - [x] （2026-10-20，Q12 改为做）原始邮件存 R2：收信时 tee 流式写入，删除邮件 / 定时清理 / 删除用户邮件时一并删除；`GET /api/messages/:id/raw` 下载原始邮件；浏览器端解析附件下载和内嵌图片（`cid:`）；没有 R2 绑定时行为与之前一致
 
-## Phase 4 · 收件箱与邮件渲染（P0）
+## Phase 4 · 收件箱与邮件渲染（P0）✅
 
 > Phase 3 复审提前记下的注意事项：
 > - `subject`、`from_name`、`from_address`、`snippet`、附件的文件名和类型都是攻击者可控的纯文本，只能用文本插值渲染，绝不能用 `v-html`（snippet 中可能出现解码后的 `<script>` 字面量）。
@@ -120,7 +120,7 @@
 - [x] 页面可见时每 30 秒轮询 `summary`（带上已知的最新时间，无新邮件时服务端只读 1 行；每 5 分钟重算一次），有新邮件时按当前筛选条件增量拉取；侧栏未读角标（最多显示 99+）
 - [x] 安全复审加固（D1 读写额度）：`CROSS JOIN` 固定查询顺序 + 查询计划回归测试；游标改为行值比较；未读数最多统计 100；搜索至少 2 个字符、只搜最近 2000 封；“全部已读”每次最多 500 封并限频；首页验证码只看 24 小时内（migration `0005`：验证码部分索引）；禁用 `<map>`/`<area>` 并在 iframe 中加 `<base target="_blank">`
 - [x] 测试：功能 + 隔离（普通用户和 admin 都读不到别人的邮件）；生产构建下用 Chromium 实测恶意邮件：脚本、事件、`javascript:`、表单、iframe、svg 全部失效，点“加载图片”前追踪域名收不到任何请求
-- [ ] （P2）发件人认证提示：入信时记录 SPF/DKIM/DMARC 结果，在界面上提示“发件人未通过验证”。原计划的“信封发件人与 From 域名不一致”方案误报太多（经 SendGrid、SES 等代发的正规邮件都会触发），已放弃；现在只在详情里如实显示“投递来源”
+- [x] （P2）发件人认证提示：已在 8.2 完成。原计划的“信封发件人与 From 域名不一致”方案误报太多（经 SendGrid、SES 等代发的正规邮件都会触发），已放弃；详情里另外如实显示“投递来源”
 
 ## Phase 5 · 管理后台与清理（P0/P1）✅
 
@@ -201,7 +201,7 @@
 | # | 功能 | 要点 |
 |---|---|---|
 | 8.1 | 识别验证链接（魔法链接） ✅ | 与验证码同样用表驱动测试；只取关键词附近、URL 含 verify/confirm/token/magic 的 https 链接；一键打开 |
-| 8.2 | 发件人认证提示 ✅（默认关闭） | 只信任 Cloudflare 加在最上面的那一行认证结果（temp_email 的做法会被伪造的 `dkim=pass` 骗过）；需先用真实来信确认头名称和 authserv-id。已实现：只读最上面一条 `ARC-Authentication-Results` 且 authserv-id 为 `mx.cloudflare.net`，详情页显示“已验证 / 发件人可疑”。**开启前**：从站点下载一封真实来信的 .eml，确认这条头是第一条 ARC 头后，把 `wrangler.jsonc` 的 `SENDER_AUTH_HINTS` 改为 `"true"` 再部署 |
+| 8.2 | 发件人认证提示 ✅（代码默认关闭，本仓库的部署已开启，`3442230`） | 只信任 Cloudflare 加在最上面的那一行认证结果（temp_email 的做法会被伪造的 `dkim=pass` 骗过）；需先用真实来信确认头名称和 authserv-id。已实现：只读最上面一条 `ARC-Authentication-Results` 且 authserv-id 为 `mx.cloudflare.net`，详情页显示“已验证 / 发件人可疑”。**开启前**：从站点下载一封真实来信的 .eml，确认这条头是第一条 ARC 头后，把 `wrangler.jsonc` 的 `SENDER_AUTH_HINTS` 改为 `"true"` 再部署 |
 | 8.3 | 个人通知 | 每个用户自己配置 Telegram / Webhook（HMAC 签名），只推自己的邮件；在 `ctx.waitUntil` 中发送 |
 | 8.4 | 个人 API Token | 只读、可撤销、库里只存哈希；`/api/v1/*` 只认 Bearer、不认 Cookie；提供“取最新验证码”；附 Agent 用的 SKILL.md |
 | 8.5 | 域名健康检查 ✅ | 后台域名页用 DoH 检查 MX 是否指向 Cloudflare Email Routing。已实现：`GET /api/admin/domains/:id/health`（`worker/lib/dns-health.ts`，Cloudflare DoH JSON），每个域名旁显示“MX 正常 / 部分正确 / 未指向 Cloudflare / 没有 MX / 检查失败”，点击重查；Catch-all 规则需要 API Token 才能查，不做 |
@@ -218,7 +218,7 @@
 | 9.6 | 文档 ✅ |
 | 9.7 | Cloudflare 服务商（升级付费版后） |
 
-> 2026-11-02 起发信只在个人邮箱模式里有（Phase 10），按用户的“允许发信”开关已去掉。
+> 2026-11-02 起发信只在个人邮箱模式里有（Phase 10），按用户的“允许发信”开关已去掉；2026-11-06 起已发送的邮件是导航里单独的“发件箱”页面（Phase 11）。
 
 ### Phase 10 · 部署模式：个人邮箱 / 临时邮箱 ✅（设计见 [MODES_DESIGN.md](MODES_DESIGN.md)，实施计划见 [MODES_PLAN.md](MODES_PLAN.md)）
 
@@ -237,6 +237,24 @@
 | 10.9 | catch-all（界面）：域名开关、系统设置、“自动创建”标签 ✅ |
 | 10.10 | 文档 ✅ |
 
+### Phase 11 · 线上使用反馈 ✅（2026-11-06）
+
+| # | 内容 | 提交 |
+|---|---|---|
+| 11.1 | DOMPurify 升级到 3.4.17。三条公告的触发条件项目都没用到，但版本是精确锁定的，不会自动更新 | `03169ad` |
+| 11.2 | 收件箱看邮件太窄：抽屉上限 680 px，首页弹窗 880 px，固定宽度的邮件要横向拖动。两处改用同一个 `--pl-mail-width` | `2e79b43` |
+| 11.3 | 抽出收件箱和发件箱共用的部件：`MailListLayout`、`MailRow`、`MailArticle`、`useMailDrawer`，行为不变 | `6c5e843` |
+| 11.4 | 发件箱成为导航里的独立页面（开启发信后才有），复用收件箱的列表、抽屉和键盘操作。打开邮件不再从 46 px 的空框跳到全高，开合都有动画 | `13bd6cb` |
+| 11.5 | 小修：抽屉右上角漏出“写邮件”按钮（`af13226`）；个人模式的登录页标语（`62db34c`）；删除未使用的组件和文案（`4c77661`）；配置注释（`4ed9e6b`）；PRD 和计划文档的状态（`09a7a0e`、`39d3309`） | — |
+
+### 待办（2026-11-06 项目审视）
+
+- [ ] 跑完 Phase 6 的上线验证，并按 [MODES_DESIGN.md](MODES_DESIGN.md) 第 7 节确认切到个人模式后线上正常
+- [ ] 加 CI，推送时跑 `npm test`、类型检查和 e2e。现在 Workers Builds 只做类型检查和构建，测试全靠手动
+- [x] 许可证：AGPL-3.0，取舍见 [QUESTIONS.md](QUESTIONS.md) Q20
+- [ ] 升级开发工具链（wrangler、`@cloudflare/vite-plugin`、`@cloudflare/vitest-plugin`），清掉 `npm audit` 的 6 条提醒（都不进生产包）。本机 npm 指向 npmmirror，审计要加 `--registry=https://registry.npmjs.org`
+- [ ] 当正式邮箱用还缺的：备份或批量导出、两步验证、更长的保留期（按现在的额度，后台最多设 33 天）
+
 ### 待你决定
 
 - **Q16 主页面图片策略**：维持现状，还是以后由 Worker 单独提供邮件页面。
@@ -245,7 +263,7 @@
 
 - **Workers 免费版 CPU 限制（每请求 10 ms）**：已确认使用免费版，新密码的 PBKDF2 迭代次数降到 20,000（实测约 2.3 ms/次）。上线后如果出现错误 1102，继续调低；升级付费版后可调回 100,000（见 `docs/QUESTIONS.md` Q9）。
 - **注册时会暴露用户名是否已存在**（409 `username_taken`）：这是开放注册的固有代价，已有按 IP 限流和 Turnstile 防护，接受此风险。
-- **首屏体积**：主包约 468 KB（gzip 后 134 KB），主要来自 Naive UI。Phase 4 之后再按路由拆分。
+- **首屏体积**：入口加预加载的公共块约 619 KB（gzip 后 194 KB，2026-11-06 实测），主要来自 Naive UI。各页面已按路由拆分，要继续压缩得从公共块入手。
 
 ## 本期不做
 

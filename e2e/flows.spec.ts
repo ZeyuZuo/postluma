@@ -76,6 +76,32 @@ test('inbox: filters, j/k navigation and Esc', async ({ page, context }) => {
   await expect(page.locator('.row')).toContainText('482913')
 })
 
+test('a wide mail reads without sideways scrolling, in the inbox as on the home page', async ({ page, context }) => {
+  await signIn(context)
+  const box = await createMailbox(context.request)
+  // Tables shrink to the frame (`table { max-width: 100% }`); a fixed-width block, like many newsletters use, can't.
+  const html = '<div id="wide" style="width:720px">Wide newsletter body</div>'
+  await deliver(context.request, box.address, mime({ to: box.address, subject: 'Wide newsletter', html }))
+
+  const frame = page.frameLocator('iframe[title="Wide newsletter"]')
+  // Measured inside the frame: layout sizes don't change while the dialog scales in.
+  const measure = () => frame.locator('html').evaluate((el) => ({ width: el.clientWidth, sideways: el.scrollWidth - el.clientWidth }))
+
+  await page.goto('/')
+  await page.locator('section.current .mail-link').first().click()
+  await expect(frame.locator('#wide')).toBeVisible()
+  const dialog = await measure()
+  expect(dialog.sideways, 'home dialog').toBe(0)
+
+  await page.goto('/inbox')
+  await page.locator('.row').first().click()
+  await expect(frame.locator('#wide')).toBeVisible()
+  const drawer = await measure()
+  expect(drawer.sideways, `inbox drawer is ${drawer.width} px wide, the dialog ${dialog.width} px`).toBe(0)
+  // The drawer's 1 px border is all that may differ.
+  expect(Math.abs(drawer.width - dialog.width), 'same reading width').toBeLessThanOrEqual(2)
+})
+
 test('verification links: one click opens the link in a new tab and marks the mail read', async ({ page, context }) => {
   await signIn(context)
   const box = await createMailbox(context.request)

@@ -456,7 +456,7 @@ a.code-block {
 .mail-dialog {
   position: relative;
   /* A fixed size: the frame doesn't resize while the message loads mid-animation. */
-  width: min(880px, calc(100vw - 32px));
+  width: min(var(--pl-mail-width), calc(100vw - 32px));
   height: min(860px, calc(100dvh - 64px));
   padding: 20px 28px 24px;
   box-sizing: border-box;

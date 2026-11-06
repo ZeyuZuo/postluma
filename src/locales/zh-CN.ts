@@ -1,10 +1,12 @@
 const zhCN = {
   app: {
     tagline: '给你和信任的人用的私人临时邮箱',
+    taglinePersonal: '你自己的邮箱，部署在 Cloudflare 上',
   },
   nav: {
     home: '首页',
     inbox: '收件箱',
+    sent: '发件箱',
     mailboxes: '地址',
     disabled: '已停用地址',
     admin: '管理',
@@ -51,7 +53,6 @@ const zhCN = {
     copyAddress: '复制地址',
     newRandom: '随机新地址',
     customPrefix: '自定义地址',
-    copyAlias: '复制别名',
     latestCode: '最新验证码 · 点击复制',
     latestCodeRead: '最新验证码 · 已复制',
     copyCodeLabel: '复制验证码 {code}',
@@ -70,10 +71,6 @@ const zhCN = {
     copyAddressLabel: '复制 {address}',
     firstTitle: '创建你的第一个地址',
     firstBody: '前缀留空会生成随机地址。创建后地址会自动复制，粘贴到要注册的网站即可，邮件和验证码会显示在这里。',
-  },
-  comingSoon: {
-    title: '这个页面还没做好',
-    description: '这部分功能会在后续版本中上线。',
   },
   account: {
     passwordSection: '修改密码',
@@ -381,7 +378,6 @@ const zhCN = {
     deleted: '邮件已删除',
     disabledMailbox: '已停用',
     noSubject: '（无主题）',
-    viewInbox: '打开收件箱',
     loadFailed: '邮件加载失败。',
   },
   compose: {
@@ -390,7 +386,6 @@ const zhCN = {
     newTitle: '写邮件',
     replyTitle: '回复',
     reply: '回复',
-    sentTab: '已发送',
     from: '发件地址',
     to: '收件人',
     toPlaceholder: '多个地址用逗号或空格分隔，最多 {n} 个',
@@ -412,6 +407,7 @@ const zhCN = {
     quoteHeader: '{who} 写道：',
     canSendTag: '可发信',
     sentEmpty: '还没有发出的邮件。',
+    sentShortcuts: 'j / k 上下切换 · Esc 关闭',
     sendingOff: '发信功能未开启。',
     status: { sending: '发送中', sent: '已发送', failed: '发送失败' },
   },

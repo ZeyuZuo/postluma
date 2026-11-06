@@ -60,7 +60,8 @@ describe('storing originals', () => {
   it('stores mail without an original when there is no bucket, the budget is spent or R2 refuses', async () => {
     await deliver(RAW, { MAIL_BUCKET: undefined })
     await deliver(RAW, { RAW_MAIL_MAX_MB_PER_DAY: '0' })
-    await deliver(RAW, {}, RAW_BYTES.byteLength + 10) // wrong rawSize: the sized upload fails
+    // Wrong rawSize: the sized upload fails. The local R2 logs "Network connection lost" for this.
+    await deliver(RAW, {}, RAW_BYTES.byteLength + 10)
     const { results } = await env.DB.prepare('SELECT raw_r2_key FROM messages').all<{ raw_r2_key: string | null }>()
     expect(results).toEqual([{ raw_r2_key: null }, { raw_r2_key: null }, { raw_r2_key: null }])
     expect(await objects()).toEqual([])

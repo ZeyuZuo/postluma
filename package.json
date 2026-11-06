@@ -2,6 +2,7 @@
   "name": "postluma",
   "version": "0.0.0",
   "private": true,
+  "license": "AGPL-3.0-only",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -21,7 +22,7 @@
     "@fontsource-variable/schibsted-grotesk": "^5.3.0",
     "@fontsource/jetbrains-mono": "^5.3.0",
     "@vicons/ionicons5": "^0.13.0",
-    "dompurify": "3.4.16",
+    "dompurify": "3.4.17",
     "hono": "^4.13.13",
     "naive-ui": "^2.45.3",
     "postal-mime": "^4.0.11",

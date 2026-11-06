@@ -60,7 +60,7 @@ In both modes **isolation between users** comes first: each user sees only their
 **Personal mode**
 - Starring: click the star on a message to keep it — starred mail (and its R2 original) is never cleaned up automatically; the inbox has a “Starred” filter. Up to 500 per user (tunable)
 - Catch-all: switch it on for a domain under “Mail domains”, and the first mail to a new address on that domain creates it, listed under “In use” and marked “Auto-created” (only 3–32 character addresses that aren't reserved names; create `me@`, `contact@` and the like by hand); disable one you don't want and it bounces from then on. At most 10 new addresses per day and 10 messages per auto-created address per hour (both adjustable in the settings), and all auto-created addresses together use at most half of the daily intake, so spam can't crowd out real mail
-- Sending (off by default): switch it on in the settings, allow a domain under “Mail domains”, then reply or write new mail from your own addresses (from the inbox, the message view and the home page; sent mail is under “Sent” in the inbox). Plain text only, up to 5 recipients per message, 20 per day and 100 service-wide per day (all tunable); replies carry threading headers. Sent through Resend (100/day on its free plan)
+- Sending (off by default): switch it on in the settings, allow a domain under “Mail domains”, then reply or write new mail from your own addresses (from the inbox, the message view and the home page; sent mail has its own “Sent” page in the navigation). Plain text only, up to 5 recipients per message, 20 per day and 100 service-wide per day (all tunable); replies carry threading headers. Sent through Resend (100/day on its free plan)
 
 **Temporary mode**
 - Open sign-up with admin approval (sign-up can be closed); approve, reject, ban, unban — bans take effect immediately
@@ -230,3 +230,15 @@ docs/          Product requirements, roadmap, decision log (Chinese)
 - **Local queries fail with `no such table`**: after changing `database_id`, run `npm run db:migrate:local` again.
 - **Sign-in fails with error 1102 (CPU limit)**: lower `PASSWORD_PBKDF2_ITERATIONS`.
 - **Mail to an address bounces**: check that the address is in use, its owner is approved, and the domain has the catch-all rule.
+
+## License
+
+Copyright (C) 2026 Zeyu Zuo
+
+PostLuma is open source under the [GNU AGPL-3.0](LICENSE):
+
+- Anyone may use, deploy, modify and share it for free, commercially too.
+- If you distribute a modified version, it must use AGPL-3.0 as well, and whoever receives it must be able to get the complete source.
+- If you run a modified version as a website or service, you must offer its source to the people using it.
+
+It comes with no warranty. Third-party packages and fonts keep their own licenses.

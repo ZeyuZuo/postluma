@@ -4,6 +4,7 @@ import {
   FileTrayFullOutline,
   HomeOutline,
   LogOutOutline,
+  PaperPlaneOutline,
   SettingsOutline,
   ShieldCheckmarkOutline,
 } from '@vicons/ionicons5'
@@ -16,6 +17,7 @@ import BrandMark from '@/components/BrandMark.vue'
 import PreferenceSwitches from '@/components/PreferenceSwitches.vue'
 import { useIsMobile } from '@/composables/useIsMobile'
 import { inbox, startInboxPolling, stopInboxPolling } from '@/stores/inbox'
+import { canSend, loadOutboxStatus } from '@/stores/outbox'
 import { logout, session } from '@/stores/session'
 
 const { t } = useI18n()
@@ -23,7 +25,10 @@ const route = useRoute()
 const router = useRouter()
 const isMobile = useIsMobile()
 
-onMounted(startInboxPolling)
+onMounted(() => {
+  startInboxPolling()
+  void loadOutboxStatus()
+})
 onBeforeUnmount(stopInboxPolling)
 
 interface NavItem {
@@ -36,10 +41,11 @@ interface NavItem {
 
 const isAdmin = computed(() => session.user?.role === 'admin')
 
-/** Top bar on desktop, bottom tab bar on phones. Disabled addresses are a tab of "Addresses". */
+/** Top bar on desktop, bottom tab bar on phones. Disabled addresses are a tab of "Addresses"; Sent needs sending on. */
 const navItems = computed<NavItem[]>(() => [
   { name: 'home', labelKey: 'nav.home', icon: HomeOutline },
-  { name: 'inbox', labelKey: 'nav.inbox', icon: FileTrayFullOutline, also: ['sent'] },
+  { name: 'inbox', labelKey: 'nav.inbox', icon: FileTrayFullOutline },
+  ...(canSend() ? [{ name: 'sent', labelKey: 'nav.sent', icon: PaperPlaneOutline }] : []),
   { name: 'mailboxes', labelKey: 'nav.mailboxes', icon: AtOutline, also: ['mailboxes-disabled'] },
   ...(isAdmin.value ? [{ name: 'admin', labelKey: 'nav.admin', icon: ShieldCheckmarkOutline }] : []),
 ])

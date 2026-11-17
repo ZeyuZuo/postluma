@@ -150,17 +150,19 @@ Catch-all 只负责把信转给 PostLuma，收不收由 PostLuma 决定：不存
 
 ### 更新
 
-按钮复制出来的仓库不是 fork，要从这里拉取更新：
+按钮复制出来的仓库是一份独立的副本，不是 fork，不会跟着这里更新。要更新，就把这里的 main 合并进去：
 
 ```bash
 git remote add upstream https://github.com/ZeyuZuo/postluma.git
 ```
 
 ```bash
-git pull upstream main
+git pull upstream main --allow-unrelated-histories
 ```
 
-合并时保留你自己 `wrangler.jsonc` 里的 `database_id`，然后推送，Cloudflare 会自动部署，新的数据库迁移也会一起执行。
+副本和这里可能没有共同的提交历史，所以第一次合并要加这个参数。有冲突时，保留你自己 `wrangler.jsonc` 里的 `database_id` 和改过的变量，然后推送。Cloudflare 会自动部署，新的数据库迁移也会一起执行。
+
+打算一直跟着更新的话，也可以先 fork 这个仓库，再按下面的手动部署，在控制台里接入你的 fork。以后在 GitHub 上点 Sync fork 就能更新。
 
 <details>
 <summary>不用按钮，手动部署</summary>

@@ -151,17 +151,19 @@ The button deploys personal mode, where only the administrator signs in. To let 
 
 ### Updating
 
-The repository the button creates is a copy, not a fork. To update, pull from here:
+The repository the button creates is a separate copy, not a fork, so it does not follow this one. To update, merge this repository's main into it:
 
 ```bash
 git remote add upstream https://github.com/ZeyuZuo/postluma.git
 ```
 
 ```bash
-git pull upstream main
+git pull upstream main --allow-unrelated-histories
 ```
 
-Keep your own `database_id` in `wrangler.jsonc` when merging, then push. Cloudflare deploys it and applies any new database migrations.
+The copy may share no commit history with this repository, hence the flag on the first merge. If there are conflicts, keep your own `database_id` and any variables you changed in `wrangler.jsonc`, then push. Cloudflare deploys it and applies any new database migrations.
+
+If you plan to follow updates closely, you can instead fork this repository and deploy your fork by hand (below), connecting it in the dashboard. Updating is then the Sync fork button on GitHub.
 
 <details>
 <summary>Deploying by hand instead</summary>

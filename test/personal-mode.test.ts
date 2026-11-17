@@ -21,7 +21,11 @@ describe('personal mode: only administrators sign in', () => {
     const res = await api('/api/auth/register', { body: { username: 'alice', password: DEFAULT_PASSWORD }, env: personal })
     expect(res.status).toBe(403)
     expect(await json(res)).toEqual({ error: 'registration_closed' })
-    expect(await json(await api('/api/settings/public', { env: personal }))).toEqual({ registrationOpen: false, mode: 'personal' })
+    expect(await json(await api('/api/settings/public', { env: personal }))).toEqual({
+      registrationOpen: false,
+      mode: 'personal',
+      turnstileSiteKey: null,
+    })
   })
 
   it('refuses a non-admin with the right password, without a session', async () => {

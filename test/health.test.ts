@@ -21,4 +21,27 @@ describe('GET /api/settings/public', () => {
     expect(await json(await api('/api/settings/public'))).toMatchObject({ mode: 'temporary' })
     expect(await json(await api('/api/settings/public', { env: { SERVICE_MODE: 'personal' } }))).toMatchObject({ mode: 'personal' })
   })
+
+  // The sign-in pages read the Turnstile site key from here, so deployments made with the Deploy
+  // to Cloudflare button (which cannot set build variables) need no rebuild.
+  const turnstileOn = { TURNSTILE_DISABLED: 'false' }
+  const testSiteKey = '1x00000000000000000000AA'
+
+  it('publishes the Turnstile site key', async () => {
+    const res = await api('/api/settings/public', { env: { ...turnstileOn, TURNSTILE_SITE_KEY: ` ${testSiteKey} ` } })
+    expect(await json(res)).toMatchObject({ turnstileSiteKey: testSiteKey })
+  })
+
+  it('publishes no site key when Turnstile is off or the key is missing', async () => {
+    const off = await api('/api/settings/public', { env: { TURNSTILE_SITE_KEY: testSiteKey } })
+    expect(await json(off)).toMatchObject({ turnstileSiteKey: null })
+    const missing = await api('/api/settings/public', { env: turnstileOn })
+    expect(await json(missing)).toMatchObject({ turnstileSiteKey: null })
+  })
+
+  it('never publishes a value as long as a secret key', async () => {
+    // Secret keys are 35 characters: this is the secret pasted into the site key's place.
+    const res = await api('/api/settings/public', { env: { ...turnstileOn, TURNSTILE_SITE_KEY: '1x0000000000000000000000000000000AA' } })
+    expect(await json(res)).toMatchObject({ turnstileSiteKey: null })
+  })
 })

@@ -2,6 +2,24 @@ import { ApiError } from './errors'
 
 const VERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify'
 const VERIFY_TIMEOUT_MS = 5000
+/** Site keys are 24 characters and secret keys 35; same limit as vite.config.ts. */
+const MAX_SITE_KEY_LENGTH = 30
+
+/**
+ * The public site key the sign-in pages render the widget with (`/api/settings/public`), or null when
+ * Turnstile is off or no key is set. A value as long as a secret key is the secret pasted into the
+ * wrong place: it is never published, and sign-in then fails closed.
+ */
+export function turnstileSiteKey(env: Env): string | null {
+  if (env.TURNSTILE_DISABLED === 'true') return null
+  const key = (env.TURNSTILE_SITE_KEY ?? '').trim()
+  if (key === '') return null
+  if (key.length > MAX_SITE_KEY_LENGTH) {
+    console.error('TURNSTILE_SITE_KEY looks like a secret key; not publishing it (rotate the secret if it was ever deployed)')
+    return null
+  }
+  return key
+}
 
 interface SiteverifyResult {
   success?: boolean

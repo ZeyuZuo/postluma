@@ -2,7 +2,7 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 
 import { currentLocale } from '@/i18n'
-import { TURNSTILE_SITE_KEY, loadTurnstile, turnstileEnabled } from '@/lib/turnstile'
+import { loadTurnstile, turnstileEnabled, turnstileSiteKey } from '@/lib/turnstile'
 
 const props = defineProps<{ action: string }>()
 const token = defineModel<string>({ default: '' })
@@ -10,10 +10,10 @@ const el = ref<HTMLElement>()
 let widgetId: string | undefined
 
 onMounted(async () => {
-  if (!turnstileEnabled || !el.value) return
+  if (!turnstileEnabled() || !el.value) return
   const turnstile = await loadTurnstile()
   widgetId = turnstile.render(el.value, {
-    sitekey: TURNSTILE_SITE_KEY,
+    sitekey: turnstileSiteKey(),
     action: props.action,
     language: currentLocale() === 'zh-CN' ? 'zh-cn' : 'en',
     theme: 'auto',
@@ -36,7 +36,7 @@ defineExpose({
 </script>
 
 <template>
-  <div v-if="turnstileEnabled" ref="el" class="turnstile" />
+  <div v-if="turnstileEnabled()" ref="el" class="turnstile" />
 </template>
 
 <style scoped>

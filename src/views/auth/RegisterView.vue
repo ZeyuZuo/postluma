@@ -47,7 +47,7 @@ const rules = computed<FormRules>(() => ({
     validator: (_rule, value: string) => (value === form.password ? true : new Error(t('auth.passwordMismatch'))),
   },
 }))
-const canSubmit = computed(() => registrationOpen.value && (!turnstileEnabled || form.turnstileToken !== ''))
+const canSubmit = computed(() => registrationOpen.value && (!turnstileEnabled() || form.turnstileToken !== ''))
 
 async function submit(): Promise<void> {
   try {

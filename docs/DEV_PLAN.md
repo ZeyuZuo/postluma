@@ -150,8 +150,8 @@
    - Project name：`postluma`（必须与 `wrangler.jsonc#name` 一致）
    - Build command：`npm run build`
    - Deploy command：`npx wrangler d1 migrations apply DB --remote && npx wrangler deploy`
-4. 在 Settings → Variables and Secrets 中添加 Secret：`ADMIN_INITIAL_PASSWORD`、`TURNSTILE_SECRET_KEY`；添加构建变量 `VITE_TURNSTILE_SITE_KEY`。
-   - **别填反**：Site Key（24 位，公开，会打包进前端）→ 构建变量 `VITE_TURNSTILE_SITE_KEY`；Secret Key（35 位，保密）→ Worker Secret `TURNSTILE_SECRET_KEY`。填反时前端报 Turnstile 错误 `400020`，且 Secret 会被公开，必须在 Turnstile 控制台轮换。`vite.config.ts` 会拒绝构建长度像 Secret 的 Site Key。
+4. 在 Settings → Variables and Secrets 中添加 Secret：`ADMIN_INITIAL_PASSWORD`、`TURNSTILE_SITE_KEY`、`TURNSTILE_SECRET_KEY`。2026-11-16 起 Site Key 由 Worker 经 `/api/settings/public` 下发；原来的构建变量 `VITE_TURNSTILE_SITE_KEY` 仍然有效，两个都设时以 Secret 为准。
+   - **别填反**：Site Key（24 位，公开）→ `TURNSTILE_SITE_KEY`；Secret Key（35 位，保密）→ `TURNSTILE_SECRET_KEY`。填反时登录会失败；长度像 Secret 的 Site Key 不会被下发，`vite.config.ts` 也会拒绝构建这样的构建变量。万一 Secret 曾经被公开，要在 Turnstile 控制台轮换。
    - Turnstile 组件的 Hostname 里要包含实际访问的域名（如 `postluma.<子域>.workers.dev`），否则报错 `110200`。**不要**设置 `TURNSTILE_DISABLED`（只用于本地开发）；缺少 Turnstile 密钥时，登录和注册会直接拒绝。
 5. 对每个收信域名：进入 **Email → Email Routing** 启用路由，添加 **Catch-all → Send to a Worker → postluma**。
 6. 以 admin 身份首次登录后，立即在“账户设置”中修改密码，再删除 Secret `ADMIN_INITIAL_PASSWORD`（admin 账户只会创建一次，之后不再需要它）。
@@ -247,6 +247,15 @@
 | 11.4 | 发件箱成为导航里的独立页面（开启发信后才有），复用收件箱的列表、抽屉和键盘操作。打开邮件不再从 46 px 的空框跳到全高，开合都有动画 | `13bd6cb` |
 | 11.5 | 小修：抽屉右上角漏出“写邮件”按钮（`af13226`）；个人模式的登录页标语（`62db34c`）；删除未使用的组件和文案（`4c77661`）；配置注释（`4ed9e6b`）；PRD 和计划文档的状态（`09a7a0e`、`39d3309`） | — |
 
+### Phase 12 · 一键部署与 README ✅（2026-11-16，设计见 [DEPLOY_BUTTON_DESIGN.md](DEPLOY_BUTTON_DESIGN.md)，计划见 [DEPLOY_BUTTON_PLAN.md](DEPLOY_BUTTON_PLAN.md)）
+
+| # | 内容 | 提交 |
+|---|---|---|
+| 12.1 | `.dev.vars.example` 只列部署要填的三个密钥，值留空（按钮会逐项询问）；本地默认值挪到 `.dev.vars.local.example`；`package.json` 写明三个密钥的用途；删除 `.env.example` | `dd1582a` |
+| 12.2 | Turnstile Site Key 改为运行时下发（`TURNSTILE_SITE_KEY` → `/api/settings/public`），按钮流程设不了构建变量；旧的构建变量仍然有效 | `7dc9ef6` |
+| 12.3 | 个人邮箱模式下用示例数据重拍截图，中英文各一套 | `4d1d754` |
+| 12.4 | README 中英文重写，加上 Deploy to Cloudflare 按钮、部署步骤和与同类项目的区别 | `8845c65` |
+
 ### 待办（2026-11-06 项目审视）
 
 - [ ] 跑完 Phase 6 的上线验证，并按 [MODES_DESIGN.md](MODES_DESIGN.md) 第 7 节确认切到个人模式后线上正常
@@ -254,6 +263,7 @@
 - [x] 许可证：AGPL-3.0，取舍见 [QUESTIONS.md](QUESTIONS.md) Q20
 - [ ] 升级开发工具链（wrangler、`@cloudflare/vite-plugin`、`@cloudflare/vitest-plugin`），清掉 `npm audit` 的 6 条提醒（都不进生产包）。本机 npm 指向 npmmirror，审计要加 `--registry=https://registry.npmjs.org`
 - [ ] 当正式邮箱用还缺的：备份或批量导出、两步验证、更长的保留期（按现在的额度，后台最多设 33 天）
+- [ ] Phase 12 合并到 main 后，用一个测试账号实际点一次 Deploy to Cloudflare 按钮：部署页面要问三个密钥，部署出来能用 admin 登录。按钮流程本地验证不了
 
 ### 待你决定
 

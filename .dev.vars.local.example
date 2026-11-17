@@ -1,0 +1,13 @@
+# Local development: `cp .dev.vars.local.example .dev.vars`. Never deploy these values; the secrets
+# a deployment needs are listed in .dev.vars.example.
+ADMIN_INITIAL_PASSWORD=change-me-locally
+# "true" skips Turnstile. Local dev and tests only: a deployment without the secret refuses sign-in.
+TURNSTILE_DISABLED=true
+# To try the widget locally, set TURNSTILE_DISABLED=false and use Cloudflare's always-pass test keys:
+# site key 1x00000000000000000000AA, secret key 1x0000000000000000000000000000000AA.
+TURNSTILE_SITE_KEY=
+TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
+# Sending through Resend (only needed once sending is switched on). Locally, MAIL_PROVIDER=log
+# records messages instead of sending them.
+RESEND_API_KEY=
+MAIL_PROVIDER=log

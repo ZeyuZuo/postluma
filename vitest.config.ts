@@ -13,6 +13,7 @@ export default defineConfig({
           // override SERVICE_MODE per request.
           SERVICE_MODE: 'temporary',
           // Override any local .dev.vars so tests never call the real Turnstile API.
+          TURNSTILE_SITE_KEY: '',
           TURNSTILE_SECRET_KEY: '',
           TURNSTILE_DISABLED: 'true',
           // Never reach a real mail provider from tests; Resend tests mock fetch explicitly.

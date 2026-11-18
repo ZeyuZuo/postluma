@@ -74,16 +74,6 @@ Admin and interface
 - Mail is kept for 30 days by default and then deleted
 - Top navigation on desktop, a bottom tab bar on phones; light and dark themes; English and Simplified Chinese
 
-## How it differs from similar projects
-
-Two established projects do this on Cloudflare already: [cloud-mail](https://github.com/maillab/cloud-mail) and [cloudflare_temp_email](https://github.com/dreamhunter2333/cloudflare_temp_email). They do more than PostLuma, for example Telegram notifications, bulk sending, third-party sign-in and verification-code detection with Workers AI. If you need those, they are the better choice.
-
-PostLuma does less, and gets this in return:
-
-- It is built around the Free plan's limits. A message costs about 7 database writes, receiving stops at 5,000 messages a day and deletions have a daily cap too, so together they cannot use up D1's 100,000 free writes per day.
-- Isolation between users is part of every query, and every endpoint has a test where user B tries to read or change user A's data. Once an address has been handed out, it never goes to anyone else.
-- Codes and verification links are found with rules, not AI, and no other service is involved.
-
 ## How it works
 
 ```
@@ -97,6 +87,7 @@ PostLuma does less, and gets this in return:
 ```
 
 - The Free plan gives each invocation 10 ms of CPU, so only the first 256 KB of a message is parsed on arrival. The result goes to D1 for listing, search and code detection, while the full original streams to R2. Attachments are decoded by the browser when you open them, never by the Worker.
+- Database writes are budgeted the same way: a message costs about 7 writes, receiving stops at 5,000 messages a day and deletions have a daily cap too, so together they cannot use up D1's 100,000 free writes per day.
 - Every query that runs per request or per poll uses an index, and query-plan tests keep it that way. For exact quotas, check Cloudflare's current documentation.
 
 ## Deploying
@@ -104,6 +95,7 @@ PostLuma does less, and gets this in return:
 Before you start, you need:
 
 - A Cloudflare account and a domain on Cloudflare. Email Routing only works for such domains.
+- A GitHub or GitLab account to hold your copy of the code.
 - R2 switched on. R2 asks for a payment method before first use; within the free allowance (10 GB of storage a month) nothing is charged. To skip R2, see the manual deployment below.
 
 ### 1. Create a Turnstile widget
@@ -117,7 +109,7 @@ The sign-in page uses Turnstile against password guessing. In the Cloudflare das
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/ZeyuZuo/postluma)
 
-Cloudflare copies this repository to your GitHub account, creates the D1 database and the R2 bucket, and asks for three values. All three are required:
+No fork needed. Cloudflare creates a new repository in your account, copies this code into it, creates the D1 database and the R2 bucket, and asks for three values. All three are required:
 
 | Name | Value |
 |---|---|

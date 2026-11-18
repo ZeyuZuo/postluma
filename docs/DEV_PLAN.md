@@ -254,7 +254,7 @@
 | 12.1 | `.dev.vars.example` 只列部署要填的三个密钥，值留空（按钮会逐项询问）；本地默认值挪到 `.dev.vars.local.example`；`package.json` 写明三个密钥的用途；删除 `.env.example` | `dd1582a` |
 | 12.2 | Turnstile Site Key 改为运行时下发（`TURNSTILE_SITE_KEY` → `/api/settings/public`），按钮流程设不了构建变量；旧的构建变量仍然有效 | `7dc9ef6` |
 | 12.3 | 个人邮箱模式下用示例数据重拍截图，中英文各一套 | `4d1d754` |
-| 12.4 | README 中英文重写，加上 Deploy to Cloudflare 按钮、部署步骤和与同类项目的区别 | `8845c65` |
+| 12.4 | README 中英文重写，加上 Deploy to Cloudflare 按钮和部署步骤，不和其他项目比较 | `8845c65` |
 
 ### 待办（2026-11-06 项目审视）
 

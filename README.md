@@ -74,16 +74,6 @@ Cloudflare 的 Email Routing 能收信，Workers 能跑代码，D1 能存数据�
 - 邮件默认保留 30 天，到期自动删除
 - 桌面用顶部导航，手机用底部标签栏；亮色和暗色主题；简体中文和 English
 
-## 和同类项目的区别
-
-Cloudflare 上已经有两个成熟的同类项目：[cloud-mail](https://github.com/maillab/cloud-mail) 和 [cloudflare_temp_email](https://github.com/dreamhunter2333/cloudflare_temp_email)。它们的功能比 PostLuma 多，比如 Telegram 推送、群发、第三方登录、用 Workers AI 识别验证码。需要这些的话，选它们更合适。
-
-PostLuma 做的事少一些，换来这几点：
-
-- 按免费版的额度来设计。每封信大约 7 次数据库写入，收信每天最多 5000 封，删除也有每日上限，两者加起来用不完 D1 每天 10 万次的免费写入额度。
-- 用户之间的隔离写进了每一条查询，每个接口都有“用户 B 读写用户 A 的数据”的测试。一个地址分出去以后，永远不会再分给别人。
-- 验证码和验证链接按规则识别，不调用 AI，也不依赖别的服务。
-
 ## 怎么工作的
 
 ```
@@ -96,6 +86,7 @@ PostLuma 做的事少一些，换来这几点：
 ```
 
 - 免费版每次调用只有 10 ms CPU，所以收信时只解析邮件的前 256 KB，结果写进 D1，用来列表、搜索和识别验证码。完整的原件同时流式写入 R2，附件由浏览器打开时再解析，Worker 不解码附件。
+- 数据库写入也按免费额度算好了：每封信大约 7 次写入，收信每天最多 5000 封，删除也有每日上限，两者加起来用不完 D1 每天 10 万次的免费写入额度。
 - 按请求或轮询执行的查询都走索引，有查询计划的回归测试兜着。具体额度以 Cloudflare 当前的文档为准。
 
 ## 部署
@@ -103,6 +94,7 @@ PostLuma 做的事少一些，换来这几点：
 开始之前，你需要：
 
 - 一个 Cloudflare 账号，和一个托管在 Cloudflare 上的域名。Email Routing 只支持这样的域名。
+- 一个 GitHub 或 GitLab 账号，用来存放你那份代码。
 - 开通 R2。R2 要先绑定付款方式才能用，免费额度内（每月 10 GB 存储）不收费。不想开通的话，看后面的手动部署。
 
 ### 1. 创建 Turnstile 组件
@@ -116,7 +108,7 @@ PostLuma 做的事少一些，换来这几点：
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/ZeyuZuo/postluma)
 
-Cloudflare 会把这个仓库复制到你的 GitHub 账号，建好 D1 数据库和 R2 存储桶，然后请你填三个值，三个都要填：
+不用先 fork。点按钮后，Cloudflare 会在你的账号下新建一个仓库，把这里的代码复制进去，再建好 D1 数据库和 R2 存储桶，然后请你填三个值，三个都要填：
 
 | 名称 | 填什么 |
 |---|---|

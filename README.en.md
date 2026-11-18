@@ -76,14 +76,23 @@ Admin and interface
 
 ## How it works
 
-```
-                    ┌──────────────────────── one Worker ────────────────────────┐
- Browser ──HTTPS──▶ │ static assets (Vue SPA)                                     │
-                    │ fetch     → Hono API  /api/*   ──▶ D1 (users, addresses,    │
- Sender ──SMTP──▶   │ email     → ingest pipeline          mail)                  │
- Email Routing      │                                ──▶ R2 (original .eml, opt.) │
-                    │ scheduled → cleanup (retention, expired sessions)           │
-                    └─────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    subgraph worker["One Worker"]
+        assets["Static assets<br>Vue SPA"]
+        api["fetch<br>Hono API"]
+        email["email<br>ingest pipeline"]
+        scheduled["scheduled<br>clean up old mail and sessions"]
+    end
+    subgraph storage["Storage"]
+        d1[("D1<br>users, addresses, mail")]
+        r2[("R2<br>original .eml, optional")]
+    end
+    browser["Browser"] -->|HTTPS| assets
+    browser -->|"HTTPS /api/*"| api
+    sender["Sender"] -->|SMTP| routing["Email Routing"] --> email
+    cron["Cron Trigger"] --> scheduled
+    worker --> storage
 ```
 
 - The Free plan gives each invocation 10 ms of CPU, so only the first 256 KB of a message is parsed on arrival. The result goes to D1 for listing, search and code detection, while the full original streams to R2. Attachments are decoded by the browser when you open them, never by the Worker.

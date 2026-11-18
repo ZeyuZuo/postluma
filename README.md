@@ -76,13 +76,23 @@ Cloudflare 的 Email Routing 能收信，Workers 能跑代码，D1 能存数据�
 
 ## 怎么工作的
 
-```
-                    ┌─────────────────────── 一个 Worker ───────────────────────┐
- 浏览器 ──HTTPS──▶  │ 静态资源（Vue SPA）                                        │
-                    │ fetch     → Hono API  /api/*   ──▶ D1（用户、地址、邮件）  │
- 发件方 ──SMTP──▶   │ email     → 收信流水线           ──▶ R2（原始 .eml，可选） │
- Email Routing      │ scheduled → 定时清理（保留期、过期会话）                   │
-                    └────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    subgraph worker["一个 Worker"]
+        assets["静态资源<br>Vue SPA"]
+        api["fetch<br>Hono API"]
+        email["email<br>收信流水线"]
+        scheduled["scheduled<br>清理过期邮件和会话"]
+    end
+    subgraph storage["存储"]
+        d1[("D1<br>用户、地址、邮件")]
+        r2[("R2<br>原始 .eml，可选")]
+    end
+    browser["浏览器"] -->|HTTPS| assets
+    browser -->|"HTTPS /api/*"| api
+    sender["发件方"] -->|SMTP| routing["Email Routing"] --> email
+    cron["Cron 触发器"] --> scheduled
+    worker --> storage
 ```
 
 - 免费版每次调用只有 10 ms CPU，所以收信时只解析邮件的前 256 KB，结果写进 D1，用来列表、搜索和识别验证码。完整的原件同时流式写入 R2，附件由浏览器打开时再解析，Worker 不解码附件。

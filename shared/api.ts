@@ -72,6 +72,8 @@ export type ServiceMode = (typeof SERVICE_MODES)[number]
 export interface PublicSettings {
   registrationOpen: boolean
   mode: ServiceMode
+  /** Turnstile widget key for the sign-in pages; null when Turnstile is off or not configured. */
+  turnstileSiteKey: string | null
 }
 
 export const USERNAME_PATTERN = /^[a-zA-Z0-9_.-]+$/

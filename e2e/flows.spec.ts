@@ -174,6 +174,29 @@ test('attachments, inline images and long bodies come from the original in R2', 
   expect(readFileSync(await download.path()).equals(pdf)).toBe(true)
 })
 
+test('sign-in waits for Turnstile once the server publishes a site key', async ({ page }) => {
+  const signInButton = page.getByRole('button', { name: '登录' })
+  await page.goto('/login')
+  await expect(signInButton).toBeEnabled()
+  await expect(page.locator('.turnstile')).toHaveCount(0)
+
+  // A Deploy to Cloudflare deployment has no build-time key; /api/settings/public hands it out.
+  // A stand-in widget that never hands out a token.
+  await page.route('https://challenges.cloudflare.com/**', (route) =>
+    route.fulfill({
+      contentType: 'text/javascript',
+      body: 'window.turnstile = { render: () => "w", reset() {}, remove() {} }',
+    }),
+  )
+  await page.route('**/api/settings/public', async (route) => {
+    const response = await route.fetch()
+    await route.fulfill({ response, json: { ...(await response.json()), turnstileSiteKey: '1x00000000000000000000AA' } })
+  })
+  await page.reload()
+  await expect(page.locator('.turnstile')).toBeVisible()
+  await expect(signInButton).toBeDisabled()
+})
+
 test('no horizontal scrolling at phone width', async ({ page, context }) => {
   await signIn(context)
   const box = await createMailbox(context.request)

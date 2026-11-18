@@ -27,7 +27,7 @@ const rules = computed<FormRules>(() => ({
   username: { required: true, message: t('auth.required'), trigger: 'blur' },
   password: { required: true, message: t('auth.required'), trigger: 'blur' },
 }))
-const canSubmit = computed(() => !turnstileEnabled || form.turnstileToken !== '')
+const canSubmit = computed(() => !turnstileEnabled() || form.turnstileToken !== '')
 
 async function submit(): Promise<void> {
   try {

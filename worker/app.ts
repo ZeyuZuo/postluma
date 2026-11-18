@@ -7,6 +7,7 @@ import { ApiError } from './lib/errors'
 import { requireAdmin, requireUser } from './middleware/auth'
 import { checkOrigin } from './middleware/origin'
 import { getConfig } from './lib/config'
+import { turnstileSiteKey } from './lib/turnstile'
 import { isRegistrationOpen } from './repo/settings'
 import { adminDomainRoutes } from './routes/admin/domains'
 import { adminSystemRoutes } from './routes/admin/system'
@@ -59,6 +60,7 @@ app.get('/settings/public', async (c) => {
   const settings: PublicSettings = {
     registrationOpen: await isRegistrationOpen(c.env.DB, config),
     mode: config.mode,
+    turnstileSiteKey: turnstileSiteKey(c.env),
   }
   return c.json(settings)
 })

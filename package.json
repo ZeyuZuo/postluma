@@ -2,6 +2,7 @@
   "name": "postluma",
   "version": "0.0.0",
   "private": true,
+  "description": "A mailbox that runs entirely on Cloudflare Workers, Email Routing and D1. Use it as your own inbox or as a temporary-mail service for a few people.",
   "license": "AGPL-3.0-only",
   "type": "module",
   "scripts": {
@@ -13,7 +14,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "cf-typegen": "wrangler types --env-file .dev.vars.example --strict-vars=false",
+    "cf-typegen": "wrangler types --env-file .dev.vars.example --env-file .dev.vars.local.example --strict-vars=false",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
     "deploy": "npm run build && wrangler d1 migrations apply DB --remote && wrangler deploy"
@@ -48,6 +49,19 @@
   },
   "engines": {
     "node": "^22.18.0 || >=24.12.0"
+  },
+  "cloudflare": {
+    "bindings": {
+      "ADMIN_INITIAL_PASSWORD": {
+        "description": "Password for the first administrator, `admin`. After the first sign-in, change it in the app and delete this secret. 首个管理员 `admin` 的初始密码。第一次登录后在网页里改掉密码，再删除这个密钥。"
+      },
+      "TURNSTILE_SITE_KEY": {
+        "description": "Site key of a [Turnstile widget](https://dash.cloudflare.com/?to=/:account/turnstile) whose hostnames include the address you will open PostLuma at. It is public. [Turnstile 组件](https://dash.cloudflare.com/?to=/:account/turnstile)的 Site Key（公开），组件的主机名要包含 PostLuma 的访问地址。"
+      },
+      "TURNSTILE_SECRET_KEY": {
+        "description": "Secret key of the same Turnstile widget. Without it nobody can sign in. 同一个 Turnstile 组件的 Secret Key，不填就没人能登录。"
+      }
+    }
   },
   "allowScripts": {
     "workerd@1.20260815.1": true,

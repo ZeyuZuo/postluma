@@ -90,7 +90,7 @@ flowchart TB
     browser -->|HTTPS| assets
     browser -->|"HTTPS /api/*"| api
     sender -->|"Email Routing"| email
-    cron --> scheduled
+    cron -->|daily| scheduled
     worker --> d1[("D1<br>users and mail")]
     worker --> r2[("R2, optional<br>original .eml")]
 ```

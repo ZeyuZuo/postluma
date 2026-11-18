@@ -90,7 +90,7 @@ flowchart TB
     browser -->|HTTPS| assets
     browser -->|"HTTPS /api/*"| api
     sender -->|"Email Routing"| email
-    cron --> scheduled
+    cron -->|每天| scheduled
     worker --> d1[("D1<br>用户和邮件")]
     worker --> r2[("R2，可选<br>原始 .eml")]
 ```

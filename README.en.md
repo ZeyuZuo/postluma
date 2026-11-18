@@ -77,22 +77,22 @@ Admin and interface
 ## How it works
 
 ```mermaid
-flowchart LR
+flowchart TB
+    browser["Browser"]
+    sender["Sender"] -->|SMTP| routing["Email Routing"]
+    cron["Cron Trigger"]
     subgraph worker["One Worker"]
         assets["Static assets<br>Vue SPA"]
         api["fetch<br>Hono API"]
         email["email<br>ingest pipeline"]
-        scheduled["scheduled<br>clean up old mail and sessions"]
+        scheduled["scheduled<br>cleanup"]
     end
-    subgraph storage["Storage"]
-        d1[("D1<br>users, addresses, mail")]
-        r2[("R2<br>original .eml, optional")]
-    end
-    browser["Browser"] -->|HTTPS| assets
+    browser -->|HTTPS| assets
     browser -->|"HTTPS /api/*"| api
-    sender["Sender"] -->|SMTP| routing["Email Routing"] --> email
-    cron["Cron Trigger"] --> scheduled
-    worker --> storage
+    routing --> email
+    cron --> scheduled
+    worker --> d1[("D1<br>users and mail")]
+    worker --> r2[("R2, optional<br>original .eml")]
 ```
 
 - The Free plan gives each invocation 10 ms of CPU, so only the first 256 KB of a message is parsed on arrival. The result goes to D1 for listing, search and code detection, while the full original streams to R2. Attachments are decoded by the browser when you open them, never by the Worker.

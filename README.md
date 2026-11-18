@@ -79,7 +79,7 @@ Cloudflare 的 Email Routing 能收信，Workers 能跑代码，D1 能存数据�
 ```mermaid
 flowchart TB
     browser["浏览器"]
-    sender["发件方"] -->|SMTP| routing["Email Routing"]
+    sender["发件方"]
     cron["Cron 触发器"]
     subgraph worker["一个 Worker"]
         assets["静态资源<br>Vue SPA"]
@@ -89,7 +89,7 @@ flowchart TB
     end
     browser -->|HTTPS| assets
     browser -->|"HTTPS /api/*"| api
-    routing --> email
+    sender -->|"Email Routing"| email
     cron --> scheduled
     worker --> d1[("D1<br>用户和邮件")]
     worker --> r2[("R2，可选<br>原始 .eml")]

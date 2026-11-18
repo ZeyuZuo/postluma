@@ -79,7 +79,7 @@ Admin and interface
 ```mermaid
 flowchart TB
     browser["Browser"]
-    sender["Sender"] -->|SMTP| routing["Email Routing"]
+    sender["Sender"]
     cron["Cron Trigger"]
     subgraph worker["One Worker"]
         assets["Static assets<br>Vue SPA"]
@@ -89,7 +89,7 @@ flowchart TB
     end
     browser -->|HTTPS| assets
     browser -->|"HTTPS /api/*"| api
-    routing --> email
+    sender -->|"Email Routing"| email
     cron --> scheduled
     worker --> d1[("D1<br>users and mail")]
     worker --> r2[("R2, optional<br>original .eml")]
